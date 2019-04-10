@@ -1,11 +1,22 @@
+import pathlib
 from setuptools import setup
 
+# The directory containing this file
+HERE = pathlib.Path(__file__).parent
+
+# The text of the README file
+README = (HERE / "README.md").read_text()
+
+
+
 setup(name='kubemq',
-      version='1.0.1',
+      version='1.0.2',
       description='KubeMQ SDK for Python',
-      url='http://github.com/KubeMQ/Python_SDK',
+	  long_description=README,
+	  long_description_content_type="text/markdown",
+      url='https://github.com/kubemq-io/kubemq-Python',
       author='KubeMQ',
-      author_email='kubemq@kubemq.io',
+      author_email='info@kubemq.io',
       license='MIT',
       packages=[
           'kubemq',
