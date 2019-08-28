@@ -3,3 +3,5 @@
 /*.egg-info
 /venv/
 /build/
+.vscode/settings.json
+.vscode/launch.json

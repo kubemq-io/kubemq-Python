@@ -47,7 +47,10 @@ class Sender(GrpcClient):
             if result:
                 return Result(inner_result=result)
         except Exception as e:
-            logging.exception("Exception in SendEvent", e)
+            logging.exception(
+                        "Sender received 'Result': Error:'%s'" % (
+                            e
+                        ))
             raise
 
     def stream_event(self, events_stream, response_handler=None):
@@ -68,5 +71,8 @@ class Sender(GrpcClient):
                         ))
                     response_handler(result)
         except Exception as e:
-            logging.exception("Exception in StreamEvent", e)
+            logging.exception(
+                        "Sender received 'Result': Error:'%s'" % (
+                            e
+                        ))
             raise
