@@ -19,25 +19,9 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-import threading
 
+from kubemq.tools.id_generator import get_next_id
 from kubemq.grpc import Request as InnerRequest
-
-_lock = threading.Lock()
-_counter = 0
-
-
-def get_next_id():
-    """Get an unique thread safety ID between 1 to 65535"""
-    global _lock, _counter
-    with _lock:
-        if _counter == 65535:
-            _counter = 1
-        else:
-            _counter += 1
-
-        return str(_counter)
-
 
 class Request:
     """Represents the Request used in RequestReply to send information using the KubeMQ."""

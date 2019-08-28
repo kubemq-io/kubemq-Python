@@ -49,7 +49,7 @@ class Initiator(GrpcClient):
             call_future = self.get_kubemq_client().SendRequest.future(inner_request, self._metadata)
             call_future.add_done_callback(process_response)
         except Exception as e:
-            logging.exception("Grpc Exception in send_request_async.", e)
+            logging.exception("Grpc Exception in send_request_async'%s'" % (e))
             raise
 
     def send_request(self, request):
@@ -59,5 +59,5 @@ class Initiator(GrpcClient):
             inner_response = self.get_kubemq_client().SendRequest(inner_request, self._metadata)
             return Response(inner_response)
         except Exception as e:
-            logging.exception("Grpc Exception in send_request.", e)
+            logging.exception("Grpc Exception in send_request:'%s'" % (e))
             raise

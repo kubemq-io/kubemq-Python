@@ -78,11 +78,11 @@ class Responder(GrpcClient):
 
                             self.get_kubemq_client().SendResponse(response.convert(), self._metadata)
                         except Exception as e:
-                            logging.exception("An exception occurred while handling the response", e)
+                            logging.exception("An exception occurred while handling the response:'%s'" % (e))
                             raise  # re-raise the original exception, keeping full stack trace
 
                 except Exception as e:
-                    logging.exception("An exception occurred while listening for request", e)
+                    logging.exception("An exception occurred while listening for request:'%s'" % (e))
                     raise  # re-raise the original exception, keeping full stack trace
 
         thread = threading.Thread(target=subscribe_task, args=())

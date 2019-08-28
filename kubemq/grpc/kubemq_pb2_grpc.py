@@ -44,6 +44,36 @@ class kubemqStub(object):
         request_serializer=kubemq_dot_grpc_dot_kubemq__pb2.Response.SerializeToString,
         response_deserializer=kubemq_dot_grpc_dot_kubemq__pb2.Empty.FromString,
         )
+    self.SendQueueMessage = channel.unary_unary(
+        '/kubemq.kubemq/SendQueueMessage',
+        request_serializer=kubemq_dot_grpc_dot_kubemq__pb2.QueueMessage.SerializeToString,
+        response_deserializer=kubemq_dot_grpc_dot_kubemq__pb2.SendQueueMessageResult.FromString,
+        )
+    self.SendQueueMessagesBatch = channel.unary_unary(
+        '/kubemq.kubemq/SendQueueMessagesBatch',
+        request_serializer=kubemq_dot_grpc_dot_kubemq__pb2.QueueMessagesBatchRequest.SerializeToString,
+        response_deserializer=kubemq_dot_grpc_dot_kubemq__pb2.QueueMessagesBatchResponse.FromString,
+        )
+    self.ReceiveQueueMessages = channel.unary_unary(
+        '/kubemq.kubemq/ReceiveQueueMessages',
+        request_serializer=kubemq_dot_grpc_dot_kubemq__pb2.ReceiveQueueMessagesRequest.SerializeToString,
+        response_deserializer=kubemq_dot_grpc_dot_kubemq__pb2.ReceiveQueueMessagesResponse.FromString,
+        )
+    self.StreamQueueMessage = channel.stream_stream(
+        '/kubemq.kubemq/StreamQueueMessage',
+        request_serializer=kubemq_dot_grpc_dot_kubemq__pb2.StreamQueueMessagesRequest.SerializeToString,
+        response_deserializer=kubemq_dot_grpc_dot_kubemq__pb2.StreamQueueMessagesResponse.FromString,
+        )
+    self.AckAllQueueMessages = channel.unary_unary(
+        '/kubemq.kubemq/AckAllQueueMessages',
+        request_serializer=kubemq_dot_grpc_dot_kubemq__pb2.AckAllQueueMessagesRequest.SerializeToString,
+        response_deserializer=kubemq_dot_grpc_dot_kubemq__pb2.AckAllQueueMessagesResponse.FromString,
+        )
+    self.Ping = channel.unary_unary(
+        '/kubemq.kubemq/Ping',
+        request_serializer=kubemq_dot_grpc_dot_kubemq__pb2.Empty.SerializeToString,
+        response_deserializer=kubemq_dot_grpc_dot_kubemq__pb2.PingResult.FromString,
+        )
 
 
 class kubemqServicer(object):
@@ -92,11 +122,53 @@ class kubemqServicer(object):
     context.set_details('Method not implemented!')
     raise NotImplementedError('Method not implemented!')
 
+  def SendQueueMessage(self, request, context):
+    # missing associated documentation comment in .proto file
+    pass
+    context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+    context.set_details('Method not implemented!')
+    raise NotImplementedError('Method not implemented!')
+
+  def SendQueueMessagesBatch(self, request, context):
+    # missing associated documentation comment in .proto file
+    pass
+    context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+    context.set_details('Method not implemented!')
+    raise NotImplementedError('Method not implemented!')
+
+  def ReceiveQueueMessages(self, request, context):
+    # missing associated documentation comment in .proto file
+    pass
+    context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+    context.set_details('Method not implemented!')
+    raise NotImplementedError('Method not implemented!')
+
+  def StreamQueueMessage(self, request_iterator, context):
+    # missing associated documentation comment in .proto file
+    pass
+    context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+    context.set_details('Method not implemented!')
+    raise NotImplementedError('Method not implemented!')
+
+  def AckAllQueueMessages(self, request, context):
+    # missing associated documentation comment in .proto file
+    pass
+    context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+    context.set_details('Method not implemented!')
+    raise NotImplementedError('Method not implemented!')
+
+  def Ping(self, request, context):
+    # missing associated documentation comment in .proto file
+    pass
+    context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+    context.set_details('Method not implemented!')
+    raise NotImplementedError('Method not implemented!')
+
 
 def add_kubemqServicer_to_server(servicer, server):
   rpc_method_handlers = {
       'SendEvent': grpc.unary_unary_rpc_method_handler(
-          servicer.send_event,
+          servicer.SendEvent,
           request_deserializer=kubemq_dot_grpc_dot_kubemq__pb2.Event.FromString,
           response_serializer=kubemq_dot_grpc_dot_kubemq__pb2.Result.SerializeToString,
       ),
@@ -124,6 +196,36 @@ def add_kubemqServicer_to_server(servicer, server):
           servicer.SendResponse,
           request_deserializer=kubemq_dot_grpc_dot_kubemq__pb2.Response.FromString,
           response_serializer=kubemq_dot_grpc_dot_kubemq__pb2.Empty.SerializeToString,
+      ),
+      'SendQueueMessage': grpc.unary_unary_rpc_method_handler(
+          servicer.SendQueueMessage,
+          request_deserializer=kubemq_dot_grpc_dot_kubemq__pb2.QueueMessage.FromString,
+          response_serializer=kubemq_dot_grpc_dot_kubemq__pb2.SendQueueMessageResult.SerializeToString,
+      ),
+      'SendQueueMessagesBatch': grpc.unary_unary_rpc_method_handler(
+          servicer.SendQueueMessagesBatch,
+          request_deserializer=kubemq_dot_grpc_dot_kubemq__pb2.QueueMessagesBatchRequest.FromString,
+          response_serializer=kubemq_dot_grpc_dot_kubemq__pb2.QueueMessagesBatchResponse.SerializeToString,
+      ),
+      'ReceiveQueueMessages': grpc.unary_unary_rpc_method_handler(
+          servicer.ReceiveQueueMessages,
+          request_deserializer=kubemq_dot_grpc_dot_kubemq__pb2.ReceiveQueueMessagesRequest.FromString,
+          response_serializer=kubemq_dot_grpc_dot_kubemq__pb2.ReceiveQueueMessagesResponse.SerializeToString,
+      ),
+      'StreamQueueMessage': grpc.stream_stream_rpc_method_handler(
+          servicer.StreamQueueMessage,
+          request_deserializer=kubemq_dot_grpc_dot_kubemq__pb2.StreamQueueMessagesRequest.FromString,
+          response_serializer=kubemq_dot_grpc_dot_kubemq__pb2.StreamQueueMessagesResponse.SerializeToString,
+      ),
+      'AckAllQueueMessages': grpc.unary_unary_rpc_method_handler(
+          servicer.AckAllQueueMessages,
+          request_deserializer=kubemq_dot_grpc_dot_kubemq__pb2.AckAllQueueMessagesRequest.FromString,
+          response_serializer=kubemq_dot_grpc_dot_kubemq__pb2.AckAllQueueMessagesResponse.SerializeToString,
+      ),
+      'Ping': grpc.unary_unary_rpc_method_handler(
+          servicer.Ping,
+          request_deserializer=kubemq_dot_grpc_dot_kubemq__pb2.Empty.FromString,
+          response_serializer=kubemq_dot_grpc_dot_kubemq__pb2.PingResult.SerializeToString,
       ),
   }
   generic_handler = grpc.method_handlers_generic_handler(
