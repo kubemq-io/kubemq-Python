@@ -44,21 +44,11 @@ class SendBatchMessageResult:
             self.result=queue_messages_batch_response.Error
             """Error message, valid only if IsError true."""
 
-            self.expiration_at=queue_messages_batch_response.ExpirationAt
-            """"Message expiration time."""
-            self.sent_at=queue_messages_batch_response.SentAt
-            """Message sent time."""
-            self.delayed_to=queue_messages_batch_response.DelayedTo
-            """Message delayed delivery by KubeMQ."""
-
     def __repr__(self):
-        return "<SendMessageResult batch_id:%s have_errors:%s result:%s expiration_at:%s sent_at:%s delayed_to:%s>" % (
+        return "<SendMessageResult batch_id:%s have_errors:%s result:%s>" % (
             self.batch_id,
             self.have_errors,
-            self.result,
-            self.expiration_at,
-            self.sent_at,
-            self.delayed_to
+            self.result
         )
     def convert_to_send_message_result(self,results):
         """convert a few results to SendMessageResult """

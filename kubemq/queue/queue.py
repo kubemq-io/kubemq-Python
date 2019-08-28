@@ -67,7 +67,7 @@ class Queue(GrpcClient):
     def send_queue_message(self, message):
         """Publish a single message using the KubeMQ."""
         try:
-            inner_queue_message = message.convert_to_queue_message(self.queue_name)
+            inner_queue_message = message.convert_to_queue_message(self)
             inner_response = self.get_kubemq_client().SendQueueMessage(inner_queue_message)
             return SendMessageResult(inner_response)
         except Exception as e:
@@ -77,7 +77,7 @@ class Queue(GrpcClient):
     def send_queue_messages_batch(self,messages):
         try:
             id =get_next_id()
-            inner_response = self.get_kubemq_client().SendQueueMessagesBatch(convert_queue_message_batch_request(id,to_queue_messages(messages,self.queue_name)))
+            inner_response = self.get_kubemq_client().SendQueueMessagesBatch(convert_queue_message_batch_request(id,to_queue_messages(messages,self)))
             return convert_from_queue_messages_batch_response(inner_response)
         except Exception as e:
             logging.exception("Grpc Exception in send_queue_messages_batch:'%s'" % (e))

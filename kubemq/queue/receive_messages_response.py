@@ -20,7 +20,6 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 from kubemq.queue.message import Message as Message
-from kubemq.queue.message import to_kubemq_message as to_kubemq_message
 
 class ReceiveMessagesResponse:
     def __init__(self, receive_queue_messages_response=None):
@@ -30,7 +29,7 @@ class ReceiveMessagesResponse:
             self.is_peek=receive_queue_messages_response.IsPeak
             my_messages=[]
             for message in receive_queue_messages_response.Messages:
-                my_messages.append(to_kubemq_message(message))
+                my_messages.append(Message(message))
             self.messages=receive_queue_messages_response.Messages
             self.messages_expired=receive_queue_messages_response.MessagesExpired
             self.messages_received=receive_queue_messages_response.MessagesReceived

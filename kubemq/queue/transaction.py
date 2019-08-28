@@ -46,7 +46,7 @@ class Transaction(GrpcClient):
 
     async def receive(self,visibility_seconds=1,wait_time_seconds=None):
         """Receive queue messages request , waiting for response or timeout."""
-        if self.open_stream==False:
+        if self.open_stream()==False:
             return TransactionMessagesResponse(None,None,True,"active queue message wait for ack/reject")
         else:
             try:
@@ -58,7 +58,7 @@ class Transaction(GrpcClient):
     
     async def ack_message(self,msg_sequence):
         """Will mark Message dequeued on queue."""
-        if self.open_stream==False:
+        if self.open_stream()==False:
             return TransactionMessagesResponse(None,None,True,"no active message to ack, call Receive first")
         else:
             try:
@@ -70,7 +70,7 @@ class Transaction(GrpcClient):
 
     async def rejected_message(self,msg_sequence):
         """Will return message to queue."""
-        if self.open_stream==False:
+        if self.open_stream()==False:
             return TransactionMessagesResponse(None,None,True,"no active message to reject, call Receive first")
         else:
             try:
@@ -82,7 +82,7 @@ class Transaction(GrpcClient):
 
     async def extend_visibility(self,visibility_seconds):
         """Extend the visibility time for the current receive message."""
-        if self.open_stream==False:
+        if self.open_stream()==False:
             return TransactionMessagesResponse(None,None,True,"no active message to extend visibility, call Receive first")
         else:
             try:
@@ -94,7 +94,7 @@ class Transaction(GrpcClient):
 
     async def resend(self,queue_name):
         """Resend the current received message to a new channel and ack the current message."""
-        if self.open_stream==False:
+        if self.open_stream()==False:
             return TransactionMessagesResponse(None,None,True,"no active message to resend, call Receive first")
         else:
             try:
@@ -106,7 +106,7 @@ class Transaction(GrpcClient):
 
     async def modify(self,msg):
         """Resend the new message to a new channel."""
-        if self.open_stream==False:
+        if self.open_stream()==False:
             return TransactionMessagesResponse(None,None,True,"no active message to rmodifyesend, call Receive first")
         else:
             try:
@@ -122,7 +122,7 @@ class Transaction(GrpcClient):
 
     def open_stream(self):
         if self.check_call_is_in_transaction()==False:
-            _=self.get_kubemq_client().StreamQueueMessage(None,None)
+            self.stream=self.get_kubemq_client().StreamQueueMessage(None,None)
             return True
         else:
             return False
@@ -134,5 +134,8 @@ class Transaction(GrpcClient):
             if self.stream.GetStatus().StatusCode==0:
                 return False
             return False
-        except Exception:
-            return True
+        except Exception as ex:
+            if getattr(ex, 'message', repr(ex))=="Status can only be accessed once the call has finished.":
+                return True
+            else:
+                raise ex

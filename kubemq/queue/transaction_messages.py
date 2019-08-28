@@ -130,7 +130,7 @@ def create_stream_queue_message_modify_request(_queue,message):
         Channel="",
         RequestID=get_next_id(),
         StreamRequestTypeData=StreamRequestType.SendModifiedMessage,
-        VisibilitySeconds=_queue.convert_to_queue_message(message),
+        VisibilitySeconds=_queue.convert_to_queue_message(_queue),
         WaitTimeSeconds=0,
         ModifiedMessage= None,
         RefSequence=0
