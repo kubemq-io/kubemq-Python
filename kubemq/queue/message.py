@@ -29,7 +29,7 @@ class Message:
     def __init__(self, queue_message=None,message_id=None,client_id=None,queue=None,metadata=None,body=None,tags=None,attributes=None,policy=None):
         if queue_message:
             self.message_id = queue_message.MessageID
-            self.client_id= queue_message.clientID
+            self.client_id= queue_message.ClientID
             self.queue=queue_message.Channel
             self.metadata=queue_message.Metadata
             self.body=queue_message.Body
@@ -63,8 +63,8 @@ class Message:
         """Convert a Message to an QueueMessage"""
         return QueueMessage(
             MessageID=self.message_id or get_next_id(),
-            ClientID=self.client_id or "",
-            Channel=self.queue or queue,
+            ClientID=self.client_id or queue.client_id,
+            Channel=self.queue or queue.queue_name,
             Metadata=self.metadata,
             Body=self.body,
             Tags=self.tags or "",
@@ -80,13 +80,13 @@ def convert_queue_message_batch_request(uuid,messages):
 )
         
 
-def to_queue_messages(messages,channel_name=None):
+def to_queue_messages(messages,queue=None,channel_name=None):
     """Convert  messages to a single message"""
     queue_messages=[]
     for message in messages:
         if message.queue is None and channel_name is not None:
             message.queue=channel_name
-        queue_messages.append(message.convert_to_queue_message())
+        queue_messages.append(message.convert_to_queue_message(queue))
 
     return queue_messages
     
