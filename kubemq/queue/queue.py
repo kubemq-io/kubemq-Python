@@ -32,6 +32,7 @@ from kubemq.grpc import ReceiveQueueMessagesRequest
 from kubemq.grpc import AckAllQueueMessagesRequest
 from kubemq.queue.send_batch_message_result import convert_from_queue_messages_batch_response as convert_from_queue_messages_batch_response
 from kubemq.tools.id_generator import get_next_id as get_next_id
+from kubemq.queue.transaction import Transaction
 
 
 
@@ -63,10 +64,18 @@ class Queue(GrpcClient):
         self.wait_time_seconds_queue_messages=wait_time_seconds_queue_messages
 
         self.queue_name=queue_name
+        self.transaction=None
+
+    def create_transaction(self):
+        if self.transaction is None:
+            self.transaction=Transaction(self)
+        return self.transaction
 
     def send_queue_message(self, message):
         """Publish a single message using the KubeMQ."""
         try:
+            message.queue=self.queue_name
+            message.client_id=self.client_id
             inner_queue_message = message.convert_to_queue_message(self)
             inner_response = self.get_kubemq_client().SendQueueMessage(inner_queue_message)
             return SendMessageResult(inner_response)
@@ -75,6 +84,7 @@ class Queue(GrpcClient):
             raise
 
     def send_queue_messages_batch(self,messages):
+        """"Publish a group of messages to a queue"""
         try:
             id =get_next_id()
             inner_response = self.get_kubemq_client().SendQueueMessagesBatch(convert_queue_message_batch_request(id,to_queue_messages(messages,self)))
@@ -117,6 +127,7 @@ class Queue(GrpcClient):
             raise
 
     def ping(self):
+        """ping check connection to the kubemq"""
         ping_result=self.get_kubemq_client().Ping(Empty())
         logging.debug("Queue KubeMQ address:%s ping result:%s'" % (self._kubemq_address,ping_result))
         return ping_result

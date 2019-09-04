@@ -19,9 +19,16 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-from kubemq.grpc import StreamQueueMessagesRequest
+from kubemq.grpc import ReceiveMessage
+from kubemq.grpc import StreamRequestTypeUnknown
+from kubemq.grpc import RejectMessage
+from kubemq.grpc import RejectMessage
+from kubemq.grpc import ModifyVisibility
+from kubemq.grpc import AckMessage
 from kubemq.grpc import QueueMessage
-from kubemq.queue.stream_request_type import StreamRequestType
+from kubemq.grpc import StreamQueueMessagesRequest
+from kubemq.grpc import ResendMessage
+from kubemq.grpc import SendModifiedMessage
 from kubemq.tools.id_generator import get_next_id
 
 class TransactionMessagesResponse:
@@ -38,7 +45,7 @@ class TransactionMessagesResponse:
 
             self.message=stream_queue_messages_response.Message
             """"The received Message."""
-            self.stream_request_type=stream_queue_messages_response.StreamRequestType
+            self.stream_request_type=stream_queue_messages_response.StreamRequestTypeData
             """Request action: ReceiveMessage, AckMessage, RejectMessage, ModifyVisibility, ResendMessage,  SendModifiedMessage, Unknown."""
         else:
             self.message=message
@@ -59,12 +66,25 @@ class TransactionMessagesResponse:
 def create_stream_queue_message_receive_request(_queue,visibility_seconds,wait_time_seconds=None):
     """Create StreamQueueMessageRequest for receive"""
     return StreamQueueMessagesRequest(
-        ClientID=_queue.ClientID,
-        Channel=_queue.QueueName,
+        ClientID=_queue.client_id,
+        Channel=_queue.queue_name,
         RequestID=get_next_id(),
-        StreamRequestTypeData=StreamRequestType.ReceiveMessage,
+        StreamRequestTypeData=ReceiveMessage,
         VisibilitySeconds=visibility_seconds,
         WaitTimeSeconds=wait_time_seconds or _queue.WaitTimeSecondsQueueMessages,
+        ModifiedMessage= QueueMessage(),
+        RefSequence=0
+    )
+
+def create_stream_queue_message_check_call_is_in_transaction_request(_queue):
+    """Create empty for checking check_call_is_in_transaction"""
+    return StreamQueueMessagesRequest(
+        ClientID=_queue.client_id,
+        Channel=_queue.queue_name,
+        RequestID=get_next_id(),
+        StreamRequestTypeData=StreamRequestTypeUnknown,
+        VisibilitySeconds=20,
+        WaitTimeSeconds=  8,
         ModifiedMessage= QueueMessage(),
         RefSequence=0
     )
@@ -72,10 +92,10 @@ def create_stream_queue_message_receive_request(_queue,visibility_seconds,wait_t
 def create_stream_queue_message_ack_request(_queue,msg_sequence):
     """Create StreamQueueMessageRequest for ack"""
     return StreamQueueMessagesRequest(
-        ClientID=_queue.ClientID,
-        Channel=_queue.QueueName,
+        ClientID=_queue.client_id,
+        Channel=_queue.queue_name,
         RequestID=get_next_id(),
-        StreamRequestTypeData=StreamRequestType.AckMessage,
+        StreamRequestTypeData=AckMessage,
         VisibilitySeconds=0,
         WaitTimeSeconds=0,
         ModifiedMessage= None,
@@ -85,10 +105,10 @@ def create_stream_queue_message_ack_request(_queue,msg_sequence):
 def create_stream_queue_message_reject_request(_queue,msg_sequence):
     """Create StreamQueueMessageRequest for reject"""
     return StreamQueueMessagesRequest(
-        ClientID=_queue.ClientID,
-        Channel=_queue.QueueName,
+        ClientID=_queue.client_id,
+        Channel=_queue.queue_name,
         RequestID=get_next_id(),
-        StreamRequestTypeData=StreamRequestType.RejectMessage,
+        StreamRequestTypeData=RejectMessage,
         VisibilitySeconds=0,
         WaitTimeSeconds=0,
         ModifiedMessage= None,
@@ -99,10 +119,10 @@ def create_stream_queue_message_reject_request(_queue,msg_sequence):
 def create_stream_queue_message_extend_visibility_request(_queue,visibility):
     """Create StreamQueueMessageRequest for extend_visibility"""
     return StreamQueueMessagesRequest(
-        ClientID=_queue.ClientID,
-        Channel=_queue.QueueName,
+        ClientID=_queue.client_id,
+        Channel=_queue.queue_name,
         RequestID=get_next_id(),
-        StreamRequestTypeData=StreamRequestType.ModifyVisibility,
+        StreamRequestTypeData=ModifyVisibility,
         VisibilitySeconds=visibility,
         WaitTimeSeconds=0,
         ModifiedMessage= None,
@@ -112,10 +132,10 @@ def create_stream_queue_message_extend_visibility_request(_queue,visibility):
 def create_stream_queue_message_resend_request(_queue,queueName):
     """Create StreamQueueMessageRequest for resend"""
     return StreamQueueMessagesRequest(
-        ClientID=_queue.ClientID,
+        ClientID=_queue.client_id,
         Channel=queueName,
         RequestID=get_next_id(),
-        StreamRequestTypeData=StreamRequestType.ResendMessage,
+        StreamRequestTypeData=ResendMessage,
         VisibilitySeconds=0,
         WaitTimeSeconds=0,
         ModifiedMessage= None,
@@ -126,10 +146,10 @@ def create_stream_queue_message_resend_request(_queue,queueName):
 def create_stream_queue_message_modify_request(_queue,message):
     """Create StreamQueueMessageRequest for modify"""
     return StreamQueueMessagesRequest(
-        ClientID=_queue.ClientID,
+        ClientID=_queue.client_id,
         Channel="",
         RequestID=get_next_id(),
-        StreamRequestTypeData=StreamRequestType.SendModifiedMessage,
+        StreamRequestTypeData=SendModifiedMessage,
         VisibilitySeconds=_queue.convert_to_queue_message(_queue),
         WaitTimeSeconds=0,
         ModifiedMessage= None,
