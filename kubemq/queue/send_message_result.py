@@ -28,11 +28,22 @@ class SendMessageResult:
     def __init__(self, send_message_result=None):
         if send_message_result:
             self.message_id = send_message_result.MessageID
+            """Represents Unique identifier for the Request."""
+
             self.expiration_at= send_message_result.ExpirationAt
+            """Represents when the message is expired"""
+            
             self.is_error=send_message_result.IsError
+            """Returned from KubeMQ, false if no error."""
+
             self.sent_at=send_message_result.SentAt
+            """Represents when the message was sent to kubemq."""
+
             self.delayed_to=send_message_result.DelayedTo
+            """Represents if the message was delayed."""
+
             self.error=send_message_result.Error
+            """Error message, valid only if IsError true."""
 
     def __repr__(self):
         return "<Message message_id:%s expiration_at:%s is_error:%s sent_at:%s delayed_to:%s error:%s>" % (

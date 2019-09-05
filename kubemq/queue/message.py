@@ -29,22 +29,53 @@ class Message:
     def __init__(self, queue_message=None,message_id=None,client_id=None,queue=None,metadata=None,body=None,tags=None,attributes=None,policy=None):
         if queue_message:
             self.message_id = queue_message.MessageID
+            """Represents identifier to help distinguish the message"""
+
             self.client_id= queue_message.ClientID
+            """Represents identifier to help distinguish the sender"""
+
             self.queue=queue_message.Channel
+            """Represents the channel name to send the message to."""
+
             self.metadata=queue_message.Metadata
+            """Represents text as str."""
+
             self.body=queue_message.Body
+            """Represents The content of the Message."""
+
             self.tags=None
+            """Represents key value pairs that help distinguish the message"""
+
             self.attributes=queue_message.Attributes
+            """Contain general data on the message."""
+
             self.policy=queue_message.Policy
+            """A set of 'rules' that can be assign to the message"""
         else:
             self.message_id = message_id
+            """Represents identifier to help distinguish the message"""
+
             self.client_id= client_id
+            """Represents identifier to help distinguish the sender"""
+
             self.queue=queue
+            """Represents the channel name to send the message to."""
+
             self.metadata=metadata
+            """Represents text as str."""
+
             self.body=body
+            """Represents The content of the Message."""
+
             self.tags=tags
+            """Represents key value pairs that help distinguish the message"""
+
             self.attributes=attributes
+            """Contain general data on the message."""
+
             self.policy=policy
+            """A set of 'rules' that can be assign to the message"""
+            
 
     def __repr__(self):
         return "<Message message_id:%s client_id:%s queue:%s metadata:%s body:%s tags:%s attributes:%s policy:%s>" % (

@@ -41,6 +41,10 @@ class Transaction(GrpcClient):
         """
         Initializes a new Transaction using Queue .
         :param queue: should be called from queue.transaction()".
+        :param stream: If stream is active.
+        :param inner_stream: represent the stream receive from kubemq
+        :param _kubemq_address:represent kubemq connection string.
+        :param lock:inner lock for checking stream
         """
         self.queue=queue
         self.stream =False
@@ -60,7 +64,7 @@ class Transaction(GrpcClient):
                 def async_streamer():
                     yield create_stream_queue_message_receive_request(self.queue,visibility_seconds,wait_time_seconds)
                 iter=async_streamer()
-                self.inner_stream=self.get_kubemq_client().StreamQueueMessage(iter,self._metadata)
+                self.inner_stream=self.get_kubemq_client().StreamQueueMessage(iter)
                 for response in self.inner_stream:
                     return TransactionMessagesResponse(response)
             except Exception as e:
@@ -78,7 +82,7 @@ class Transaction(GrpcClient):
                 iter=async_streamer()
                 self.get_kubemq_client().StreamQueueMessage(iter,self._metadata)
                 for response in self.inner_stream:
-                    return TransactionMessagesResponse(response)
+                    print (TransactionMessagesResponse(response))
             except Exception as e:
                 logging.exception("Exception in ack:'%s'" % (e))
                 raise

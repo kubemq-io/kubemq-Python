@@ -2,8 +2,8 @@ from kubemq.queue.queue import Queue
 from kubemq.grpc import QueueMessagePolicy
 from kubemq.queue.message import Message
 import time
-queue_name="MyQueueName3232"
-client_id="ClientID32"
+queue_name="QueueNameee"
+client_id="ClientID"
 kube_add="localhost:50000"
 max_number_messages=32
 max_timeout=1
@@ -63,11 +63,12 @@ def ack_all_messages_in_a_queue():
     print("finished sending message to ack answer: {} ".format(queue_ack_response))
 
 def Transactional_Queue_Ack():
-    queue= Queue(queue_name,client_id,kube_add,max_number_messages,max_timeout)
+    queue= Queue(queue_name,client_id,kube_add)
     transaction= queue.create_transaction()
     resRec=transaction.receive(10,10)
     if resRec.is_error:
         print("Message dequeue error, error:{}".format(resRec.is_error))
+        return
     else:
         print("recieved resRec{}".format(resRec))
     resAck=transaction.ack_message(resRec.message.Attributes.Sequence)
