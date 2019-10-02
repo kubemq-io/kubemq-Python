@@ -30,19 +30,19 @@ class SendMessageResult:
             self.message_id = send_message_result.MessageID
             """Represents Unique identifier for the Request."""
 
-            self.expiration_at= send_message_result.ExpirationAt
+            self.expiration_at = send_message_result.ExpirationAt
             """Represents when the message is expired"""
-            
-            self.is_error=send_message_result.IsError
+
+            self.is_error = send_message_result.IsError
             """Returned from KubeMQ, false if no error."""
 
-            self.sent_at=send_message_result.SentAt
+            self.sent_at = send_message_result.SentAt
             """Represents when the message was sent to kubemq."""
 
-            self.delayed_to=send_message_result.DelayedTo
+            self.delayed_to = send_message_result.DelayedTo
             """Represents if the message was delayed."""
 
-            self.error=send_message_result.Error
+            self.error = send_message_result.Error
             """Error message, valid only if IsError true."""
 
     def __repr__(self):
@@ -54,9 +54,8 @@ class SendMessageResult:
             self.delayed_to,
             self.error,
         )
-        
 
-    def convert_to_SendQueueMessageResult(self):
+    def convert_to_send_queue_message_result(self):
         """Convert a SendMessageResult to an SendQueueMessageResult"""
         return SendQueueMessageResult(
             MessageID=self.message_id or get_next_id(),
@@ -66,16 +65,15 @@ class SendMessageResult:
             DelayedTo=self.delayed_to,
             Error=self.error
         )
-       
-        
+
 
 def convert_from_send_queue_message_result(notification):
     """Convert SendQueueMessageResult to SendMessageResult"""
     result = SendMessageResult()
-    result.message_id=notification.MessageID
-    result.expiration_at=notification.ExpirationAt
-    result.is_error=notification.IsError
-    result.sent_at=notification.SentAt,
-    result.delayed_to=notification.DelayedTo,
-    result.error=notification.Error,
+    result.message_id = notification.MessageID
+    result.expiration_at = notification.ExpirationAt
+    result.is_error = notification.IsError
+    result.sent_at = notification.SentAt,
+    result.delayed_to = notification.DelayedTo,
+    result.error = notification.Error,
     return result
