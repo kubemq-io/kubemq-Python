@@ -36,14 +36,14 @@ from kubemq.tools.id_generator import get_next_id as get_next_id
 from kubemq.queue.transaction import Transaction
 
 
-class Queue(GrpcClient):
-    """Represents a Queue pattern."""
+class MessageQueue(GrpcClient):
+    """Represents a MessageQueue pattern."""
 
     def __init__(self, queue_name=None, client_id=None, kubemq_address=None, max_number_of_messages=32,
                  wait_time_seconds_queue_messages=1):
 
         """
-        Initializes a new Queue using params .
+        Initializes a new MessageQueue using params .
         :param kubemq_address: The address the of the KubeMQ including the GRPC Port ,Example: "LocalHost:50000".
         :param client_id: Represents the sender ID that the messages will be send under.
         :param max_number_of_messages: Number of received messages.
@@ -126,11 +126,11 @@ class Queue(GrpcClient):
     def ping(self):
         """ping check connection to the kubemq"""
         ping_result = self.get_kubemq_client().Ping(Empty())
-        logging.debug("Queue KubeMQ address:%s ping result:%s'" % (self._kubemq_address, ping_result))
+        logging.debug("MessageQueue KubeMQ address:%s ping result:%s'" % (self._kubemq_address, ping_result))
         return ping_result
 
     def convert_to_ack_all_queue_message_request(self):
-        """create AckAllQueueMessagesRequest from Queue"""
+        """create AckAllQueueMessagesRequest from MessageQueue"""
         return AckAllQueueMessagesRequest(
             RequestID=get_next_id(),
             ClientID=self.client_id,
@@ -139,7 +139,7 @@ class Queue(GrpcClient):
         )
 
     def convert_to_receive_queue_messages_request(self, request_id, is_peek=False, max_number_of_message=None):
-        """create ReceiveQueueMessagesRequest from Queue"""
+        """create ReceiveQueueMessagesRequest from MessageQueue"""
         if max_number_of_message is None:
             max_number_of_message = self.max_number_of_messages
         return ReceiveQueueMessagesRequest(
@@ -152,7 +152,7 @@ class Queue(GrpcClient):
         )
 
     def __repr__(self):
-        return "<Queue kubemq_address:%s client_id:%s max_number_of_messages:%s wait_time_seconds_queue_messages:%s>" % (
+        return "<MessageQueue kubemq_address:%s client_id:%s max_number_of_messages:%s wait_time_seconds_queue_messages:%s>" % (
             self._kubemq_address,
             self.client_id,
             self.max_number_of_messages,

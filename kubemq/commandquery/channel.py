@@ -106,7 +106,8 @@ class Channel:
             cache_ttl=self.cache_ttl,
             request_id=request.request_id,
             body=request.body,
-            metadata=request.metadata
+            metadata=request.metadata,
+            tags = request.tags
         )
 
         if override_params:

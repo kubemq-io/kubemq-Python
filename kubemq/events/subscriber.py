@@ -40,10 +40,11 @@ class Subscriber(GrpcClient):
             while True:
                 event_receive = call.next()
 
-                logging.info("Subscriber Received Event: EventID:'%s', Channel:'%s', Body:'%s'" % (
+                logging.info("Subscriber Received Event: EventID:'%s', Channel:'%s', Body:'%s Tags:%s'" % (
                     event_receive.EventID,
                     event_receive.Channel,
-                    event_receive.Body
+                    event_receive.Body,
+                    event_receive.Tags
                 ))
 
                 handler(EventReceive(event_receive))

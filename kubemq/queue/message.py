@@ -43,7 +43,7 @@ class Message:
             self.body=queue_message.Body
             """Represents The content of the Message."""
 
-            self.tags=None
+            self.tags=tags
             """Represents key value pairs that help distinguish the message"""
 
             self.attributes=queue_message.Attributes

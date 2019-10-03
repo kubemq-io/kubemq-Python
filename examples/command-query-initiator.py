@@ -12,7 +12,11 @@ def create_low_level_request(request_type):
         channel="MyTestChannelName",
         client_id="CommandQueryInitiator",
         timeout=111000,
-        request_type=request_type
+        request_type=request_type,
+        tags=[
+            ('key', 'value'),
+            ('key2', 'value2'),
+        ]
     )
 
 
@@ -21,4 +25,5 @@ if __name__ == "__main__":
 
     initiator = Initiator()
     response = initiator.send_request(create_low_level_request(RequestType.Query))
-    initiator.send_request(create_low_level_request(RequestType.Command))
+    print("Recieved response")
+    # initiator.send_request(create_low_level_request(RequestType.Command))

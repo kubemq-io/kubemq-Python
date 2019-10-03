@@ -1,6 +1,6 @@
 import time
 
-from kubemq.queue.queue import Queue
+from kubemq.queue.message_queue import MessageQueue
 from kubemq.grpc import QueueMessagePolicy
 from kubemq.queue.message import Message
 from kubemq.queue.stream_request_type import StreamRequestType
@@ -13,14 +13,14 @@ max_timeout = 1
 
 
 def send_message_to_queue():
-    queue = Queue(queue_name, client_id, kube_add)
+    queue = MessageQueue(queue_name, client_id, kube_add)
     message = create_queue_message("someMeta", "some-simple_queue-queue-message".encode('UTF-8'))
     queue_send_response = queue.send_queue_message(message)
     print("finished sending to queue answer. message_id: %s, body: %s" % (queue_send_response.message_id, message.body))
 
 
 def send_message_to_a_queue_with_expiration():
-    queue = Queue(queue_name, client_id, kube_add, max_number_messages, max_timeout)
+    queue = MessageQueue(queue_name, client_id, kube_add, max_number_messages, max_timeout)
     policy = QueueMessagePolicy()
     policy.ExpirationSeconds = 5
     message = create_queue_message("someMeta", "some-simple_queue-queue-message".encode('UTF-8'), policy)
@@ -30,7 +30,7 @@ def send_message_to_a_queue_with_expiration():
 
 
 def send_message_to_a_queue_with_delay():
-    queue = Queue(queue_name, client_id, kube_add, max_number_messages, max_timeout)
+    queue = MessageQueue(queue_name, client_id, kube_add, max_number_messages, max_timeout)
     policy = QueueMessagePolicy()
     policy.DelaySeconds = 5
     message = create_queue_message("someMeta", "some-simple_queue-queue-message".encode('UTF-8'), policy)
@@ -40,7 +40,7 @@ def send_message_to_a_queue_with_delay():
 
 
 def send_message_to_a_queue_with_deadletter_queue():
-    queue = Queue(queue_name, client_id, kube_add, max_number_messages, max_timeout)
+    queue = MessageQueue(queue_name, client_id, kube_add, max_number_messages, max_timeout)
     policy = QueueMessagePolicy()
     policy.MaxReceiveCount = 3
     policy.MaxReceiveQueue = "DeadLetterQueue"
@@ -51,7 +51,7 @@ def send_message_to_a_queue_with_deadletter_queue():
 
 
 def send_batch_message_to_queue():
-    queue = Queue(queue_name, client_id, kube_add, max_number_messages, max_timeout)
+    queue = MessageQueue(queue_name, client_id, kube_add, max_number_messages, max_timeout)
     mm = []
     for i in range(2):
         message = create_queue_message("queueName {}".format(i), "some-simple_queue-queue-message".encode('UTF-8'))
@@ -61,25 +61,25 @@ def send_batch_message_to_queue():
 
 
 def receive_message_from_queue():
-    queue = Queue(queue_name, client_id, kube_add, max_number_messages, max_timeout)
+    queue = MessageQueue(queue_name, client_id, kube_add, max_number_messages, max_timeout)
     queue_receive_response = queue.receive_queue_messages()
     print("finished sending message to receive_queue answer: {} ".format(queue_receive_response))
 
 
 def peek_message_from_queue():
-    queue = Queue(queue_name, client_id, kube_add, max_number_messages, max_timeout)
+    queue = MessageQueue(queue_name, client_id, kube_add, max_number_messages, max_timeout)
     queue_receive_response = queue.peek_queue_message(5)
     print("finished sending message to peek answer: {} ".format(queue_receive_response))
 
 
 def ack_all_messages_in_a_queue():
-    queue = Queue(queue_name, client_id, kube_add, max_number_messages, max_timeout)
+    queue = MessageQueue(queue_name, client_id, kube_add, max_number_messages, max_timeout)
     queue_ack_response = queue.ack_all_queue_messages()
     print("finished sending message to ack answer: {} ".format(queue_ack_response))
 
 
 def transactional_queue_ack():
-    queue = Queue(queue_name, client_id, kube_add)
+    queue = MessageQueue(queue_name, client_id, kube_add)
     transaction = queue.create_transaction()
     res_rec = transaction.receive(10, 10)
 
@@ -95,13 +95,13 @@ def transactional_queue_ack():
 
     print("Received message of type: %s" % StreamRequestType(res_ack.stream_request_type).name)
 
-    time.sleep(0.1)
+    time.sleep(1.0)
 
-    res2 = transaction.receive(10, 1)
-    if res2.is_error:
-        raise Exception("Message dequeue error, error: %s" % res2.message)
+    # res2 = transaction.receive(10, 1)
+    # if res2.is_error:
+    #     raise Exception("Message dequeue error, error: %s" % res2.message)
 
-    print("Received message id: %s, body: %s" % (res2.message.MessageID, res2.message.Body))
+    # print("Received message id: %s, body: %s" % (res2.message.MessageID, res2.message.Body))
 
     print("bye")
 
@@ -122,12 +122,12 @@ def create_queue_message(meta_data, body, policy=None):
 if __name__ == "__main__":
     print("Test Started")
     send_message_to_queue()
-    # send_message_to_a_queue_with_delay()
-    # send_message_to_a_queue_with_deadletter_queue()
-    # send_batch_message_to_queue()
-    # receive_message_from_queue()
-    # send_message_to_queue()
-    # peek_message_from_queue()
-    # send_message_to_queue()
-    # ack_all_messages_in_a_queue()
+    send_message_to_a_queue_with_delay()
+    send_message_to_a_queue_with_deadletter_queue()
+    send_batch_message_to_queue()
+    receive_message_from_queue()
+    send_message_to_queue()
+    peek_message_from_queue()
+    send_message_to_queue()
+    ack_all_messages_in_a_queue()
     transactional_queue_ack()

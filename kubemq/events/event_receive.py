@@ -25,8 +25,22 @@ class EventReceive:
     def __init__(self, inner_event_receive=None):
         if inner_event_receive:
             self.event_id = inner_event_receive.EventID
+            """Represents a event identifier."""
+
             self.channel = inner_event_receive.Channel
+            """Represents The channel name to send to using the KubeMQ."""
+
             self.metadata = inner_event_receive.Metadata
+            """Represents text as str"""
+
             self.body = inner_event_receive.Body
+            """Represents The content of the KubeMQRequestReceive."""
+
             self.timestamp = inner_event_receive.Timestamp
+            """Represents the timestamp the message arrived """
+
             self.sequence = inner_event_receive.Sequence
+            """"Represents the sequnce of the event (set by Kubemq)"""
+
+            self.tags=inner_event_receive.Tags
+            """Represents key value pairs that help distinguish the message"""

@@ -23,10 +23,11 @@ def create_subscribe_request(
 
 def handle_incoming_events(event):
     if event:
-        print("Subscriber Received Event: Metadata:'%s', Channel:'%s', Body:'%s'" % (
+        print("Subscriber Received Event: Metadata:'%s', Channel:'%s', Body:'%s tags:%s'" % (
             event.metadata,
             event.channel,
-            event.body
+            event.body,
+            event.tags
         ))
 
 

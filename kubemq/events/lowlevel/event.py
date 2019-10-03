@@ -21,8 +21,7 @@
 # SOFTWARE.
 import threading
 
-from kubemq.grpc import kubemq_pb2
-
+from kubemq.grpc import Event as kubeEvent
 _lock = threading.Lock()
 _counter = 0
 
@@ -42,7 +41,7 @@ def get_next_id():
 
 class Event:
 
-    def __init__(self, channel=None, client_id=None, store=None, event_id=None, body=None, metadata=None):
+    def __init__(self, channel=None, client_id=None, store=None, event_id=None, body=None, metadata=None,tags=None):
         self.channel = channel
         """Represents The channel name to send to using the KubeMQ ."""
 
@@ -61,6 +60,9 @@ class Event:
         self.metadata = metadata
         """Represents text as str."""
 
+        self.tags=tags
+        """Represents key value pairs that help distinguish the message"""
+
     def from_inner_event(self, inner_event):
         self.channel = inner_event.Channel
         self.metadata = inner_event.Metadata
@@ -68,23 +70,26 @@ class Event:
         self.event_id = inner_event.EventID or get_next_id()
         self.client_id = inner_event.ClientID
         self.store = inner_event.Store
+        self.tags=inner_event.Tags
 
     def to_inner_event(self):
-        event = kubemq_pb2.Event()
-        event.Channel = self.channel
-        event.Metadata = self.metadata or ""
-        event.Body = self.body
-        event.EventID = self.event_id or get_next_id()
-        event.ClientID = self.client_id
-        event.Store = self.store
-        return event
+        return kubeEvent(
+            Channel = self.channel,
+            Metadata = self.metadata or "",
+            Body = self.body,
+            EventID = self.event_id or get_next_id(),
+            ClientID = self.client_id,
+            Store = self.store,
+            Tags=self.tags or ""
+        )
 
     def __repr__(self):
-        return "<LowLevel.Event channel:%s client_id:%s store:%s event_id:%s body:%s metadata:%s>" % (
+        return "<LowLevel.Event channel:%s client_id:%s store:%s event_id:%s body:%s metadata:%s tags:%s>" % (
             self.channel,
             self.client_id,
             self.store,
             self.event_id,
             self.body,
-            self.metadata
+            self.metadata,
+            self.tags
         )
