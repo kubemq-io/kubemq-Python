@@ -27,10 +27,11 @@ def create_subscribe_request(
 
 def handle_incoming_request(request):
     if request:
-        print("Subscriber Received request: Metadata:'%s', Channel:'%s', Body:'%s'" % (
+        print("Subscriber Received request: Metadata:'%s', Channel:'%s', Body:'%s' tags:%s" % (
             request.metadata,
             request.channel,
-            request.body
+            request.body,
+            request.tags
         ))
 
         response = Response(request)
@@ -41,6 +42,7 @@ def handle_incoming_request(request):
         response.executed = True
         response.metadata = "OK"
         response.timestamp = datetime.datetime.now()
+        response.tags=request.tags
         return response
 
 

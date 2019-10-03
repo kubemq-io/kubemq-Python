@@ -27,7 +27,7 @@ class Request:
     """Represents the Request used in RequestReply to send information using the KubeMQ."""
 
     def __init__(self, inner_request=None, request_id=None, request_type=None, client_id=None, channel=None,
-                 reply_channel=None, metadata=None, body=None, timeout=None, cache_key=None, cache_ttl=None):
+                 reply_channel=None, metadata=None, body=None, timeout=None, cache_key=None, cache_ttl=None,tags=None):
         """Initializes a new instance of the Request with a set of parameters."""
         if inner_request:
             self.request_id = inner_request.RequestID or get_next_id()
@@ -60,6 +60,9 @@ class Request:
             self.cache_ttl = inner_request.CacheTTL
             """Cache time to live : for how long does the request should be saved in Cache."""
 
+            self.tags=inner_request.Tags
+            """Represents key value pairs that help distinguish the message"""
+
         else:
             self.request_id = request_id
             self.request_type = request_type
@@ -71,6 +74,7 @@ class Request:
             self.timeout = timeout
             self.cache_key = cache_key
             self.cache_ttl = cache_ttl
+            self.tags=tags
 
     def convert(self):
         """Convert a Request to an InnerRequest"""
@@ -84,4 +88,5 @@ class Request:
             Timeout=self.timeout,
             CacheKey=self.cache_key,
             CacheTTL=self.cache_ttl,
+            Tags=self.tags
         )

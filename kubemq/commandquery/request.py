@@ -24,7 +24,7 @@
 class Request:
     """Represents the Request used in a Channel."""
 
-    def __init__(self, request_id=None, metadata=None, body=None):
+    def __init__(self, request_id=None, metadata=None, body=None,tags=None):
         """
         Initializes a new instance of a Request for a Channel
 
@@ -40,3 +40,14 @@ class Request:
 
         self.body = body
         """Represents The content of the Request."""
+   
+        self.tags=tags
+        """Represents key value pairs that help distinguish the message"""
+        
+    def __repr__(self):
+        return "<requst request_id:%s metadata:%s body:%s tags:%s>" % (
+            self.request_id,
+            self.metadata,
+            self.body,
+            self.tags
+        )

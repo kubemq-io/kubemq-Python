@@ -37,7 +37,7 @@ from kubemq.tools.id_generator import get_next_id
 
 
 class Transaction(GrpcClient):
-    """Represents a Queue pattern. TO DO Cancellation TOKEN!
+    """Represents a MessageQueue pattern. TO DO Cancellation TOKEN!
 
     Attributes:
         queue: should be called from queue.transaction()".
@@ -49,7 +49,7 @@ class Transaction(GrpcClient):
 
     def __init__(self, queue):
         """
-        Initializes a new Transaction using Queue .
+        Initializes a new Transaction using MessageQueue .
         :param queue: should be called from queue.transaction()".
         """
         super().__init__()
@@ -95,13 +95,10 @@ class Transaction(GrpcClient):
             return TransactionMessagesResponse(None, None, True, "no active message to reject, call Receive first")
         else:
             try:
-                def async_streamer():
-                    yield create_stream_queue_message_reject_request(self.queue, msg_sequence)
+                msg = create_stream_queue_message_reject_request(self.queue, msg_sequence)
+                self.stream_observer.put(msg)
 
-                iterator = async_streamer()
-                stream_queue_response = self.get_kubemq_client().StreamQueueMessage(iterator, self._metadata)
-                for response in stream_queue_response:
-                    return TransactionMessagesResponse(response)
+                return TransactionMessagesResponse(next(self.inner_stream))
             except Exception as e:
                 logging.exception("Exception in reject:'%s'" % e)
                 raise
@@ -113,13 +110,10 @@ class Transaction(GrpcClient):
                                                "no active message to extend visibility, call Receive first")
         else:
             try:
-                def async_streamer():
-                    yield create_stream_queue_message_extend_visibility_request(self.queue, visibility_seconds)
+                msg = create_stream_queue_message_extend_visibility_request(self.queue, visibility_seconds)
+                self.stream_observer.put(msg)
 
-                iterator = async_streamer()
-                stream_queue_response = self.get_kubemq_client().StreamQueueMessage(iterator, self._metadata)
-                for response in stream_queue_response:
-                    return TransactionMessagesResponse(response)
+                return TransactionMessagesResponse(next(self.inner_stream))
             except Exception as e:
                 logging.exception("Exception in Extend:'%s'" % e)
                 raise
@@ -150,7 +144,7 @@ class Transaction(GrpcClient):
             try:
                 msg.ClientID = self.queue.ClientID
                 msg.MessageID = get_next_id()
-                msg.Queue = msg.Queue or self.queue.queue_name
+                msg.MessageQueue = msg.MessageQueue or self.queue.queue_name
                 msg.Metadata = msg.Metadata or ""
 
                 def async_streamer():

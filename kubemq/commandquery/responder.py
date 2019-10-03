@@ -61,10 +61,11 @@ class Responder(GrpcClient):
             while True:
                 try:
                     event_receive = call.next()
-                    logging.debug("Responder InnerRequest. ID:'%s', Channel:'%s', ReplyChannel:'%s'" % (
+                    logging.debug("Responder InnerRequest. ID:'%s', Channel:'%s', ReplyChannel:'%s tags:'%s''" % (
                         event_receive.RequestID,
                         event_receive.Channel,
-                        event_receive.ReplyChannel
+                        event_receive.ReplyChannel,
+                        event_receive.Tags
                     ))
 
                     if handler:
