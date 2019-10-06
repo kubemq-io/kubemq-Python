@@ -21,10 +21,11 @@
 # SOFTWARE.
 import logging
 import threading
+import grpc
 
 from kubemq.basic.grpc_client import GrpcClient
 from kubemq.commandquery.request_receive import RequestReceive
-
+from kubemq.tools.listener_cancellation_token import ListenerCancellationToken
 
 class Responder(GrpcClient):
     """An instance that responsible on receiving request from the kubeMQ."""
@@ -39,11 +40,13 @@ class Responder(GrpcClient):
         if kubemq_address:
             self._kubemq_address = kubemq_address
 
-    def subscribe_to_requests(self, subscribe_request, handler):
+    def subscribe_to_requests(self, subscribe_request, handler,error_handler,listener_cancellation_token=ListenerCancellationToken()):
         """
         Register to kubeMQ Channel using handler.
         :param SubscribeRequest subscribe_request: represent by that will determine the subscription configuration.
         :param handler: Method the perform when receiving RequestReceive
+        :param error_handler: Method the perform when receiving error from kubemq
+        :param listener_cancellation_token: cancellation token, once cancel is called will cancel the subscribe to kubemq
         :return: A thread running the Subscribe Request.
         """
 
@@ -57,7 +60,7 @@ class Responder(GrpcClient):
 
         call = self.get_kubemq_client().SubscribeToRequests(inner_subscribe_request, metadata=self._metadata)
 
-        def subscribe_task():
+        def subscribe_task(listener_cancellation_token):
             while True:
                 try:
                     event_receive = call.next()
@@ -78,15 +81,36 @@ class Responder(GrpcClient):
                             ))
 
                             self.get_kubemq_client().SendResponse(response.convert(), self._metadata)
+                        except grpc.RpcError as error:
+                            if (listener_cancellation_token.is_cancelled):
+                                logging.info("Sub closed by listener request")
+                            else:
+                                logging.info("Subscriber Received Error: Error:'%s'" % (
+                                str(error)
+                                ))
+                                error_handler(error)
                         except Exception as e:
-                            logging.exception("An exception occurred while handling the response:'%s'" % (e))
-                            raise  # re-raise the original exception, keeping full stack trace
+                            logging.info("Subscriber Received Error: Error:'%s'" % (
+                            str(e)
+                            ))
+                            error_handler(str(e))
 
                 except Exception as e:
                     logging.exception("An exception occurred while listening for request:'%s'" % (e))
                     raise  # re-raise the original exception, keeping full stack trace
 
-        thread = threading.Thread(target=subscribe_task, args=())
+        def check_sub_to_valid(listener_cancellation_token):
+            while True:
+                if (listener_cancellation_token.is_cancelled):
+                    logging.info("Sub closed by listener request")
+                    call.cancel()
+                    return
+
+        thread = threading.Thread(target=subscribe_task, args=(listener_cancellation_token,))
         thread.daemon = True
         thread.start()
+
+        listener_thread = threading.Thread(target=check_sub_to_valid, args=(listener_cancellation_token,))
+        listener_thread.daemon = True
+        listener_thread.start()
         return thread
