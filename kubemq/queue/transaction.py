@@ -37,7 +37,7 @@ from kubemq.tools.id_generator import get_next_id
 
 
 class Transaction(GrpcClient):
-    """Represents a MessageQueue pattern. TO DO Cancellation TOKEN!
+    """Represents a MessageQueue pattern.
 
     Attributes:
         queue: should be called from queue.transaction()".
@@ -139,10 +139,10 @@ class Transaction(GrpcClient):
                                                "no active message to rmodifyesend, call Receive first")
         else:
             try:
-                msg.ClientID = self.queue.ClientID
+                msg.ClientID = self.queue.client_id
                 msg.MessageID = get_next_id()
-                msg.MessageQueue = msg.MessageQueue or self.queue.queue_name
-                msg.Metadata = msg.Metadata or ""
+                msg.MessageQueue = msg.queue or self.queue.queue_name
+                msg.Metadata = msg.metadata or ""
 
                 msg = create_stream_queue_message_modify_request(self.queue, msg)
                 self.stream_observer.put(msg)
