@@ -124,13 +124,10 @@ class Transaction(GrpcClient):
             return TransactionMessagesResponse(None, None, True, "no active message to resend, call Receive first")
         else:
             try:
-                def async_streamer():
-                    yield create_stream_queue_message_resend_request(self.queue, queue_name)
+                msg = create_stream_queue_message_resend_request(self.queue, queue_name)
+                self.stream_observer.put(msg)
 
-                iterator = async_streamer()
-                stream_queue_response = self.get_kubemq_client().StreamQueueMessage(iterator, self._metadata)
-                for response in stream_queue_response:
-                    return TransactionMessagesResponse(response)
+                return TransactionMessagesResponse(next(self.inner_stream))
             except Exception as e:
                 logging.exception("Exception in resend:'%s'" % e)
                 raise
@@ -147,13 +144,10 @@ class Transaction(GrpcClient):
                 msg.MessageQueue = msg.MessageQueue or self.queue.queue_name
                 msg.Metadata = msg.Metadata or ""
 
-                def async_streamer():
-                    yield create_stream_queue_message_modify_request(self.queue, msg)
+                msg = create_stream_queue_message_modify_request(self.queue, msg)
+                self.stream_observer.put(msg)
 
-                iterator = async_streamer()
-                stream_queue_response = self.get_kubemq_client().StreamQueueMessage(iterator, self._metadata)
-                for response in stream_queue_response:
-                    return TransactionMessagesResponse(response)
+                return TransactionMessagesResponse(next(self.inner_stream))
             except Exception as e:
                 logging.exception("Exception in resend:'%s'" % e)
                 raise
