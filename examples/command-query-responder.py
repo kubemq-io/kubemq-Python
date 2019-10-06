@@ -60,8 +60,8 @@ if __name__ == "__main__":
     subscribe_request = create_subscribe_request(SubscribeType.Queries)
     responder.subscribe_to_requests(subscribe_request, handle_incoming_request,handle_incoming_error,cancel_token)
 
-    # subscribe_request = create_subscribe_request(SubscribeType.Commands)
-    # responder.subscribe_to_requests(subscribe_request, handle_incoming_request,handle_incoming_error,cancel_token)
+    subscribe_request = create_subscribe_request(SubscribeType.Commands)
+    responder.subscribe_to_requests(subscribe_request, handle_incoming_request,handle_incoming_error,cancel_token)
 
     input("Press 'Enter' to stop Listen...\n")
     cancel_token.cancel()
