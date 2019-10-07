@@ -9,13 +9,12 @@ from kubemq.subscription.subscribe_request import SubscribeRequest
 from kubemq.subscription.subscribe_type import SubscribeType
 from kubemq.tools.listener_cancellation_token import ListenerCancellationToken
 
-client_id = str(randint(9, 19999))
-
 
 def create_subscribe_request(
         subscribe_type=SubscribeType.SubscribeTypeUndefined,
         events_store_type=EventsStoreType.Undefined,
         events_store_type_value=0):
+    client_id = str(randint(9, 19999))
     return SubscribeRequest(
         channel="MyTestChannelName",
         client_id=client_id,
@@ -27,6 +26,7 @@ def create_subscribe_request(
 
 
 def handle_incoming_request(request):
+    client_id = str(randint(9, 19999))
     if request:
         print("Subscriber Received request: Metadata:'%s', Channel:'%s', Body:'%s' tags:%s" % (
             request.metadata,

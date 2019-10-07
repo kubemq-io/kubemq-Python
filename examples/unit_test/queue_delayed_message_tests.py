@@ -3,11 +3,7 @@ from kubemq.queue.message_queue import MessageQueue
 from kubemq.queue.message import Message
 from kubemq.grpc import QueueMessagePolicy
 import time
-queue_name = "UnitestQueue"
-client_id = "UnitestQueue"
-kube_add = "localhost:50000"
-max_number_messages = 32
-max_timeout = 1
+
 
 def create_queue_message(meta_data, body, policy=None):
     message = Message()
@@ -24,6 +20,9 @@ def create_queue_message(meta_data, body, policy=None):
 class TestStringMethods(unittest.TestCase):
 
     def test_delayed_message_pass(self):
+        queue_name = "message_pass"
+        client_id = "message_pass"
+        kube_add = "localhost:50000"
         queue=MessageQueue(queue_name, client_id, kube_add)
         mm = []
 
@@ -56,6 +55,9 @@ class TestStringMethods(unittest.TestCase):
 
 
     def test_delayed_transaction_message_pass(self):
+        queue_name = "transaction_message_pass"
+        client_id = "transaction_message_pass"
+        kube_add = "localhost:50000"
         queue=MessageQueue(queue_name, client_id, kube_add)
         mm = []
 

@@ -17,19 +17,14 @@ from kubemq.commandquery.lowlevel.request import Request
 from kubemq.commandquery.request_type import RequestType
 from kubemq.commandquery.lowlevel.initiator import Initiator
 
-queue_name = "QueueName"
-client_id = "ClientID"
-kube_add = "localhost:50000"
-max_number_messages = 32
-max_timeout = 1
 
-def send_message_to_queue():
+def send_message_to_queue(queue_name,client_id,kube_add):
     queue = MessageQueue(queue_name, client_id, kube_add)
     message = create_queue_message("someMeta", "some-simple_queue-queue-message".encode('UTF-8'))
     queue_send_response = queue.send_queue_message(message)
     print("finished sending to queue answer. message_id: %s, body: %s" % (queue_send_response.message_id, message.body))
 
-def send_message_to_a_queue_with_expiration():
+def send_message_to_a_queue_with_expiration(queue_name,client_id,kube_add,max_number_messages,max_timeout):
     queue = MessageQueue(queue_name, client_id, kube_add, max_number_messages, max_timeout)
     policy = QueueMessagePolicy()
     policy.ExpirationSeconds = 5
@@ -38,7 +33,7 @@ def send_message_to_a_queue_with_expiration():
     print("finished sending message to queue with expiration answer: {} ".format(
         queue_send_message_to_queue_with_expiration_response))
 
-def send_message_to_a_queue_with_delay():
+def send_message_to_a_queue_with_delay(queue_name,client_id,kube_add,max_number_messages,max_timeout):
     queue = MessageQueue(queue_name, client_id, kube_add, max_number_messages, max_timeout)
     policy = QueueMessagePolicy()
     policy.DelaySeconds = 5
@@ -47,7 +42,7 @@ def send_message_to_a_queue_with_delay():
     print("finished sending message to queue with delay answer: {} ".format(
         queue_send_message_to_queue_with_delay_response))
 
-def send_message_to_a_queue_with_deadletter_queue():
+def send_message_to_a_queue_with_deadletter_queue(queue_name,client_id,kube_add,max_number_messages,max_timeout):
     queue = MessageQueue(queue_name, client_id, kube_add, max_number_messages, max_timeout)
     policy = QueueMessagePolicy()
     policy.MaxReceiveCount = 3
@@ -58,7 +53,7 @@ def send_message_to_a_queue_with_deadletter_queue():
         queue_send_message_to_queue_with_deadletter_response))
 
 
-def send_batch_message_to_queue():
+def send_batch_message_to_queue(queue_name,client_id,kube_add,max_number_messages,max_timeout):
     queue = MessageQueue(queue_name, client_id, kube_add, max_number_messages, max_timeout)
     mm = []
     for i in range(2):
@@ -68,25 +63,25 @@ def send_batch_message_to_queue():
     print("finished sending message to queue with batch answer: {} ".format(queue_send_batch_response))
 
 
-def receive_message_from_queue():
+def receive_message_from_queue(queue_name,client_id,kube_add,max_number_messages,max_timeout):
     queue = MessageQueue(queue_name, client_id, kube_add, max_number_messages, max_timeout)
     queue_receive_response = queue.receive_queue_messages()
     print("finished sending message to receive_queue answer: {} ".format(queue_receive_response))
 
 
-def peek_message_from_queue():
+def peek_message_from_queue(queue_name,client_id,kube_add,max_number_messages,max_timeout):
     queue = MessageQueue(queue_name, client_id, kube_add, max_number_messages, max_timeout)
     queue_receive_response = queue.peek_queue_message(5)
     print("finished sending message to peek answer: {} ".format(queue_receive_response))
 
 
-def ack_all_messages_in_a_queue():
+def ack_all_messages_in_a_queue(queue_name,client_id,kube_add,max_number_messages,max_timeout):
     queue = MessageQueue(queue_name, client_id, kube_add, max_number_messages, max_timeout)
     queue_ack_response = queue.ack_all_queue_messages()
     print("finished sending message to ack answer: {} ".format(queue_ack_response))
 
 
-def transactional_queue_ack():
+def transactional_queue_ack(queue_name,client_id,kube_add):
     queue = MessageQueue(queue_name, client_id, kube_add)
     transaction = queue.create_transaction()
     res_rec = transaction.receive(10, 10)
@@ -102,7 +97,7 @@ def transactional_queue_ack():
 
     print("Received message of type: %s" % StreamRequestType(res_ack.stream_request_type).name)
 
-def transactional_queue_reject():
+def transactional_queue_reject(queue_name,client_id,kube_add):
     queue = MessageQueue(queue_name, client_id, kube_add)
     transaction = queue.create_transaction()
     res_rec = transaction.receive(10, 10)
@@ -119,7 +114,7 @@ def transactional_queue_reject():
     print("rejected message message of type: %s" % StreamRequestType(res_rej.stream_request_type).name)
     
 
-def transactional_queue_extand_visibility():
+def transactional_queue_extand_visibility(queue_name,client_id,kube_add):
     queue_rej = MessageQueue("reject_test", client_id, kube_add)
 
     message = create_queue_message("queueName {}".format(0), "my reject".encode('UTF-8'))
@@ -160,7 +155,7 @@ def transactional_queue_extand_visibility():
 
     print("ack done")
 
-def transactional_queue_resend_to_new_queue():
+def transactional_queue_resend_to_new_queue(queue_name,client_id,kube_add):
     queue_rej = MessageQueue("resend_to_new_queue", client_id, kube_add)
 
     message = create_queue_message("resend to new queue {}".format(0), "my resend".encode('UTF-8'))
@@ -186,7 +181,7 @@ def transactional_queue_resend_to_new_queue():
     print("Done")
 
 
-def transactional_queue_resend_modify_message():
+def transactional_queue_resend_modify_message(queue_name,client_id,kube_add):
     queue_res = MessageQueue("resend_modify_message", client_id, kube_add)
 
     message = create_queue_message("resend to new queue {}".format(0), "my resend modify".encode('UTF-8'))
@@ -214,7 +209,7 @@ def transactional_queue_resend_modify_message():
 
     print("Done")
 
-def event_subscriber():
+def event_subscriber(queue_name,client_id,kube_add):
     subscriber = Subscriber(kube_add)
     cancel_token=ListenerCancellationToken()
     sub_req= SubscribeRequest(
@@ -246,7 +241,7 @@ def handle_incoming_error(error_msg):
             error_msg
         ))
 
-def send_single_event():
+def send_single_event(queue_name,client_id,kube_add):
     sender = Sender(kube_add)
     event = Event(
         metadata="EventMetaData",
@@ -261,7 +256,7 @@ def send_single_event():
         ]
     sender.send_event(event)
 
-def send_event_stream():
+def send_event_stream(queue_name,client_id,kube_add):
     sender = Sender(kube_add)
 
 
@@ -282,7 +277,7 @@ def send_event_stream():
 
     sender.stream_event(async_streamer(), result_handler)
 
-def send_event_to_store():
+def send_event_to_store(queue_name,client_id,kube_add):
         sender = Sender(kube_add)
         event = Event(
             metadata="EventMetaData",
@@ -297,7 +292,7 @@ def send_event_to_store():
             ]
         sender.send_event(event)
 
-def stream_to_event_store():
+def stream_to_event_store(queue_name,client_id,kube_add):
     sender = Sender(kube_add)
 
     def async_streamer():
@@ -316,7 +311,7 @@ def stream_to_event_store():
 
     sender.stream_event(async_streamer(), result_handler)
 
-def subcribe_to_event_store():
+def subcribe_to_event_store(queue_name,client_id,kube_add):
     subscriber = Subscriber(kube_add)
     cancel_token=ListenerCancellationToken()
     sub_req= SubscribeRequest(
@@ -333,7 +328,7 @@ def subcribe_to_event_store():
     print("Canceled token")
     cancel_token.cancel()
 
-def subscribe_to_requests():
+def subscribe_to_requests(queue_name,client_id,kube_add):
     responder = Responder(kube_add)
     cancel_token=ListenerCancellationToken()
     sub_req= SubscribeRequest(
@@ -350,7 +345,7 @@ def subscribe_to_requests():
     print("Canceled token")
     cancel_token.cancel()
 
-def handle_incoming_request(request):
+def handle_incoming_request(request,client_id):
     if request:
         print("Subscriber Received request: Metadata:'%s', Channel:'%s', Body:'%s' tags:%s" % (
             request.metadata,
@@ -375,7 +370,7 @@ def handle_request_incoming_error(error_msg):
             error_msg
         ))
 
-def send_command_request():
+def send_command_request(queue_name,client_id,kube_add):
     request = Request(
         body="Request".encode('UTF-8'),
         metadata="MyMetadata",
@@ -393,7 +388,7 @@ def send_command_request():
     initiator = Initiator(kube_add)
     response = initiator.send_request(request)
 
-def send_query_request():
+def send_query_request(queue_name,client_id,kube_add):
     request = Request(
         body="Request".encode('UTF-8'),
         metadata="MyMetadata",
