@@ -26,4 +26,4 @@ if __name__ == "__main__":
     initiator = Initiator()
     response = initiator.send_request(create_low_level_request(RequestType.Query))
     print("Recieved response")
-    # initiator.send_request(create_low_level_request(RequestType.Command))
+    initiator.send_request(create_low_level_request(RequestType.Command))

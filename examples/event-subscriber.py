@@ -2,13 +2,13 @@ from builtins import input
 from random import randint
 from kubemq.tools.listener_cancellation_token import ListenerCancellationToken
 from kubemq.events.subscriber import Subscriber
+from kubemq.subscription.subscribe_type import SubscribeType
 from kubemq.subscription.events_store_type import EventsStoreType
 from kubemq.subscription.subscribe_request import SubscribeRequest
-from kubemq.subscription.subscribe_type import SubscribeType
 
 
 def create_subscribe_request(
-        subscribe_type=SubscribeType.SubscribeTypeUndefined,
+        subscribe_type=SubscribeType.Events,
         events_store_type=EventsStoreType.Undefined,
         events_store_type_value=0):
     return SubscribeRequest(

@@ -6,7 +6,7 @@ from kubemq.events.lowlevel.sender import Sender
 if __name__ == "__main__":
     print("Sending event using sender example")
 
-    sender = Sender("localhost:50000")
+    sender = Sender()
 
 
     def async_streamer():

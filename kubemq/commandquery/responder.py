@@ -22,7 +22,7 @@
 import logging
 import threading
 import grpc
-
+from kubemq.grpc import Empty
 from kubemq.basic.grpc_client import GrpcClient
 from kubemq.commandquery.request_receive import RequestReceive
 from kubemq.tools.listener_cancellation_token import ListenerCancellationToken
@@ -39,6 +39,12 @@ class Responder(GrpcClient):
         GrpcClient.__init__(self)
         if kubemq_address:
             self._kubemq_address = kubemq_address
+
+    def ping(self):
+        """ping check connection to the kubemq"""
+        ping_result = self.get_kubemq_client().Ping(Empty())
+        logging.debug("Responder KubeMQ address:%s ping result:%s'" % (self._kubemq_address, ping_result))
+        return ping_result
 
     def subscribe_to_requests(self, subscribe_request, handler,error_handler,listener_cancellation_token=ListenerCancellationToken()):
         """

@@ -1,7 +1,7 @@
 import logging
 import threading
 import grpc
-
+from kubemq.grpc import Empty
 from kubemq.basic.grpc_client import GrpcClient
 from kubemq.events.event_receive import EventReceive
 from kubemq.subscription import SubscribeType, EventsStoreType
@@ -19,6 +19,12 @@ class Subscriber(GrpcClient):
         GrpcClient.__init__(self)
         if kubemq_address:
             self._kubemq_address = kubemq_address
+
+    def ping(self):
+        """ping check connection to the kubemq"""
+        ping_result = self.get_kubemq_client().Ping(Empty())
+        logging.debug("event subscriber KubeMQ address:%s ping result:%s'" % (self._kubemq_address, ping_result))
+        return ping_result
 
     def subscribe_to_events(self, subscribe_request, handler,error_handler,listener_cancellation_token=ListenerCancellationToken()):
         """
