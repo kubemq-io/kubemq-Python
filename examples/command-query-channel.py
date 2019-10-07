@@ -21,7 +21,11 @@ def send_query_request():
 
     request = Request(
         metadata="CommandQueryChannel",
-        body="Request".encode('UTF-8')
+        body="Request".encode('UTF-8'),
+        tags=[
+            ('key', 'value'),
+            ('key2', 'value2'),
+        ]
     )
 
     response = request_channel.send_request(request)
@@ -33,7 +37,11 @@ def send_command_request():
 
     request = Request(
         metadata="CommandQueryChannel",
-        body="Request".encode('UTF-8')
+        body="Request".encode('UTF-8'),
+        tags=[
+            ('key', 'value'),
+            ('key2', 'value2'),
+        ]
     )
 
     request_channel.send_request(request)

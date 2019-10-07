@@ -19,35 +19,18 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
+import threading
 
+_lock = threading.Lock()
+_counter = 0
 
-class Request:
-    """Represents the Request used in a Channel."""
+def get_next_id():
+    """Get an unique thread safety ID between 1 to 65535"""
+    global _lock, _counter
+    with _lock:
+        if _counter == 65535:
+            _counter = 1
+        else:
+            _counter += 1
 
-    def __init__(self, request_id=None, metadata=None, body=None,tags=None):
-        """
-        Initializes a new instance of a Request for a Channel
-
-        :param str request_id: Represents a Request identifier.
-        :param str metadata: Represents metadata for a Request.
-        :param bytes body: Represents The content of the Request.
-        """
-        self.request_id = request_id
-        """Represents a Request identifier."""
-
-        self.metadata = metadata
-        """Represents metadata for a Request."""
-
-        self.body = body
-        """Represents The content of the Request."""
-   
-        self.tags=tags
-        """Represents key value pairs that help distinguish the message"""
-        
-    def __repr__(self):
-        return "<requst request_id:%s metadata:%s body:%s tags:%s>" % (
-            self.request_id,
-            self.metadata,
-            self.body,
-            self.tags
-        )
+        return str(_counter)
