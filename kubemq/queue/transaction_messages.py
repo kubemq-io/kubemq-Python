@@ -28,6 +28,7 @@ from kubemq.grpc import QueueMessage
 from kubemq.grpc import StreamQueueMessagesRequest
 from kubemq.grpc import ResendMessage
 from kubemq.grpc import SendModifiedMessage
+from kubemq.queue.message import Message
 from kubemq.tools.id_generator import get_next_id
 
 
@@ -159,6 +160,6 @@ def create_stream_queue_message_modify_request(_queue, message):
         StreamRequestTypeData=SendModifiedMessage,
         VisibilitySeconds=0,
         WaitTimeSeconds=0,
-        ModifiedMessage=message.convert_to_queue_message(_queue),
+        ModifiedMessage=message,
         RefSequence=0
     )

@@ -20,7 +20,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 import logging
-
+from kubemq.grpc import Empty
 from kubemq.basic.grpc_client import GrpcClient
 from kubemq.commandquery.response import Response
 
@@ -37,6 +37,12 @@ class Initiator(GrpcClient):
         GrpcClient.__init__(self)
         if kubemq_address:
             self._kubemq_address = kubemq_address
+
+    def ping(self):
+        """ping check connection to the kubemq"""
+        ping_result = self.get_kubemq_client().Ping(Empty())
+        logging.debug("Initiator KubeMQ address:%s ping result:%s'" % (self._kubemq_address, ping_result))
+        return ping_result
 
     def send_request_async(self, request, handler):
         """Publish a single request using the KubeMQ."""

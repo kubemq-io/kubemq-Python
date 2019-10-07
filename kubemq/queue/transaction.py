@@ -25,6 +25,7 @@ from queue import Queue
 
 from grpc import StatusCode
 
+from kubemq.queue.message import Message
 from kubemq.basic.grpc_client import GrpcClient
 from kubemq.queue.transaction_messages import TransactionMessagesResponse
 from kubemq.queue.transaction_messages import create_stream_queue_message_ack_request
@@ -139,10 +140,11 @@ class Transaction(GrpcClient):
                                                "no active message to rmodifyesend, call Receive first")
         else:
             try:
-                msg.ClientID = self.queue.client_id
+                if isinstance(msg,Message):
+                    msg.client_id= msg.client_id or self.queue.client_id
+                    msg=msg.convert_to_queue_message()
+                msg.ClientID =msg.ClientID
                 msg.MessageID = get_next_id()
-                msg.MessageQueue = msg.queue or self.queue.queue_name
-                msg.Metadata = msg.metadata or ""
 
                 msg = create_stream_queue_message_modify_request(self.queue, msg)
                 self.stream_observer.put(msg)
