@@ -21,33 +21,28 @@
 # SOFTWARE.
 
 
-class Request:
-    """Represents the Request used in a Channel."""
 
-    def __init__(self, request_id=None, metadata=None, body=None,tags=None):
-        """
-        Initializes a new instance of a Request for a Channel
 
-        :param str request_id: Represents a Request identifier.
-        :param str metadata: Represents metadata for a Request.
-        :param bytes body: Represents The content of the Request.
-        """
-        self.request_id = request_id
-        """Represents a Request identifier."""
+class AckAllMessagesResponse:
+    def __init__(self, ack_all_messages_response=None):
+        if ack_all_messages_response:
+            self.request_id = ack_all_messages_response.RequestID
+            """Represents Unique identifier for the Request."""
 
-        self.metadata = metadata
-        """Represents metadata for a Request."""
+            self.is_error= ack_all_messages_response.IsError
+            """Returned from KubeMQ, false if no error."""
 
-        self.body = body
-        """Represents The content of the Request."""
-   
-        self.tags=tags
-        """Represents key value pairs that help distinguish the message"""
-        
+            self.error=ack_all_messages_response.Error
+            """Error message, valid only if IsError true."""
+            if ack_all_messages_response.AffectedMessages:
+                self.affected_messages=ack_all_messages_response.AffectedMessages
+            else:
+                self.affected_messages=None
+            """"Number of affected messages."""
     def __repr__(self):
-        return "<requst request_id:%s metadata:%s body:%s tags:%s>" % (
+        return "<AckAllMessagesResponse request_id:%s is_error:%s error:%s affected_messages:%s>" % (
             self.request_id,
-            self.metadata,
-            self.body,
-            self.tags
+            self.is_error,
+            self.error,
+            self.affected_messages
         )

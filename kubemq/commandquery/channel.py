@@ -67,7 +67,7 @@ class Channel:
             raise ValueError("request_type argument is mandatory")
 
         if not self.timeout and timeout <= 0:
-            raise ValueError("timeout argument is mandatory and must between 1 to {}" % sys.maxint)
+            raise ValueError("timeout argument is mandatory and must between 1 to {}" % sys.maxsize)
 
         self._initiator = Initiator(kubemq_address)
 
@@ -106,7 +106,8 @@ class Channel:
             cache_ttl=self.cache_ttl,
             request_id=request.request_id,
             body=request.body,
-            metadata=request.metadata
+            metadata=request.metadata,
+            tags = request.tags
         )
 
         if override_params:

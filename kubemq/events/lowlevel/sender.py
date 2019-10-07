@@ -20,7 +20,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 import logging
-
+from kubemq.grpc import Empty
 from kubemq.basic.grpc_client import GrpcClient
 from kubemq.events.lowlevel.event import Event
 from kubemq.events.result import Result
@@ -47,7 +47,10 @@ class Sender(GrpcClient):
             if result:
                 return Result(inner_result=result)
         except Exception as e:
-            logging.exception("Exception in SendEvent", e)
+            logging.exception(
+                        "Sender received 'Result': Error:'%s'" % (
+                            e
+                        ))
             raise
 
     def stream_event(self, events_stream, response_handler=None):
@@ -68,5 +71,15 @@ class Sender(GrpcClient):
                         ))
                     response_handler(result)
         except Exception as e:
-            logging.exception("Exception in StreamEvent", e)
+            logging.exception(
+                        "Sender received 'Result': Error:'%s'" % (
+                            e
+                        ))
             raise
+
+        
+    def ping(self):
+        """ping check connection to the kubemq"""
+        ping_result = self.get_kubemq_client().Ping(Empty())
+        logging.debug("event sender KubeMQ address:%s ping result:%s'" % (self._kubemq_address, ping_result))
+        return ping_result

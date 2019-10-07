@@ -12,6 +12,10 @@ if __name__ == "__main__":
         body=("Event Created on time %s" % datetime.datetime.utcnow()).encode('UTF-8'),
         store=False,
         channel="MyTestChannelName",
-        client_id="EventSender",
+        client_id="EventSender"
     )
+    event.tags=[
+            ('key', 'value'),
+            ('key2', 'value2'),
+        ]
     sender.send_event(event)

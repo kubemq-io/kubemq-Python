@@ -66,6 +66,9 @@ class Response:
             self.error = request.Error
             """Error message"""
 
+            self.tags=request.Tags
+            """Represents key value pairs that help distinguish the message"""
+
         else:
             raise Exception("Unknown type" + str(type(request)))
 

@@ -29,7 +29,7 @@ class Channel:
 
     def __init__(self, params=None, channel_name=None, client_id=None, store=None, kubemq_address=None):
         """
-        Initializes a new instance of the KubeMQ.SDK.csharp.Events.Channel class using params OR "Manual" Parameters.
+        Initializes a new instance of the Events.Channel class using params OR "Manual" Parameters.
 
         :param params: ChannelParameters to use instead of the other params
         :param channel_name: Represents The channel name to send to using the KubeMQ.
