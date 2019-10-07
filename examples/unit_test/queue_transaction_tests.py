@@ -4,11 +4,7 @@ from kubemq.queue.message import Message
 from kubemq.grpc import QueueMessagePolicy
 import time
 import datetime
-queue_name = "UnitestQueue"
-client_id = "UnitestQueue"
-kube_add = "localhost:50000"
-max_number_messages = 32
-max_timeout = 1
+
 
 def create_queue_message(meta_data, body, policy=None):
     message = Message()
@@ -24,7 +20,11 @@ def create_queue_message(meta_data, body, policy=None):
 
 class TestStringMethods(unittest.TestCase):
 
+
+
     def test_get_message_pass(self):
+        client_id = "message_pass"
+        kube_add = "localhost:50000"
         queue=MessageQueue("Get_Messages{}".format(randomString(10)), client_id, kube_add)
         mm = []
 
@@ -47,6 +47,8 @@ class TestStringMethods(unittest.TestCase):
         tr.close_stream()
 
     def test_send_receive_tran_ack_pass(self):
+        client_id = "tran_ack_pass"
+        kube_add = "localhost:50000"
         queue=MessageQueue("SendReciveTranAck_Pass", client_id, kube_add)
 
 
@@ -60,6 +62,8 @@ class TestStringMethods(unittest.TestCase):
 
 
     def test_send_receive_tran_ack_fail(self):
+        client_id = "tran_ack_fail"
+        kube_add = "localhost:50000"
         queue=MessageQueue("SendReciveTranAck_Fail", client_id, kube_add)
 
 
@@ -77,6 +81,8 @@ class TestStringMethods(unittest.TestCase):
         tr.close_stream()
 
     def test_send_receive_tran_visability_expired_fail(self):
+        client_id = "expired_fail"
+        kube_add = "localhost:50000"
         queue=MessageQueue("send_receive_tran_visability_expired_fail", client_id, kube_add)
 
 
@@ -91,6 +97,8 @@ class TestStringMethods(unittest.TestCase):
         self.assertEqual(ackms.error,"Error 129: current visibility timer expired")
 
     def test_send_receive_tran_visability_expired_pass(self):
+        client_id = "expired_pass"
+        kube_add = "localhost:50000"
         queue=MessageQueue("send_receive_tran_visability_expired_pass", client_id, kube_add)
 
 
@@ -106,6 +114,8 @@ class TestStringMethods(unittest.TestCase):
         self.assertEqual(ackms.is_error,False)
 
     def test_modify_new_message_pass(self):
+        client_id = "message_pass"
+        kube_add = "localhost:50000"
         queue=MessageQueue("send_modify_new_message_pass", client_id, kube_add)
 
 
@@ -130,6 +140,8 @@ class TestStringMethods(unittest.TestCase):
         tr.close_stream()
 
     def test_modify_after_ack_fail(self):
+        client_id = "ack_fail"
+        kube_add = "localhost:50000"
         queue=MessageQueue("test_modify_after_ack_fail", client_id, kube_add)
         mm = []
 
