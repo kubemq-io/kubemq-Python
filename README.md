@@ -6,7 +6,7 @@ The **KubeMQ SDK for Python** enables Python developers to easily work with [Kub
 
 ### Prerequisites
 
-KubeMQ-SDK-Python works with **Python 2.7** or newer.
+KubeMQ-SDK-Python works with **Python 3.2** or newer.
 
 ### Installing
  
