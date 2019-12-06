@@ -19,6 +19,7 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
+import enum
 import logging
 import threading
 from queue import Queue
@@ -35,6 +36,10 @@ from kubemq.queue.transaction_messages import create_stream_queue_message_receiv
 from kubemq.queue.transaction_messages import create_stream_queue_message_reject_request
 from kubemq.queue.transaction_messages import create_stream_queue_message_resend_request
 from kubemq.tools.id_generator import get_next_id
+
+
+class ControlMessages(enum.Enum):
+    CLOSE_STREAM = enum.auto()
 
 
 class Transaction(GrpcClient):
@@ -156,31 +161,39 @@ class Transaction(GrpcClient):
 
     def open_stream(self):
         with self.lock:
-            if not self.stream:
-                self.stream_observer = Queue()
-
-                def stream():
-                    while True:
-                        msg = self.stream_observer.get()
-                        if msg:
-                            yield msg
-                            self.stream_observer.task_done()
-
-                def done(call):
-                    self.stream = False
-
-                self.inner_stream = self.client.StreamQueueMessage(stream())
-
-                self.inner_stream.add_done_callback(done)
-                self.stream = True
-                return False
-            else:
+            if self.stream:
                 return True
+
+            stream_observer = Queue()
+
+            def stream():
+                while True:
+                    msg = stream_observer.get()
+
+                    if msg == ControlMessages.CLOSE_STREAM:
+                        stream_observer.task_done()
+                        break
+
+                    if msg:
+                        yield msg
+                        stream_observer.task_done()
+
+            def done(call):
+                stream_observer.put(ControlMessages.CLOSE_STREAM)
+                self.stream = False
+
+            self.inner_stream = self.client.StreamQueueMessage(stream())
+            self.inner_stream.add_done_callback(done)
+
+            self.stream_observer = stream_observer
+            self.stream = True
+            return False
 
     def close_stream(self):
         with self.lock:
             if self.stream:
                 self.stream = False
+                self.inner_stream.cancel()
                 return True
             else:
                 logging.error("Stream is closed")
