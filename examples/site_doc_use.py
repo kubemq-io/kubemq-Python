@@ -156,12 +156,12 @@ def transactional_queue_extand_visibility(queue_name,client_id,kube_add):
     print("ack done")
 
 def transactional_queue_resend_to_new_queue(queue_name,client_id,kube_add):
-    queue_rej = MessageQueue("resend_to_new_queue", client_id, kube_add)
+    queue_rej = MessageQueue(queue_name, client_id, kube_add)
 
     message = create_queue_message("resend to new queue {}".format(0), "my resend".encode('UTF-8'))
     queue_rej.send_queue_message(message)
 
-    queue= MessageQueue("resend_to_new_queue", client_id, kube_add)
+    queue= MessageQueue(queue_name, client_id, kube_add)
     tran=queue.create_transaction()
 
     res_rec=tran.receive(5,10)
@@ -182,12 +182,12 @@ def transactional_queue_resend_to_new_queue(queue_name,client_id,kube_add):
 
 
 def transactional_queue_resend_modify_message(queue_name,client_id,kube_add):
-    queue_res = MessageQueue("resend_modify_message", client_id, kube_add)
+    queue_res = MessageQueue(queue_name, client_id, kube_add)
 
     message = create_queue_message("resend to new queue {}".format(0), "my resend modify".encode('UTF-8'))
     queue_res.send_queue_message(message)
 
-    queue= MessageQueue("resend_modify_message", client_id, kube_add)
+    queue= MessageQueue(queue_name, client_id, kube_add)
     tran=queue.create_transaction()
 
     res_rec=tran.receive(3,5)
@@ -209,11 +209,11 @@ def transactional_queue_resend_modify_message(queue_name,client_id,kube_add):
 
     print("Done")
 
-def event_subscriber(queue_name,client_id,kube_add):
+def event_subscriber(channel_name,client_id,kube_add):
     subscriber = Subscriber(kube_add)
     cancel_token=ListenerCancellationToken()
     sub_req= SubscribeRequest(
-        channel="MyTestChannelName",
+        channel=channel_name,
         client_id=str(randint(9, 19999)),
         events_store_type=EventsStoreType.Undefined,
         events_store_type_value=0,
@@ -241,13 +241,13 @@ def handle_incoming_error(error_msg):
             error_msg
         ))
 
-def send_single_event(queue_name,client_id,kube_add):
+def send_single_event(channel_name,client_id,kube_add):
     sender = Sender(kube_add)
     event = Event(
         metadata="EventMetaData",
         body=("Event Created on time %s" % datetime.datetime.utcnow()).encode('UTF-8'),
         store=False,
-        channel="MyTestChannelName",
+        channel=channel_name,
         client_id="EventSender"
     )
     event.tags=[
@@ -256,7 +256,7 @@ def send_single_event(queue_name,client_id,kube_add):
         ]
     sender.send_event(event)
 
-def send_event_stream(queue_name,client_id,kube_add):
+def send_event_stream(channel_name,client_id,kube_add):
     sender = Sender(kube_add)
 
 
@@ -266,7 +266,7 @@ def send_event_stream(queue_name,client_id,kube_add):
                 metadata="EventMetaData",
                 body=("Event %s Created on time %s" % (counter, datetime.datetime.utcnow())).encode('UTF-8'),
                 store=False,
-                channel="MyTestChannelName",
+                channel=channel_name,
                 client_id="EventSenderStream",
             )
 
@@ -277,13 +277,13 @@ def send_event_stream(queue_name,client_id,kube_add):
 
     sender.stream_event(async_streamer(), result_handler)
 
-def send_event_to_store(queue_name,client_id,kube_add):
+def send_event_to_store(channel_name,client_id,kube_add):
         sender = Sender(kube_add)
         event = Event(
             metadata="EventMetaData",
             body=("Event Created on time %s" % datetime.datetime.utcnow()).encode('UTF-8'),
             store=True,
-            channel="MyTestChannelNameStore",
+            channel=channel_name,
             client_id="EventSenderStore"
         )
         event.tags=[
@@ -292,7 +292,7 @@ def send_event_to_store(queue_name,client_id,kube_add):
             ]
         sender.send_event(event)
 
-def stream_to_event_store(queue_name,client_id,kube_add):
+def stream_to_event_store(channel_name,client_id,kube_add):
     sender = Sender(kube_add)
 
     def async_streamer():
@@ -301,7 +301,7 @@ def stream_to_event_store(queue_name,client_id,kube_add):
                 metadata="EventMetaData",
                 body=("Event %s Created on time %s" % (counter, datetime.datetime.utcnow())).encode('UTF-8'),
                 store=True,
-                channel="MyTestChannelNameStore",
+                channel=channel_name,
                 client_id="EventSenderStore",
             )
 
@@ -311,11 +311,11 @@ def stream_to_event_store(queue_name,client_id,kube_add):
 
     sender.stream_event(async_streamer(), result_handler)
 
-def subcribe_to_event_store(queue_name,client_id,kube_add):
+def subcribe_to_event_store(channel_name,client_id,kube_add):
     subscriber = Subscriber(kube_add)
     cancel_token=ListenerCancellationToken()
     sub_req= SubscribeRequest(
-        channel="MyTestChannelNameStore",
+        channel=channel_name,
         client_id=str(randint(9, 19999)),
         events_store_type=EventsStoreType.StartFromFirst,
         events_store_type_value=0,
@@ -328,11 +328,11 @@ def subcribe_to_event_store(queue_name,client_id,kube_add):
     print("Canceled token")
     cancel_token.cancel()
 
-def subscribe_to_requests(queue_name,client_id,kube_add):
+def subscribe_to_requests(channel_name,client_id,kube_add):
     responder = Responder(kube_add)
     cancel_token=ListenerCancellationToken()
     sub_req= SubscribeRequest(
-        channel="MyTestRequestChannelName",
+        channel=channel_name,
         client_id=str(randint(9, 19999)),
         events_store_type=EventsStoreType.Undefined,
         events_store_type_value=0,
@@ -370,13 +370,13 @@ def handle_request_incoming_error(error_msg):
             error_msg
         ))
 
-def send_command_request(queue_name,client_id,kube_add):
+def send_command_request(channel_name,client_id,kube_add):
     request = Request(
         body="Request".encode('UTF-8'),
         metadata="MyMetadata",
         cache_key="",
         cache_ttl=0,
-        channel="MyTestChannelName",
+        channel=channel_name,
         client_id="CommandQueryInitiator",
         timeout=1000,
         request_type=RequestType.Command,
@@ -388,13 +388,13 @@ def send_command_request(queue_name,client_id,kube_add):
     initiator = Initiator(kube_add)
     response = initiator.send_request(request)
 
-def send_query_request(queue_name,client_id,kube_add):
+def send_query_request(channel_name,client_id,kube_add):
     request = Request(
         body="Request".encode('UTF-8'),
         metadata="MyMetadata",
         cache_key="",
         cache_ttl=0,
-        channel="MyTestChannelName",
+        channel=channel_name,
         client_id="QueryInitiator",
         timeout=1000,
         request_type=RequestType.Query,
