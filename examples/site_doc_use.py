@@ -209,16 +209,16 @@ def transactional_queue_resend_modify_message(queue_name,client_id,kube_add):
 
     print("Done")
 
-def event_subscriber(channel_name,client_id,kube_add):
+def event_subscriber(channel_name,p_client_id,kube_add):
     subscriber = Subscriber(kube_add)
     cancel_token=ListenerCancellationToken()
     sub_req= SubscribeRequest(
         channel=channel_name,
-        client_id=str(randint(9, 19999)),
+        client_id=p_client_id,
         events_store_type=EventsStoreType.Undefined,
         events_store_type_value=0,
         group="",
-        subscribe_type=SubscribeType.Events
+        subscribe_type=SubscribeType.Commands
     )
     subscriber.subscribe_to_events(sub_req, handle_incoming_events,handle_incoming_error,cancel_token)
     print("sub for 2 seconds")
@@ -311,12 +311,12 @@ def stream_to_event_store(channel_name,client_id,kube_add):
 
     sender.stream_event(async_streamer(), result_handler)
 
-def subcribe_to_event_store(channel_name,client_id,kube_add):
+def subcribe_to_event_store(channel_name,p_client_id,kube_add):
     subscriber = Subscriber(kube_add)
     cancel_token=ListenerCancellationToken()
     sub_req= SubscribeRequest(
         channel=channel_name,
-        client_id=str(randint(9, 19999)),
+        client_id=p_client_id,
         events_store_type=EventsStoreType.StartFromFirst,
         events_store_type_value=0,
         group="",
@@ -328,12 +328,12 @@ def subcribe_to_event_store(channel_name,client_id,kube_add):
     print("Canceled token")
     cancel_token.cancel()
 
-def subscribe_to_requests(channel_name,client_id,kube_add):
+def subscribe_to_requests(channel_name,p_client_id,kube_add):
     responder = Responder(kube_add)
     cancel_token=ListenerCancellationToken()
     sub_req= SubscribeRequest(
         channel=channel_name,
-        client_id=str(randint(9, 19999)),
+        client_id=p_client_id,
         events_store_type=EventsStoreType.Undefined,
         events_store_type_value=0,
         group="",
@@ -429,5 +429,6 @@ def create_queue_message(meta_data, body, policy=None):
 
 
 if __name__ == "__main__":
-    print("Test Started")
+    print("test")
+
 
