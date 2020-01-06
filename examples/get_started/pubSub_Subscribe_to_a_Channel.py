@@ -50,7 +50,7 @@ if __name__ == "__main__":
     # Subscribe to events without store
     subscriber = Subscriber("localhost:50000")
     subscribe_request = SubscribeRequest(
-        channel="MyTestChannelName",
+        channel="testing_event_channel",
         client_id="hello-world-subscriber",
         events_store_type=EventsStoreType.Undefined,
         events_store_type_value=0,
