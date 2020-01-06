@@ -339,7 +339,7 @@ def subscribe_to_requests(channel_name,p_client_id,kube_add):
         group="",
         subscribe_type=SubscribeType.Queries
     )
-    responder.subscribe_to_requests(sub_req, handle_incoming_events,handle_incoming_error,cancel_token)
+    responder.subscribe_to_requests(sub_req, handle_incoming_request,handle_incoming_error,cancel_token)
     print("sub for 10 seconds")
     time.sleep(10.0)
     print("Canceled token")
