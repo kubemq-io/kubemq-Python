@@ -45,27 +45,27 @@ $ pip install -e .
 Installation:
 $ pip install kubemq
 
-Core Basics
+### Core Basics
 KubeMQ messaging broker has five messaging patterns:
 
-Queues - FIFO based, exactly one durable queue pattern
-Events - real-time pub/sub pattern
-Events Store - pub/sub with persistence pattern
-Commands - the Command part of CQRS pattern, which sends commands with the response for executed or not (with proper error messaging)
-Queries - the Query part of CQRS pattern, which sends a query and gets a response with the relevant query result back
+- **Queues**  - FIFO based, exactly one durable queue pattern
+- **Events** - real-time pub/sub pattern
+- **Events Store** - pub/sub with persistence pattern
+- **Commands** - the Command part of CQRS pattern, which sends commands with the response for executed or not (with proper error messaging)
+- **Queries** - the Query part of CQRS pattern, which sends a query and gets a response with the relevant query result back
 For each one of the patterns, we can distinguish between the senders and the receivers.
 
 For events and events store, the KubeMQ supports both RPC and upstream calls.
 
 the data model is almost identical between all the pattern with some data added related to the specific patter.
 
-The common part of all the patterns are:
+### The common part of all the patterns are:
 
-Id - the sender can set the Id for each type of message, or the Id is automatically generated a UUID Id for him.
-Metadata - a string field that can hold any metadata related to the message
-Body - a Bytes array which contains the actual payload to be sent from the sender to the receiver
-Tags - a Map of string, string for user define data
-The KubeMQ core transport is based on gRPC, and the library is a wrapper around the client-side of gRPC complied protobuf hence leveraging the gRPC benefits and advantages.
+- **ID** - the sender can set the ID for each type of message, or the Id is automatically generated a UUID Id for him.
+- **Metadata** - a string field that can hold any metadata related to the message
+- **Body** - a Bytes array which contains the actual payload to be sent from the sender to the receiver
+- **Tags** - a Map of string, string for user define data
+- The KubeMQ core transport is based on gRPC, and the library is a wrapper around the client-side of gRPC complied protobuf hence -   leveraging the gRPC benefits and advantages.
 
 Before any transactions to be performed with KubeMQ server, the Client should connect and dial KubeMQ server and obtain Client connection.
 
@@ -105,27 +105,27 @@ Connecting to KubeMQ server can be by creating the type needed:
 Examples
 Please visit our extensive examples folder Please find usage examples on the examples folders.
 
-Queues
+### Queues
 Core features
-KubeMQ supports distributed durable FIFO based queues with the following core features:
+- KubeMQ supports distributed durable FIFO based queues with the following core features:
 
-Exactly One Delivery - Only one message guarantee will deliver to the subscriber
+- **Exactly One Delivery** - Only one message guarantee will deliver to the subscriber
 
-Single and Batch Messages Send and Receive - Single and multiple messages in one call
+- **Single and Batch Messages Send and Receive** - Single and multiple messages in one call
 
-RPC and Stream Flows - RPC flow allows an insert and pulls messages in one call. Stream flow allows single message consuming in a transactional way
+- **RPC and Stream Flows** - RPC flow allows an insert and pulls messages in one call. Stream flow allows single message consuming in a transactional way
 
-Message Policy - Each message can be configured with expiration and delay timers. Also, each message can specify a dead-letter queue for un-processed messages attempts
+- **Message Policy** - Each message can be configured with expiration and delay timers. Also, each message can specify a dead-letter queue for un-processed messages attempts
 
-Long Polling - Consumers can wait until a message available in the queue to consume
+- **Long Polling** - Consumers can wait until a message available in the queue to consume
 
-Peak Messages - Consumers can peak into a queue without removing them from the queue
+- **Peek Messages**- Consumers can peek into a queue without removing them from the queue
 
-Ack All Queue Messages - Any client can mark all the messages in a queue as discarded and will not be available anymore to consume
+- **Ack All Queue Messages** - Any client can mark all the messages in a queue as discarded and will not be available anymore to consume
 
-Visibility timers - Consumers can pull a message from the queue and set a timer which will cause the message not be visible to other consumers. This timer can be extended as needed.
+- **Visibility timers** - Consumers can pull a message from the queue and set a timer which will cause the message not be visible to other consumers. This timer can be extended as needed.
 
-Resend Messages - Consumers can send back a message they pulled to a new queue or send a modified message to the same queue for further processing.
+- **Resend Messages** - Consumers can send back a message they pulled to a new queue or send a modified message to the same queue for further processing.
 
 
 Send Message to a Queue:
@@ -484,22 +484,22 @@ First you should subscribe to Events Store and get a channel:
     print("Canceled token")
     cancel_token.cancel()
 ```
-Subscription Options
+### Subscription Options
 KubeMQ supports six types of subscriptions:
 
-StartFromNewEvents - start event store subscription with only new events
+- **StartFromNewEvents** - start event store subscription with only new events
 
-StartFromFirstEvent - replay all the stored events from the first available sequence and continue stream new events from this point
+- **StartFromFirstEvent** - replay all the stored events from the first available sequence and continue stream new events from this point
 
-StartFromLastEvent - replay the last event and continue stream new events from this point
+- **StartFromLastEvent** - replay the last event and continue stream new events from this point
 
-StartFromSequence - replay events from specific event sequence number and continue stream new events from this point
+- **StartFromSequence** - replay events from specific event sequence number and continue stream new events from this point
 
-StartFromTime - replay events from specific time continue stream new events from this point
+- **StartFromTime** - replay events from specific time continue stream new events from this point
 
-StartFromTimeDelta - replay events from specific current time - delta duration in seconds, continue stream new events from this point
+- **StartFromTimeDelta** - replay events from specific current time - delta duration in seconds, continue stream new events from this point
 
-Commands
+## Commands
 Concept
 Commands implement synchronous messaging pattern which the sender send a request and wait for a specific amount of time to get a response.
 
@@ -526,7 +526,7 @@ In this example, the responder should send his response withing one second. Othe
     response = initiator.send_request(request)
 
 ```
-Queries
+### Queries
 Concept
 Queries implement synchronous messaging pattern which the sender send a request and wait for a specific amount of time to get a response.
 
