@@ -55,7 +55,7 @@ def handle_incoming_error(error_msg):
 if __name__ == "__main__":
     print("Starting CommandQueryResponder example...\n")
     cancel_token=ListenerCancellationToken()
-    responder = Responder()
+    responder = Responder("localhost:50000")
 
     subscribe_request = create_subscribe_request(SubscribeType.Queries)
     responder.subscribe_to_requests(subscribe_request, handle_incoming_request,handle_incoming_error,cancel_token)

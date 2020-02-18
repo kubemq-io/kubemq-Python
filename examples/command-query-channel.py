@@ -11,7 +11,8 @@ def create_request_channel_parameters(request_type):
         timeout=111000,
         cache_key="",
         cache_ttl=0,
-        request_type=request_type
+        request_type=request_type,
+        kubemq_address="localhost:50000"
     )
 
 
