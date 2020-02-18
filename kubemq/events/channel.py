@@ -52,7 +52,7 @@ class Channel:
         if not self.channel_name:
             raise ValueError("channel_name parameter is mandatory")
 
-        self.sender = Sender(kubemq_address)
+        self.sender = Sender(self.kubemq_address)
 
     def __repr__(self):
         return "<Channel channel_name:%s client_id:%s store:%s kubemq_address:%s>" % (

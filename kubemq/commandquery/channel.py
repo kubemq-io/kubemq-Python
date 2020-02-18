@@ -39,6 +39,7 @@ class Channel:
             self.timeout = channel_parameters.timeout
             self.cache_key = channel_parameters.cache_key
             self.cache_ttl = channel_parameters.cache_ttl
+            self.kubemq_address = channel_parameters.kubemq_address
         # Initializes a new instance of the RequestChannel class using a set of parameters.
         else:
             self.request_type = request_type
@@ -69,7 +70,7 @@ class Channel:
         if not self.timeout and timeout <= 0:
             raise ValueError("timeout argument is mandatory and must between 1 to {}" % sys.maxsize)
 
-        self._initiator = Initiator(kubemq_address)
+        self._initiator = Initiator(self.kubemq_address)
 
     def send_request(self, request, override_params=None):
         """
