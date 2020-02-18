@@ -32,7 +32,7 @@ class ChannelParameters:
         :param str client_id: Represents the sender ID that the messages will be send under.
         :param int timeout: Represents the limit for waiting for response (Milliseconds).
         :param str cache_key: Represents if the request should be saved from Cache and under what "Key"(Str) to save it.
-        :oaram int cache_ttl: Cache time to live : for how long does the request should be saved in Cache.
+        :param int cache_ttl: Cache time to live : for how long does the request should be saved in Cache.
         :param RequestType request_type: Represents the type of request operation.
         :param str kubemq_address: Represents The address of the KubeMQ server.
         """

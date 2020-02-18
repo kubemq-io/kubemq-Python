@@ -6,7 +6,7 @@ from kubemq.events.lowlevel.sender import Sender
 if __name__ == "__main__":
     print("Sending event using sender example")
 
-    sender = Sender()
+    sender = Sender("localhost:50000")
     event = Event(
         metadata="EventMetaData",
         body=("Event Created on time %s" % datetime.datetime.utcnow()).encode('UTF-8'),

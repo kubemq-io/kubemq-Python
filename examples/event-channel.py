@@ -9,7 +9,8 @@ if __name__ == "__main__":
         channel_name="MyTestChannelName",
         client_id="EventChannelID",
         store=True,
-        return_result=False
+        return_result=False,
+        kubemq_address="localhost:50000"
     )
 
     channel = Channel(params=params)
