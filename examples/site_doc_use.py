@@ -218,7 +218,7 @@ def event_subscriber(channel_name,p_client_id,kube_add):
         events_store_type=EventsStoreType.Undefined,
         events_store_type_value=0,
         group="",
-        subscribe_type=SubscribeType.Commands
+        subscribe_type=SubscribeType.Events
     )
     subscriber.subscribe_to_events(sub_req, handle_incoming_events,handle_incoming_error,cancel_token)
     print("sub for 2 seconds")
@@ -345,7 +345,7 @@ def subscribe_to_requests(channel_name,p_client_id,kube_add):
     print("Canceled token")
     cancel_token.cancel()
 
-def handle_incoming_request(request,client_id):
+def handle_incoming_request(request):
     if request:
         print("Subscriber Received request: Metadata:'%s', Channel:'%s', Body:'%s' tags:%s" % (
             request.metadata,
@@ -358,7 +358,7 @@ def handle_incoming_request(request,client_id):
         response.body = "OK".encode('UTF-8')
         response.cache_hit = False
         response.error = "None"
-        response.client_id = client_id
+        response.client_id = "My_Client_id"
         response.executed = True
         response.metadata = "OK"
         response.timestamp = datetime.datetime.now()
