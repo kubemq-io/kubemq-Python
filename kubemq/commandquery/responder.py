@@ -30,13 +30,13 @@ from kubemq.tools.listener_cancellation_token import ListenerCancellationToken
 class Responder(GrpcClient):
     """An instance that responsible on receiving request from the kubeMQ."""
 
-    def __init__(self, kubemq_address=None):
+    def __init__(self, kubemq_address=None,encryptionHeader=None):
         """
         Initialize a new Responder to subscribe to Response.
 
         :param str kubemq_address: KubeMQ server address. if None will be parsed from Config or environment parameter.
         """
-        GrpcClient.__init__(self)
+        GrpcClient.__init__(self,encryptionHeader)
         if kubemq_address:
             self._kubemq_address = kubemq_address
 

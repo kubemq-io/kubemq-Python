@@ -40,7 +40,7 @@ class MessageQueue(GrpcClient):
     """Represents a MessageQueue pattern."""
 
     def __init__(self, queue_name=None, client_id=None, kubemq_address=None, max_number_of_messages=32,
-                 wait_time_seconds_queue_messages=1):
+                 wait_time_seconds_queue_messages=1,encryptionHeader=None):
 
         """
         Initializes a new MessageQueue using params .
@@ -49,8 +49,9 @@ class MessageQueue(GrpcClient):
         :param max_number_of_messages: Number of received messages.
         :param wait_time_seconds_queue_messages: Wait time for received messages.
         :param queue_name: Represents The queue name to send to using the KubeMQ.
+        :param byte[] encryptionHeader: the encrypted header requested by kubemq authentication.
         """
-        GrpcClient.__init__(self)
+        GrpcClient.__init__(self,encryptionHeader)
         if kubemq_address:
             self._kubemq_address = kubemq_address
         if client_id:
@@ -59,7 +60,7 @@ class MessageQueue(GrpcClient):
         self.max_number_of_messages = max_number_of_messages
 
         self.wait_time_seconds_queue_messages = wait_time_seconds_queue_messages
-
+        self.encryptionHeader= encryptionHeader
         self.queue_name = queue_name
         self.transaction = None
 
@@ -74,7 +75,7 @@ class MessageQueue(GrpcClient):
             message.queue = self.queue_name
             message.client_id = self.client_id
             inner_queue_message = message.convert_to_queue_message(self)
-            inner_response = self.get_kubemq_client().SendQueueMessage(inner_queue_message)
+            inner_response = self.get_kubemq_client().SendQueueMessage(inner_queue_message,metadata=self._metadata)
             return SendMessageResult(inner_response)
         except Exception as e:
             logging.exception("Grpc Exception in send_queue_message_result:'%s'" % (e))
@@ -85,7 +86,7 @@ class MessageQueue(GrpcClient):
         try:
             id = get_next_id()
             inner_response = self.get_kubemq_client().SendQueueMessagesBatch(
-                convert_queue_message_batch_request(id, to_queue_messages(messages, self)))
+                convert_queue_message_batch_request(id, to_queue_messages(messages, self)),metadata=self._metadata)
             return convert_from_queue_messages_batch_response(inner_response)
         except Exception as e:
             logging.exception("Grpc Exception in send_queue_messages_batch:'%s'" % (e))
@@ -96,7 +97,7 @@ class MessageQueue(GrpcClient):
         try:
             id = get_next_id()
             inner_response = self.get_kubemq_client().ReceiveQueueMessages(
-                self.convert_to_receive_queue_messages_request(id, False, number_of_messages))
+                self.convert_to_receive_queue_messages_request(id, False, number_of_messages),metadata=self._metadata)
             return ReceiveMessagesResponse(inner_response)
         except Exception as e:
             logging.exception("Grpc Exception in send_queue_messages:'%s'" % (e))
@@ -107,7 +108,7 @@ class MessageQueue(GrpcClient):
         try:
             id = get_next_id()
             inner_response = self.get_kubemq_client().ReceiveQueueMessages(
-                self.convert_to_receive_queue_messages_request(id, True, number_of_messages))
+                self.convert_to_receive_queue_messages_request(id, True, number_of_messages),metadata=self._metadata)
             return ReceiveMessagesResponse(inner_response)
         except Exception as e:
             logging.exception("Grpc Exception in send_queue_messages_batch:'%s'" % (e))
@@ -117,7 +118,7 @@ class MessageQueue(GrpcClient):
         """acknowledge queue messages from queue"""
         try:
             inner_response = self.get_kubemq_client().AckAllQueueMessages(
-                self.convert_to_ack_all_queue_message_request())
+                self.convert_to_ack_all_queue_message_request(),metadata=self._metadata)
             return AckAllMessagesResponse(inner_response)
         except Exception as e:
             logging.exception("Grpc Exception in ack_all_queue_messages:'%s'" % (e))

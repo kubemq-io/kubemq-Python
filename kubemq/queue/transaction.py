@@ -58,7 +58,7 @@ class Transaction(GrpcClient):
         Initializes a new Transaction using MessageQueue .
         :param queue: should be called from queue.transaction()".
         """
-        super().__init__()
+        super().__init__(queue.encryptionHeader)
         self.queue = queue
         self.stream = False
         self.inner_stream = None
@@ -182,7 +182,7 @@ class Transaction(GrpcClient):
                 stream_observer.put(ControlMessages.CLOSE_STREAM)
                 self.stream = False
 
-            self.inner_stream = self.client.StreamQueueMessage(stream())
+            self.inner_stream = self.client.StreamQueueMessage(stream(),metadata=self.queue._metadata)
             self.inner_stream.add_done_callback(done)
 
             self.stream_observer = stream_observer

@@ -20,7 +20,6 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 import grpc
-
 from kubemq.basic import configuration_loader
 from kubemq.grpc import kubemq_pb2_grpc
 
@@ -40,8 +39,8 @@ class GrpcClient:
     _channel = None
     _client = None
 
-    def __init__(self):
-        self._init_registration()
+    def __init__(self,encryptionHeader):
+        self._init_registration(encryptionHeader)
 
     def get_kubemq_client(self):
         if not self._client:
@@ -70,7 +69,6 @@ class GrpcClient:
 
         return self._kubemq_address
 
-    def _init_registration(self):
-        registration_key = configuration_loader.get_registration_key()
-        if registration_key:
-            self._metadata = [("X-Kubemq-Server-Token", registration_key)]
+    def _init_registration(self,encryptionHeader):
+        if encryptionHeader:
+            self._metadata = [("authorization", encryptionHeader)]

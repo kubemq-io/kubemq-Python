@@ -1,3 +1,5 @@
+
+import jwt
 from builtins import input
 from random import randint
 from kubemq.tools.listener_cancellation_token import ListenerCancellationToken
@@ -5,6 +7,7 @@ from kubemq.events.subscriber import Subscriber
 from kubemq.subscription.subscribe_type import SubscribeType
 from kubemq.subscription.events_store_type import EventsStoreType
 from kubemq.subscription.subscribe_request import SubscribeRequest
+
 
 
 def create_subscribe_request(
@@ -40,7 +43,8 @@ if __name__ == "__main__":
     print("Subscribing to event on channel example")
     cancel_token=ListenerCancellationToken()
     # Subscribe to events with store
-    subscriber = Subscriber("localhost:50000")
+    encryptionHeader = jwt.encode({},algorithm="HS256",key="some-key")
+    subscriber = Subscriber("localhost:50000",encryptionHeader)
     subscribe_request = create_subscribe_request(SubscribeType.EventsStore, EventsStoreType.StartAtSequence, 2)
     subscriber.subscribe_to_events(subscribe_request, handle_incoming_events,handle_incoming_error,cancel_token)
 

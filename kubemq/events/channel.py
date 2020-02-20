@@ -27,7 +27,7 @@ class Channel:
     """Sender with a set of predefined parameters"""
     sender = None
 
-    def __init__(self, params=None, channel_name=None, client_id=None, store=None, kubemq_address=None):
+    def __init__(self, params=None, channel_name=None, client_id=None, store=None, kubemq_address=None,encryptionHeader=None):
         """
         Initializes a new instance of the Events.Channel class using params OR "Manual" Parameters.
 
@@ -36,6 +36,7 @@ class Channel:
         :param client_id: Represents the sender ID that the messages will be send under.
         :param store: Represents if the events should be send to persistence.
         :param kubemq_address: The address the of the KubeMQ including the GRPC Port ,Example: "LocalHost:50000".
+        :param byte[] encryptionHeader: the encrypted header requested by kubemq authentication.
         """
 
         if params:
@@ -43,23 +44,26 @@ class Channel:
             self.client_id = params.client_id
             self.store = params.store
             self.kubemq_address = params.kubemq_address
+            self.encryptionHeader = params.encryptionHeader
         else:
             self.channel_name = channel_name
             self.client_id = client_id
             self.store = store
             self.kubemq_address = kubemq_address
+            self.encryptionHeader = encryptionHeader
 
         if not self.channel_name:
             raise ValueError("channel_name parameter is mandatory")
 
-        self.sender = Sender(self.kubemq_address)
+        self.sender = Sender(self.kubemq_address,self.encryptionHeader)
 
     def __repr__(self):
-        return "<Channel channel_name:%s client_id:%s store:%s kubemq_address:%s>" % (
+        return "<Channel channel_name:%s client_id:%s store:%s kubemq_address:%s encryptionHeader:%s>" % (
             self.channel_name,
             self.client_id,
             self.store,
-            self.kubemq_address
+            self.kubemq_address,
+            self.encryptionHeader
         )
 
     def send_event(self, event):

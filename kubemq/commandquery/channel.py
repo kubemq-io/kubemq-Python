@@ -30,7 +30,7 @@ class Channel:
 
     def __init__(self, channel_parameters=None, request_type=None, channel_name=None, client_id=None, timeout=None,
                  cache_key=None,
-                 cache_ttl=None, kubemq_address=None):
+                 cache_ttl=None, kubemq_address=None,encryptionHeader=None):
         # Initializes a new instance of the RequestChannel class using RequestChannelParameters.
         if channel_parameters:
             self.request_type = channel_parameters.request_type
@@ -40,6 +40,7 @@ class Channel:
             self.cache_key = channel_parameters.cache_key
             self.cache_ttl = channel_parameters.cache_ttl
             self.kubemq_address = channel_parameters.kubemq_address
+            self.encryptionHeader = channel_parameters.encryptionHeader
         # Initializes a new instance of the RequestChannel class using a set of parameters.
         else:
             self.request_type = request_type
@@ -59,6 +60,9 @@ class Channel:
             self.cache_ttl = cache_ttl
             """Cache time to live : for how long does the request should be saved in Cache."""
 
+            self.encryptionHeader = encryptionHeader
+            """the header for authentication using kubemq."""
+
         # Validate arguments
 
         if not self.channel_name:
@@ -70,7 +74,7 @@ class Channel:
         if not self.timeout and timeout <= 0:
             raise ValueError("timeout argument is mandatory and must between 1 to {}" % sys.maxsize)
 
-        self._initiator = Initiator(self.kubemq_address)
+        self._initiator = Initiator(self.kubemq_address,self.encryptionHeader)
 
     def send_request(self, request, override_params=None):
         """
