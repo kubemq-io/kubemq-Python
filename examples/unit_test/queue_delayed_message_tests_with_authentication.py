@@ -58,7 +58,7 @@ class TestStringMethods(unittest.TestCase):
         queue_name = "transaction_message_pass"
         client_id = "transaction_message_pass"
         kube_add = "localhost:50000"
-        queue=MessageQueue(queue_name, client_id, kube_add)
+        queue=MessageQueue(queue_name, client_id, kube_add,encryptionHeader=jwt.encode({},algorithm="HS256",key="some-key"))
         mm = []
 
         
