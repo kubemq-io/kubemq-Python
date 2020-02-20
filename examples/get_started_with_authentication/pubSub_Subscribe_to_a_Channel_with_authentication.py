@@ -16,7 +16,7 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE. 
-
+import jwt
 from builtins import input
 from random import randint
 from kubemq.events.subscriber import Subscriber
@@ -48,7 +48,7 @@ if __name__ == "__main__":
 
 
     # Subscribe to events without store
-    subscriber = Subscriber("localhost:50000")
+    subscriber = Subscriber("localhost:50000",encryptionHeader=jwt.encode({},algorithm="HS256",key="some-key"))
     subscribe_request = SubscribeRequest(
         channel="testing_event_channel",
         client_id="hello-world-subscriber",

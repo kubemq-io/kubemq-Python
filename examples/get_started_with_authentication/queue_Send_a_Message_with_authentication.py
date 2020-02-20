@@ -16,7 +16,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE. 
 
-
+import jwt
 from kubemq.queue.message_queue import MessageQueue
 
 from kubemq.queue.message import Message
@@ -24,7 +24,7 @@ from kubemq.queue.message import Message
 
 if __name__ == "__main__":
 
-    queue = MessageQueue("hello-world-queue", "test-queue-client-id2", "localhost:50000")
+    queue = MessageQueue("hello-world-queue", "test-queue-client-id2", "localhost:50000",encryptionHeader=jwt.encode({},algorithm="HS256",key="some-key"))
     message = Message()
     message.metadata = 'metadata'
     message.body = "some-simple_queue-queue-message".encode('UTF-8')
