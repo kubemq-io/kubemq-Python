@@ -17,6 +17,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE. 
 
+import jwt
 
 from kubemq.commandquery.lowlevel.initiator import Initiator
 from kubemq.commandquery.lowlevel.request import Request
@@ -27,7 +28,7 @@ from kubemq.commandquery.request_type import RequestType
 
 if __name__ == "__main__":
 
-    initiator = Initiator("localhost:50000")
+    initiator = Initiator("localhost:50000",encryptionHeader=jwt.encode({},algorithm="HS256",key="some-key"))
     request  = Request(
         body="hello kubemq - sending a command, please reply'".encode('UTF-8'),
         metadata="",

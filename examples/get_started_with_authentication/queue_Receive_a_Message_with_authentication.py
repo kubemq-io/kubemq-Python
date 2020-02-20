@@ -18,14 +18,14 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE. 
-
+import jwt
 from kubemq.queue.message_queue import MessageQueue
 
 
 
 
 if __name__ == "__main__":
-    queue = MessageQueue("hello-world-queue", "test-queue-client-id2", "localhost:50000", 2, 1)
+    queue = MessageQueue("hello-world-queue", "test-queue-client-id2", "localhost:50000", 2, 1,encryptionHeader=jwt.encode({},algorithm="HS256",key="some-key"))
     try:
         res = queue.receive_queue_messages()
         if res.error:
