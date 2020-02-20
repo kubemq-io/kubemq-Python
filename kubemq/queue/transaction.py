@@ -142,7 +142,7 @@ class Transaction(GrpcClient):
         """Resend the new message to a new channel."""
         if not self.check_call_is_in_transaction():
             return TransactionMessagesResponse(None, None, True,
-                                               "no active message to rmodifyesend, call Receive first")
+                                               "no active message to modify, call Receive first")
         else:
             try:
                 if isinstance(msg,Message):

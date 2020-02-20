@@ -90,19 +90,17 @@ class Responder(GrpcClient):
                         except grpc.RpcError as error:
                             if (listener_cancellation_token.is_cancelled):
                                 logging.info("Sub closed by listener request")
+                                error_handler(str(error))
                             else:
-                                logging.info("Subscriber Received Error: Error:'%s'" % (
-                                str(error)
-                                ))
-                                error_handler(error)
+                                logging.exception("Subscriber Received Error: Error:'%s'" % (error))
+                                error_handler(str(error))
                         except Exception as e:
-                            logging.info("Subscriber Received Error: Error:'%s'" % (
-                            str(e)
-                            ))
+                            logging.exception("Subscriber Received Error: Error:'%s'" % (e))
                             error_handler(str(e))
 
                 except Exception as e:
                     logging.exception("An exception occurred while listening for request:'%s'" % (e))
+                    error_handler(str(e))
                     raise  # re-raise the original exception, keeping full stack trace
 
         def check_sub_to_valid(listener_cancellation_token):
