@@ -10,13 +10,14 @@ from kubemq.tools.listener_cancellation_token import ListenerCancellationToken
 
 class Subscriber(GrpcClient):
 
-    def __init__(self, kubemq_address=None):
+    def __init__(self, kubemq_address=None,encryptionHeader=None):
         """
         Initialize a new Sender under the requested KubeMQ Server Address.
 
         :param str kubemq_address: KubeMQ server address. if None will be parsed from Config or environment parameter.
+        :param byte[] encryptionHeader: the encrypted header requested by kubemq authentication.
         """
-        GrpcClient.__init__(self)
+        GrpcClient.__init__(self,encryptionHeader)
         if kubemq_address:
             self._kubemq_address = kubemq_address
 

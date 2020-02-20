@@ -1,12 +1,9 @@
-import unittest, random, string
-import sys
-sys.path.append(".")
+import unittest, random, string,jwt
 from kubemq.queue.message_queue import MessageQueue
 from kubemq.queue.message import Message
 from kubemq.grpc import QueueMessagePolicy
 import time
 import datetime
-
 
 def create_queue_message(meta_data, body, policy=None):
     message = Message()
@@ -24,10 +21,11 @@ class TestStringMethods(unittest.TestCase):
 
 
 
-    def test_get_message_pass(self):
+
+    def test_get_message_pass_with_auth(self):
         client_id = "message_pass"
         kube_add = "localhost:50000"
-        queue=MessageQueue("Get_Messages{}".format(randomString(10)), client_id, kube_add)
+        queue = MessageQueue("Get_Messages{}".format(randomString(10)), client_id, kube_add,encryptionHeader=jwt.encode({},algorithm="HS256",key="some-key") )
         mm = []
 
         
@@ -40,7 +38,7 @@ class TestStringMethods(unittest.TestCase):
         queue.send_queue_messages_batch(mm)
         
 
-        tr=queue.create_transaction()
+        tr = queue.create_transaction()
         recm=tr.receive(3)
         self.assertFalse(recm.error)
         self.assertFalse(tr.ack_message(recm.message.Attributes.Sequence).is_error)
@@ -48,44 +46,44 @@ class TestStringMethods(unittest.TestCase):
         self.assertFalse(tr.receive().is_error)
         tr.close_stream()
 
-    def test_send_receive_tran_ack_pass(self):
+    def test_send_receive_tran_ack_pass_with_auth(self):
         client_id = "tran_ack_pass"
         kube_add = "localhost:50000"
-        queue=MessageQueue("SendReciveTranAck_Pass", client_id, kube_add)
+        queue = MessageQueue("SendReciveTranAck_Pass", client_id, kube_add,encryptionHeader=jwt.encode({},algorithm="HS256",key="some-key") )
 
 
         message = create_queue_message("first test Ack", "hi there".encode('UTF-8'))
 
         queue.send_queue_message(message)
         
-        tr=queue.create_transaction()
-        recm=tr.receive(5)
+        tr = queue.create_transaction()
+        recm = tr.receive(5)
         self.assertFalse(tr.ack_message(recm.message.Attributes.Sequence).is_error)
 
 
-    def test_send_receive_tran_ack_fail(self):
+    def test_send_receive_tran_ack_fail_with_auth(self):
         client_id = "tran_ack_fail"
         kube_add = "localhost:50000"
-        queue=MessageQueue("SendReciveTranAck_Fail", client_id, kube_add)
+        queue = MessageQueue("SendReciveTranAck_Fail", client_id, kube_add,encryptionHeader=jwt.encode({},algorithm="HS256",key="some-key") )
 
 
         message = create_queue_message("first test Ack", "hi there".encode('UTF-8'))
 
         queue.send_queue_message(message)
         
-        tr=queue.create_transaction()
-        recm=tr.receive(5)
-        ackms=tr.ack_message(recm.message.Attributes.Sequence)
+        tr = queue.create_transaction()
+        recm = tr.receive(5)
+        ackms = tr.ack_message(recm.message.Attributes.Sequence)
         time.sleep(0.1)
         recm2=tr.receive(5)
         self.assertFalse(ackms.is_error)
         self.assertTrue(recm2.is_error)
         tr.close_stream()
 
-    def test_send_receive_tran_visability_expired_fail(self):
+    def test_send_receive_tran_visibility_expired_fail_with_auth(self):
         client_id = "expired_fail"
         kube_add = "localhost:50000"
-        queue=MessageQueue("send_receive_tran_visability_expired_fail", client_id, kube_add)
+        queue = MessageQueue("send_receive_tran_visibility_expired_fail", client_id, kube_add,encryptionHeader=jwt.encode({},algorithm="HS256",key="some-key") )
 
 
         message = create_queue_message("first test Ack", "hi there".encode('UTF-8'))
@@ -98,10 +96,10 @@ class TestStringMethods(unittest.TestCase):
         ackms = tr.ack_message(recm.message.Attributes.Sequence)
         self.assertEqual(ackms.error,"Error 129: current visibility timer expired")
 
-    def test_send_receive_tran_visability_expired_pass(self):
+    def test_send_receive_tran_visibility_expired_pass_with_auth(self):
         client_id = "expired_pass"
         kube_add = "localhost:50000"
-        queue = MessageQueue("send_receive_tran_visability_expired_pass", client_id, kube_add)
+        queue = MessageQueue("send_receive_tran_visibility_expired_pass", client_id, kube_add,encryptionHeader=jwt.encode({},algorithm="HS256",key="some-key"))
 
 
         message = create_queue_message("first test Ack", "hi there".encode('UTF-8'))
@@ -115,17 +113,17 @@ class TestStringMethods(unittest.TestCase):
         ackms = tr.ack_message(recm.message.Attributes.Sequence)
         self.assertEqual(ackms.is_error,False)
 
-    def test_modify_new_message_pass(self):
+    def test_modify_new_message_pass_with_auth(self):
         client_id = "message_pass"
         kube_add = "localhost:50000"
-        queue = MessageQueue("send_modify_new_message_pass", client_id, kube_add)
+        queue = MessageQueue("send_modify_new_message_pass", client_id, kube_add,encryptionHeader=jwt.encode({},algorithm="HS256",key="some-key") )
 
 
         message = create_queue_message("first test Ack", "hi there".encode('UTF-8'))
 
         queue.send_queue_message(message)
         
-        tr = queue.create_transaction()
+        tr=queue.create_transaction()
         recm = tr.receive(10)
         self.assertFalse(recm.is_error)
         modMsg = create_queue_message("hi there", "well hello".encode('UTF-8'))
@@ -141,10 +139,10 @@ class TestStringMethods(unittest.TestCase):
         self.assertEqual("well hello",recm2.message.Body.decode("utf-8") )
         tr.close_stream()
 
-    def test_modify_after_ack_fail(self):
+    def test_modify_after_ack_fail_with_auth(self):
         client_id = "ack_fail"
         kube_add = "localhost:50000"
-        queue = MessageQueue("test_modify_after_ack_fail", client_id, kube_add)
+        queue = MessageQueue("test_modify_after_ack_fail", client_id, kube_add,encryptionHeader=jwt.encode({},algorithm="HS256",key="some-key") )
         mm = []
 
         
@@ -162,7 +160,7 @@ class TestStringMethods(unittest.TestCase):
         
         tr.ack_message(recm.message.Attributes.Sequence)
         time.sleep(0.1)
-        recMod = tr.extend_visibility(5)
+        recMod=tr.extend_visibility(5)
         self.assertTrue(recMod.is_error)
 
     

@@ -28,13 +28,13 @@ from kubemq.commandquery.response import Response
 class Initiator(GrpcClient):
     """Represents the instance that is responsible to send requests to the kubemq."""
 
-    def __init__(self, kubemq_address=None):
+    def __init__(self, kubemq_address=None, encryptionHeader=None):
         """
         Initialize a new Initiator.
 
         :param str kubemq_address: KubeMQ server address. if None will be parsed from Config or environment parameter.
         """
-        GrpcClient.__init__(self)
+        GrpcClient.__init__(self,encryptionHeader)
         if kubemq_address:
             self._kubemq_address = kubemq_address
 
