@@ -67,15 +67,12 @@ class Subscriber(GrpcClient):
             except grpc.RpcError as error:
                 if (listener_cancellation_token.is_cancelled):
                     logging.info("Sub closed by listener request")
+                    error_handler(str(error))
                 else:
-                    logging.info("Subscriber Received Error: Error:'%s'" % (
-                    str(error)
-                    ))
-                    error_handler(error)
+                    logging.exception("Subscriber Received Error: Error:'%s'" % (error))
+                    error_handler(str(error))
             except Exception as e:
-                logging.info("Subscriber Received Error: Error:'%s'" % (
-                str(e)
-                ))
+                logging.exception("Subscriber Received Error: Error:'%s'" % (e))
                 error_handler(str(e))
         def check_sub_to_valid(listener_cancellation_token):
             while True:
@@ -93,3 +90,4 @@ class Subscriber(GrpcClient):
         listener_thread = threading.Thread(target=check_sub_to_valid, args=(listener_cancellation_token,))
         listener_thread.daemon = True
         listener_thread.start()
+        return thread
