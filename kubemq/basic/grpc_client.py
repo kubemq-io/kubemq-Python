@@ -55,7 +55,7 @@ class GrpcClient:
                     # Open Insecure connection
                     self._channel = grpc.insecure_channel(kubemq_address)
             self._client = kubemq_pb2_grpc.kubemqStub(self._channel)
-
+            
         return self._client
 
     def get_kubemq_address(self):
