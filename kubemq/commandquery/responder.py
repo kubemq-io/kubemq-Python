@@ -86,7 +86,7 @@ class Responder(GrpcClient):
                                 response.reply_channel
                             ))
 
-                            self.get_kubemq_client().SendResponse(response.convert(), self._metadata)
+                            self.get_kubemq_client().SendResponse(response.convert(),None, self._metadata)
                         except grpc.RpcError as error:
                             if (listener_cancellation_token.is_cancelled):
                                 logging.info("Sub closed by listener request")

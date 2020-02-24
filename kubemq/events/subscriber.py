@@ -34,6 +34,7 @@ class Subscriber(GrpcClient):
         :param handler: Method the perform when receiving EventReceive
         :param error_handler: Method the perform when receiving error from kubemq
         :param listener_cancellation_token: cancellation token, once cancel is called will cancel the subscribe to kubemq
+        :return: A thread running the Subscribe Request.
         """
 
         if not subscribe_request.channel:
