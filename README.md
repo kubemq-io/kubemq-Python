@@ -54,6 +54,7 @@ KubeMQ messaging broker has five messaging patterns:
 - **Commands** - the Command part of CQRS pattern, which sends commands with the response for executed or not (with proper error messaging)
 - **Queries** - the Query part of CQRS pattern, which sends a query and gets a response with the relevant query result back
 For each one of the patterns, we can distinguish between the senders and the receivers.
+- **Group**: Optional parameter when subscribing to a channel. A set of subscribers can define the same group so that only one of the subscribers within the group will receive a specific event. Used mainly for load balancing. Subscribing without the group parameter ensures receiving all the channel messages. (When using Grouping all the programs that are assigned to the group need to have to same channel name)
 
 For events and events store, the KubeMQ supports both RPC and upstream calls.
 
