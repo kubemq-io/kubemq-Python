@@ -128,6 +128,36 @@ Core features
 
 - **Resend Messages** - Consumers can send back a message they pulled to a new queue or send a modified message to the same queue for further processing.
 
+### QueueMessageAttributes.(proto struct)
+Timestamp - when the message arrived to queue.
+
+Sequence - the message order in the queue.
+
+MD5OfBody - An MD5 digest non-URL-encoded message body string.
+
+ReceiveCount - how many recieved.
+
+ReRouted - if the message was ReRouted from another point.
+
+ReRoutedFromQueue - from where the message was ReRouted
+
+ExpirationAt - Expiration time of the message.
+
+DelayedTo -if the message was Delayed.
+
+```
+  message QueueMessageAttributes {
+      int64               Timestamp                   =1;
+      uint64              Sequence                    =2;
+      string              MD5OfBody                   =3;
+      int32               ReceiveCount                =4;
+      bool                ReRouted                    =5;
+      string              ReRoutedFromQueue           =6;
+      int64               ExpirationAt                =7;
+      int64               DelayedTo                   =8;
+
+  }
+```
 
 Send Message to a Queue:
 ```
