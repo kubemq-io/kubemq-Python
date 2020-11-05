@@ -21,19 +21,20 @@
 # SOFTWARE.
 from kubemq.queue.message import Message as Message
 
+
 class ReceiveMessagesResponse:
     def __init__(self, receive_queue_messages_response=None):
         if receive_queue_messages_response:
             self.error = receive_queue_messages_response.Error
-            self.is_error= receive_queue_messages_response.IsError
-            self.is_peek=receive_queue_messages_response.IsPeak
-            my_messages=[]
+            self.is_error = receive_queue_messages_response.IsError
+            self.is_peek = receive_queue_messages_response.IsPeak
+            my_messages = []
             for message in receive_queue_messages_response.Messages:
                 my_messages.append(Message(message))
-            self.messages=receive_queue_messages_response.Messages
-            self.messages_expired=receive_queue_messages_response.MessagesExpired
-            self.messages_received=receive_queue_messages_response.MessagesReceived
-            self.request_id=receive_queue_messages_response.RequestID
+            self.messages = receive_queue_messages_response.Messages
+            self.messages_expired = receive_queue_messages_response.MessagesExpired
+            self.messages_received = receive_queue_messages_response.MessagesReceived
+            self.request_id = receive_queue_messages_response.RequestID
 
     def __repr__(self):
         return "<ReceiveMessagesResponse error:%s is_error:%s is_peek:%s messages:%s messages_expired:%s messages_received:%s request_id:%s>" % (

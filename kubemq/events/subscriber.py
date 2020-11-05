@@ -10,14 +10,14 @@ from kubemq.tools.listener_cancellation_token import ListenerCancellationToken
 
 class Subscriber(GrpcClient):
 
-    def __init__(self, kubemq_address=None,encryptionHeader=None):
+    def __init__(self, kubemq_address=None, encryptionHeader=None):
         """
         Initialize a new Sender under the requested KubeMQ Server Address.
 
         :param str kubemq_address: KubeMQ server address. if None will be parsed from Config or environment parameter.
         :param byte[] encryptionHeader: the encrypted header requested by kubemq authentication.
         """
-        GrpcClient.__init__(self,encryptionHeader)
+        GrpcClient.__init__(self, encryptionHeader)
         if kubemq_address:
             self._kubemq_address = kubemq_address
 
@@ -27,7 +27,8 @@ class Subscriber(GrpcClient):
         logging.debug("event subscriber KubeMQ address:%s ping result:%s'" % (self._kubemq_address, ping_result))
         return ping_result
 
-    def subscribe_to_events(self, subscribe_request, handler,error_handler,listener_cancellation_token=ListenerCancellationToken()):
+    def subscribe_to_events(self, subscribe_request, handler, error_handler,
+                            listener_cancellation_token=ListenerCancellationToken()):
         """
         Register to kubeMQ Channel using handler.
         :param SubscribeRequest subscribe_request: represent by that will determine the subscription configuration.
@@ -50,8 +51,9 @@ class Subscriber(GrpcClient):
                 raise ValueError("events_store_type parameter is mandatory.")
 
         inner_subscribe_request = subscribe_request.to_inner_subscribe_request()
-        
+
         call = self.get_kubemq_client().SubscribeToEvents(inner_subscribe_request, metadata=self._metadata)
+
         def subscribe_to_event(listener_cancellation_token):
             try:
                 while True:
@@ -75,6 +77,7 @@ class Subscriber(GrpcClient):
             except Exception as e:
                 logging.exception("Subscriber Received Error: Error:'%s'" % (e))
                 error_handler(str(e))
+
         def check_sub_to_valid(listener_cancellation_token):
             while True:
                 if (listener_cancellation_token.is_cancelled):
@@ -82,12 +85,10 @@ class Subscriber(GrpcClient):
                     call.cancel()
                     return
 
-
         thread = threading.Thread(target=subscribe_to_event, args=(listener_cancellation_token,))
         thread.daemon = True
         thread.start()
 
-        
         listener_thread = threading.Thread(target=check_sub_to_valid, args=(listener_cancellation_token,))
         listener_thread.daemon = True
         listener_thread.start()

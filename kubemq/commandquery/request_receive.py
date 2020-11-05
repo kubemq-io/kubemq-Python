@@ -57,6 +57,6 @@ class RequestReceive:
 
         self.cache_ttl = inner_request.CacheTTL
         """Cache time to live : for how long does the request should be saved in Cache."""
-        
-        self.tags=inner_request.Tags
+
+        self.tags = inner_request.Tags
         """Represents key value pairs that help distinguish the message"""

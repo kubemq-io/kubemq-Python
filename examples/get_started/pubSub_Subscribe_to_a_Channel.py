@@ -1,4 +1,3 @@
-
 # MIT License
 # Copyright (c) 2018 KubeMQ
 # Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -26,7 +25,6 @@ from kubemq.subscription.events_store_type import EventsStoreType
 from kubemq.subscription.subscribe_request import SubscribeRequest
 
 
-
 def handle_incoming_events(event):
     if event:
         print("Subscriber Received Event: Metadata:'%s', Channel:'%s', Body:'%s tags:%s'" % (
@@ -36,16 +34,16 @@ def handle_incoming_events(event):
             event.tags
         ))
 
+
 def handle_incoming_error(error_msg):
-        print("received error:%s'" % (
-            error_msg
-        ))
+    print("received error:%s'" % (
+        error_msg
+    ))
 
 
 if __name__ == "__main__":
     print("Subscribing to event on channel example")
-    cancel_token=ListenerCancellationToken()
-
+    cancel_token = ListenerCancellationToken()
 
     # Subscribe to events without store
     subscriber = Subscriber("localhost:50000")
@@ -57,8 +55,8 @@ if __name__ == "__main__":
         group="",
         subscribe_type=SubscribeType.Events
     )
-    subscriber.subscribe_to_events(subscribe_request, handle_incoming_events,handle_incoming_error,cancel_token)
-    
+    subscriber.subscribe_to_events(subscribe_request, handle_incoming_events, handle_incoming_error, cancel_token)
+
     input("Press 'Enter' to stop Listen...\n")
     cancel_token.cancel()
     input("Press 'Enter' to stop the application...\n")

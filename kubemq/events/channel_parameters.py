@@ -24,7 +24,8 @@
 class ChannelParameters:
     """Configuration parameters for a Channel."""
 
-    def __init__(self, channel_name=None, client_id=None, store=None, kubemq_address=None, return_result=False,encryptionHeader=None):
+    def __init__(self, channel_name=None, client_id=None, store=None, kubemq_address=None, return_result=False,
+                 encryptionHeader=None):
         """
         Initializes a new instance of the ChannelParameters class with set parameters.
 

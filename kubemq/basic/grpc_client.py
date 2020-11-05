@@ -39,7 +39,7 @@ class GrpcClient:
     _channel = None
     _client = None
 
-    def __init__(self,encryptionHeader):
+    def __init__(self, encryptionHeader):
         self._init_registration(encryptionHeader)
 
     def get_kubemq_client(self):
@@ -55,7 +55,7 @@ class GrpcClient:
                     # Open Insecure connection
                     self._channel = grpc.insecure_channel(kubemq_address)
             self._client = kubemq_pb2_grpc.kubemqStub(self._channel)
-            
+
         return self._client
 
     def get_kubemq_address(self):
@@ -69,6 +69,6 @@ class GrpcClient:
 
         return self._kubemq_address
 
-    def _init_registration(self,encryptionHeader):
+    def _init_registration(self, encryptionHeader):
         if encryptionHeader:
             self._metadata = [("authorization", encryptionHeader)]

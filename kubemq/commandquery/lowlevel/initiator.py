@@ -34,7 +34,7 @@ class Initiator(GrpcClient):
 
         :param str kubemq_address: KubeMQ server address. if None will be parsed from Config or environment parameter.
         """
-        GrpcClient.__init__(self,encryptionHeader)
+        GrpcClient.__init__(self, encryptionHeader)
         if kubemq_address:
             self._kubemq_address = kubemq_address
 
@@ -52,7 +52,7 @@ class Initiator(GrpcClient):
 
         try:
             inner_request = request.convert()
-            call_future = self.get_kubemq_client().SendRequest.future(inner_request, None,self._metadata)
+            call_future = self.get_kubemq_client().SendRequest.future(inner_request, None, self._metadata)
             call_future.add_done_callback(process_response)
         except Exception as e:
             logging.exception("Grpc Exception in send_request_async'%s'" % (e))
@@ -62,7 +62,7 @@ class Initiator(GrpcClient):
         """Publish a single request using the KubeMQ."""
         try:
             inner_request = request.convert()
-            inner_response = self.get_kubemq_client().SendRequest(inner_request, None,self._metadata)
+            inner_response = self.get_kubemq_client().SendRequest(inner_request, None, self._metadata)
             return Response(inner_response)
         except Exception as e:
             logging.exception("Grpc Exception in send_request:'%s'" % (e))
