@@ -27,7 +27,8 @@ class Channel:
     """Sender with a set of predefined parameters"""
     sender = None
 
-    def __init__(self, params=None, channel_name=None, client_id=None, store=None, kubemq_address=None,encryptionHeader=None):
+    def __init__(self, params=None, channel_name=None, client_id=None, store=None, kubemq_address=None,
+                 encryptionHeader=None):
         """
         Initializes a new instance of the Events.Channel class using params OR "Manual" Parameters.
 
@@ -55,7 +56,7 @@ class Channel:
         if not self.channel_name:
             raise ValueError("channel_name parameter is mandatory")
 
-        self.sender = Sender(self.kubemq_address,self.encryptionHeader)
+        self.sender = Sender(self.kubemq_address, self.encryptionHeader)
 
     def __repr__(self):
         return "<Channel channel_name:%s client_id:%s store:%s kubemq_address:%s encryptionHeader:%s>" % (

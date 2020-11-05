@@ -1,4 +1,3 @@
-
 # MIT License
 # Copyright (c) 2018 KubeMQ
 # Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -15,16 +14,15 @@
 # AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-# SOFTWARE. 
+# SOFTWARE.
+
 import jwt
 from builtins import input
-from random import randint
 from kubemq.events.subscriber import Subscriber
 from kubemq.tools.listener_cancellation_token import ListenerCancellationToken
 from kubemq.subscription.subscribe_type import SubscribeType
 from kubemq.subscription.events_store_type import EventsStoreType
 from kubemq.subscription.subscribe_request import SubscribeRequest
-
 
 
 def handle_incoming_events(event):
@@ -36,19 +34,19 @@ def handle_incoming_events(event):
             event.tags
         ))
 
+
 def handle_incoming_error(error_msg):
-        print("received error:%s'" % (
-            error_msg
-        ))
+    print("received error:%s'" % (
+        error_msg
+    ))
 
 
 if __name__ == "__main__":
     print("Subscribing to event on channel example")
-    cancel_token=ListenerCancellationToken()
-
+    cancel_token = ListenerCancellationToken()
 
     # Subscribe to events without store
-    subscriber = Subscriber("localhost:50000",encryptionHeader=jwt.encode({},algorithm="HS256",key="some-key"))
+    subscriber = Subscriber("localhost:50000", encryptionHeader=jwt.encode({}, algorithm="HS256", key="some-key"))
     subscribe_request = SubscribeRequest(
         channel="testing_event_channel",
         client_id="hello-world-subscriber",
@@ -57,8 +55,8 @@ if __name__ == "__main__":
         group="",
         subscribe_type=SubscribeType.Events
     )
-    subscriber.subscribe_to_events(subscribe_request, handle_incoming_events,handle_incoming_error,cancel_token)
-    
+    subscriber.subscribe_to_events(subscribe_request, handle_incoming_events, handle_incoming_error, cancel_token)
+
     input("Press 'Enter' to stop Listen...\n")
     cancel_token.cancel()
     input("Press 'Enter' to stop the application...\n")

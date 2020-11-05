@@ -30,7 +30,7 @@ class Channel:
 
     def __init__(self, channel_parameters=None, request_type=None, channel_name=None, client_id=None, timeout=None,
                  cache_key=None,
-                 cache_ttl=None, kubemq_address=None,encryptionHeader=None):
+                 cache_ttl=None, kubemq_address=None, encryptionHeader=None):
         # Initializes a new instance of the RequestChannel class using RequestChannelParameters.
         if channel_parameters:
             self.request_type = channel_parameters.request_type
@@ -74,7 +74,7 @@ class Channel:
         if not self.timeout and timeout <= 0:
             raise ValueError("timeout argument is mandatory and must between 1 to {}" % sys.maxsize)
 
-        self._initiator = Initiator(self.kubemq_address,self.encryptionHeader)
+        self._initiator = Initiator(self.kubemq_address, self.encryptionHeader)
 
     def send_request(self, request, override_params=None):
         """
@@ -112,7 +112,7 @@ class Channel:
             request_id=request.request_id,
             body=request.body,
             metadata=request.metadata,
-            tags = request.tags
+            tags=request.tags
         )
 
         if override_params:

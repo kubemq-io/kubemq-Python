@@ -22,6 +22,7 @@
 import threading
 
 from kubemq.grpc import Event as kubeEvent
+
 _lock = threading.Lock()
 _counter = 0
 
@@ -41,7 +42,7 @@ def get_next_id():
 
 class Event:
 
-    def __init__(self, channel=None, client_id=None, store=None, event_id=None, body=None, metadata=None,tags=None):
+    def __init__(self, channel=None, client_id=None, store=None, event_id=None, body=None, metadata=None, tags=None):
         self.channel = channel
         """Represents The channel name to send to using the KubeMQ ."""
 
@@ -60,7 +61,7 @@ class Event:
         self.metadata = metadata
         """Represents text as str."""
 
-        self.tags=tags
+        self.tags = tags
         """Represents key value pairs that help distinguish the message"""
 
     def from_inner_event(self, inner_event):
@@ -70,16 +71,16 @@ class Event:
         self.event_id = inner_event.EventID or get_next_id()
         self.client_id = inner_event.ClientID
         self.store = inner_event.Store
-        self.tags=inner_event.Tags
+        self.tags = inner_event.Tags
 
     def to_inner_event(self):
         return kubeEvent(
-            Channel = self.channel,
-            Metadata = self.metadata or "",
-            Body = self.body,
-            EventID = self.event_id or get_next_id(),
-            ClientID = self.client_id,
-            Store = self.store,
+            Channel=self.channel,
+            Metadata=self.metadata or "",
+            Body=self.body,
+            EventID=self.event_id or get_next_id(),
+            ClientID=self.client_id,
+            Store=self.store,
             Tags=self.tags or ""
         )
 

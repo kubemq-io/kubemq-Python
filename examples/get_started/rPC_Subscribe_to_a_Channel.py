@@ -1,4 +1,3 @@
-
 # MIT License
 # Copyright (c) 2018 KubeMQ
 # Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -30,9 +29,6 @@ from kubemq.subscription.subscribe_type import SubscribeType
 from kubemq.tools.listener_cancellation_token import ListenerCancellationToken
 
 
-
-
-
 def handle_incoming_request(request):
     if request:
         print("Subscriber Received request: Metadata:'%s', Channel:'%s', Body:'%s' tags:%s" % (
@@ -50,17 +46,18 @@ def handle_incoming_request(request):
         response.executed = True
         response.metadata = "OK"
         response.timestamp = datetime.datetime.now()
-        response.tags=request.tags
+        response.tags = request.tags
         return response
 
+
 def handle_incoming_error(error_msg):
-        print("received error:%s'" % (
-            error_msg
-        ))
+    print("received error:%s'" % (
+        error_msg
+    ))
 
 
 if __name__ == "__main__":
-    cancel_token=ListenerCancellationToken()
+    cancel_token = ListenerCancellationToken()
     receiver = Responder("localhost:50000")
 
     subscribe_request = SubscribeRequest(
@@ -71,7 +68,7 @@ if __name__ == "__main__":
         group="",
         subscribe_type=SubscribeType.Commands
     )
-    receiver.subscribe_to_requests(subscribe_request, handle_incoming_request,handle_incoming_error,cancel_token)
+    receiver.subscribe_to_requests(subscribe_request, handle_incoming_request, handle_incoming_error, cancel_token)
 
     input("Press 'Enter' to stop Listen...\n")
     cancel_token.cancel()

@@ -3,66 +3,66 @@
 # source: kubemq/grpc/kubemq.proto
 
 import sys
-_b=sys.version_info[0]<3 and (lambda x:x) or (lambda x:x.encode('latin1'))
+
+_b = sys.version_info[0] < 3 and (lambda x: x) or (lambda x: x.encode('latin1'))
 from google.protobuf.internal import enum_type_wrapper
 from google.protobuf import descriptor as _descriptor
 from google.protobuf import message as _message
 from google.protobuf import reflection as _reflection
 from google.protobuf import symbol_database as _symbol_database
+
 # @@protoc_insertion_point(imports)
 
 _sym_db = _symbol_database.Default()
 
-
-
-
 DESCRIPTOR = _descriptor.FileDescriptor(
-  name='kubemq/grpc/kubemq.proto',
-  package='kubemq',
-  syntax='proto3',
-  serialized_options=None,
-  serialized_pb=_b('\n\x18kubemq/grpc/kubemq.proto\x12\x06kubemq\"a\n\nPingResult\x12\x0c\n\x04Host\x18\x01 \x01(\t\x12\x0f\n\x07Version\x18\x02 \x01(\t\x12\x17\n\x0fServerStartTime\x18\x03 \x01(\x03\x12\x1b\n\x13ServerUpTimeSeconds\x18\x04 \x01(\x03\"\x07\n\x05\x45mpty\"6\n\x06Result\x12\x0f\n\x07\x45ventID\x18\x01 \x01(\t\x12\x0c\n\x04Sent\x18\x02 \x01(\x08\x12\r\n\x05\x45rror\x18\x03 \x01(\t\"\xbe\x01\n\x05\x45vent\x12\x0f\n\x07\x45ventID\x18\x01 \x01(\t\x12\x10\n\x08\x43lientID\x18\x02 \x01(\t\x12\x0f\n\x07\x43hannel\x18\x03 \x01(\t\x12\x10\n\x08Metadata\x18\x04 \x01(\t\x12\x0c\n\x04\x42ody\x18\x05 \x01(\x0c\x12\r\n\x05Store\x18\x06 \x01(\x08\x12%\n\x04Tags\x18\x07 \x03(\x0b\x32\x17.kubemq.Event.TagsEntry\x1a+\n\tTagsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"\xd0\x01\n\x0c\x45ventReceive\x12\x0f\n\x07\x45ventID\x18\x01 \x01(\t\x12\x0f\n\x07\x43hannel\x18\x02 \x01(\t\x12\x10\n\x08Metadata\x18\x03 \x01(\t\x12\x0c\n\x04\x42ody\x18\x04 \x01(\x0c\x12\x11\n\tTimestamp\x18\x05 \x01(\x03\x12\x10\n\x08Sequence\x18\x06 \x01(\x04\x12,\n\x04Tags\x18\x07 \x03(\x0b\x32\x1e.kubemq.EventReceive.TagsEntry\x1a+\n\tTagsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"\xe3\x03\n\tSubscribe\x12:\n\x11SubscribeTypeData\x18\x01 \x01(\x0e\x32\x1f.kubemq.Subscribe.SubscribeType\x12\x10\n\x08\x43lientID\x18\x02 \x01(\t\x12\x0f\n\x07\x43hannel\x18\x03 \x01(\t\x12\r\n\x05Group\x18\x04 \x01(\t\x12>\n\x13\x45ventsStoreTypeData\x18\x05 \x01(\x0e\x32!.kubemq.Subscribe.EventsStoreType\x12\x1c\n\x14\x45ventsStoreTypeValue\x18\x06 \x01(\x03\"c\n\rSubscribeType\x12\x1a\n\x16SubscribeTypeUndefined\x10\x00\x12\n\n\x06\x45vents\x10\x01\x12\x0f\n\x0b\x45ventsStore\x10\x02\x12\x0c\n\x08\x43ommands\x10\x03\x12\x0b\n\x07Queries\x10\x04\"\xa4\x01\n\x0f\x45ventsStoreType\x12\x1c\n\x18\x45ventsStoreTypeUndefined\x10\x00\x12\x10\n\x0cStartNewOnly\x10\x01\x12\x12\n\x0eStartFromFirst\x10\x02\x12\x11\n\rStartFromLast\x10\x03\x12\x13\n\x0fStartAtSequence\x10\x04\x12\x0f\n\x0bStartAtTime\x10\x05\x12\x14\n\x10StartAtTimeDelta\x10\x06\"\x83\x03\n\x07Request\x12\x11\n\tRequestID\x18\x01 \x01(\t\x12\x34\n\x0fRequestTypeData\x18\x02 \x01(\x0e\x32\x1b.kubemq.Request.RequestType\x12\x10\n\x08\x43lientID\x18\x03 \x01(\t\x12\x0f\n\x07\x43hannel\x18\x04 \x01(\t\x12\x10\n\x08Metadata\x18\x05 \x01(\t\x12\x0c\n\x04\x42ody\x18\x06 \x01(\x0c\x12\x14\n\x0cReplyChannel\x18\x07 \x01(\t\x12\x0f\n\x07Timeout\x18\x08 \x01(\x05\x12\x10\n\x08\x43\x61\x63heKey\x18\t \x01(\t\x12\x10\n\x08\x43\x61\x63heTTL\x18\n \x01(\x05\x12\x0c\n\x04Span\x18\x0b \x01(\x0c\x12\'\n\x04Tags\x18\x0c \x03(\x0b\x32\x19.kubemq.Request.TagsEntry\x1a+\n\tTagsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"=\n\x0bRequestType\x12\x16\n\x12RequestTypeUnknown\x10\x00\x12\x0b\n\x07\x43ommand\x10\x01\x12\t\n\x05Query\x10\x02\"\x90\x02\n\x08Response\x12\x10\n\x08\x43lientID\x18\x01 \x01(\t\x12\x11\n\tRequestID\x18\x02 \x01(\t\x12\x14\n\x0cReplyChannel\x18\x03 \x01(\t\x12\x10\n\x08Metadata\x18\x04 \x01(\t\x12\x0c\n\x04\x42ody\x18\x05 \x01(\x0c\x12\x10\n\x08\x43\x61\x63heHit\x18\x06 \x01(\x08\x12\x11\n\tTimestamp\x18\x07 \x01(\x03\x12\x10\n\x08\x45xecuted\x18\x08 \x01(\x08\x12\r\n\x05\x45rror\x18\t \x01(\t\x12\x0c\n\x04Span\x18\n \x01(\x0c\x12(\n\x04Tags\x18\x0b \x03(\x0b\x32\x1a.kubemq.Response.TagsEntry\x1a+\n\tTagsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"\x9f\x02\n\x0cQueueMessage\x12\x11\n\tMessageID\x18\x01 \x01(\t\x12\x10\n\x08\x43lientID\x18\x02 \x01(\t\x12\x0f\n\x07\x43hannel\x18\x03 \x01(\t\x12\x10\n\x08Metadata\x18\x04 \x01(\t\x12\x0c\n\x04\x42ody\x18\x05 \x01(\x0c\x12,\n\x04Tags\x18\x06 \x03(\x0b\x32\x1e.kubemq.QueueMessage.TagsEntry\x12\x32\n\nAttributes\x18\x07 \x01(\x0b\x32\x1e.kubemq.QueueMessageAttributes\x12*\n\x06Policy\x18\x08 \x01(\x0b\x32\x1a.kubemq.QueueMessagePolicy\x1a+\n\tTagsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"T\n\x19QueueMessagesBatchRequest\x12\x0f\n\x07\x42\x61tchID\x18\x01 \x01(\t\x12&\n\x08Messages\x18\x02 \x03(\x0b\x32\x14.kubemq.QueueMessage\"r\n\x1aQueueMessagesBatchResponse\x12\x0f\n\x07\x42\x61tchID\x18\x01 \x01(\t\x12/\n\x07Results\x18\x02 \x03(\x0b\x32\x1e.kubemq.SendQueueMessageResult\x12\x12\n\nHaveErrors\x18\x03 \x01(\x08\"\xbc\x01\n\x16QueueMessageAttributes\x12\x11\n\tTimestamp\x18\x01 \x01(\x03\x12\x10\n\x08Sequence\x18\x02 \x01(\x04\x12\x11\n\tMD5OfBody\x18\x03 \x01(\t\x12\x14\n\x0cReceiveCount\x18\x04 \x01(\x05\x12\x10\n\x08ReRouted\x18\x05 \x01(\x08\x12\x19\n\x11ReRoutedFromQueue\x18\x06 \x01(\t\x12\x14\n\x0c\x45xpirationAt\x18\x07 \x01(\x03\x12\x11\n\tDelayedTo\x18\x08 \x01(\x03\"w\n\x12QueueMessagePolicy\x12\x19\n\x11\x45xpirationSeconds\x18\x01 \x01(\x05\x12\x14\n\x0c\x44\x65laySeconds\x18\x02 \x01(\x05\x12\x17\n\x0fMaxReceiveCount\x18\x03 \x01(\x05\x12\x17\n\x0fMaxReceiveQueue\x18\x04 \x01(\t\"\x84\x01\n\x16SendQueueMessageResult\x12\x11\n\tMessageID\x18\x01 \x01(\t\x12\x0e\n\x06SentAt\x18\x02 \x01(\x03\x12\x14\n\x0c\x45xpirationAt\x18\x03 \x01(\x03\x12\x11\n\tDelayedTo\x18\x04 \x01(\x03\x12\x0f\n\x07IsError\x18\x05 \x01(\x08\x12\r\n\x05\x45rror\x18\x06 \x01(\t\"\x99\x01\n\x1bReceiveQueueMessagesRequest\x12\x11\n\tRequestID\x18\x01 \x01(\t\x12\x10\n\x08\x43lientID\x18\x02 \x01(\t\x12\x0f\n\x07\x43hannel\x18\x03 \x01(\t\x12\x1b\n\x13MaxNumberOfMessages\x18\x04 \x01(\x05\x12\x17\n\x0fWaitTimeSeconds\x18\x05 \x01(\x05\x12\x0e\n\x06IsPeak\x18\x06 \x01(\x08\"\xbc\x01\n\x1cReceiveQueueMessagesResponse\x12\x11\n\tRequestID\x18\x01 \x01(\t\x12&\n\x08Messages\x18\x02 \x03(\x0b\x32\x14.kubemq.QueueMessage\x12\x18\n\x10MessagesReceived\x18\x03 \x01(\x05\x12\x17\n\x0fMessagesExpired\x18\x04 \x01(\x05\x12\x0e\n\x06IsPeak\x18\x05 \x01(\x08\x12\x0f\n\x07IsError\x18\x06 \x01(\x08\x12\r\n\x05\x45rror\x18\x07 \x01(\t\"k\n\x1a\x41\x63kAllQueueMessagesRequest\x12\x11\n\tRequestID\x18\x01 \x01(\t\x12\x10\n\x08\x43lientID\x18\x02 \x01(\t\x12\x0f\n\x07\x43hannel\x18\x03 \x01(\t\x12\x17\n\x0fWaitTimeSeconds\x18\x04 \x01(\x05\"j\n\x1b\x41\x63kAllQueueMessagesResponse\x12\x11\n\tRequestID\x18\x01 \x01(\t\x12\x18\n\x10\x41\x66\x66\x65\x63tedMessages\x18\x02 \x01(\x04\x12\x0f\n\x07IsError\x18\x03 \x01(\x08\x12\r\n\x05\x45rror\x18\x04 \x01(\t\"\x84\x02\n\x1aStreamQueueMessagesRequest\x12\x11\n\tRequestID\x18\x01 \x01(\t\x12\x10\n\x08\x43lientID\x18\x02 \x01(\t\x12\x38\n\x15StreamRequestTypeData\x18\x03 \x01(\x0e\x32\x19.kubemq.StreamRequestType\x12\x0f\n\x07\x43hannel\x18\x04 \x01(\t\x12\x19\n\x11VisibilitySeconds\x18\x05 \x01(\x05\x12\x17\n\x0fWaitTimeSeconds\x18\x06 \x01(\x05\x12\x13\n\x0bRefSequence\x18\x07 \x01(\x04\x12-\n\x0fModifiedMessage\x18\x08 \x01(\x0b\x32\x14.kubemq.QueueMessage\"\xb1\x01\n\x1bStreamQueueMessagesResponse\x12\x11\n\tRequestID\x18\x01 \x01(\t\x12\x38\n\x15StreamRequestTypeData\x18\x02 \x01(\x0e\x32\x19.kubemq.StreamRequestType\x12%\n\x07Message\x18\x03 \x01(\x0b\x32\x14.kubemq.QueueMessage\x12\x0f\n\x07IsError\x18\x04 \x01(\x08\x12\r\n\x05\x45rror\x18\x05 \x01(\t*\xaa\x01\n\x11StreamRequestType\x12\x1c\n\x18StreamRequestTypeUnknown\x10\x00\x12\x12\n\x0eReceiveMessage\x10\x01\x12\x0e\n\nAckMessage\x10\x02\x12\x11\n\rRejectMessage\x10\x03\x12\x14\n\x10ModifyVisibility\x10\x04\x12\x11\n\rResendMessage\x10\x05\x12\x17\n\x13SendModifiedMessage\x10\x06\x32\xdf\x06\n\x06kubemq\x12,\n\tSendEvent\x12\r.kubemq.Event\x1a\x0e.kubemq.Result\"\x00\x12\x37\n\x10SendEventsStream\x12\r.kubemq.Event\x1a\x0e.kubemq.Result\"\x00(\x01\x30\x01\x12@\n\x11SubscribeToEvents\x12\x11.kubemq.Subscribe\x1a\x14.kubemq.EventReceive\"\x00\x30\x01\x12=\n\x13SubscribeToRequests\x12\x11.kubemq.Subscribe\x1a\x0f.kubemq.Request\"\x00\x30\x01\x12\x32\n\x0bSendRequest\x12\x0f.kubemq.Request\x1a\x10.kubemq.Response\"\x00\x12\x31\n\x0cSendResponse\x12\x10.kubemq.Response\x1a\r.kubemq.Empty\"\x00\x12J\n\x10SendQueueMessage\x12\x14.kubemq.QueueMessage\x1a\x1e.kubemq.SendQueueMessageResult\"\x00\x12\x61\n\x16SendQueueMessagesBatch\x12!.kubemq.QueueMessagesBatchRequest\x1a\".kubemq.QueueMessagesBatchResponse\"\x00\x12\x63\n\x14ReceiveQueueMessages\x12#.kubemq.ReceiveQueueMessagesRequest\x1a$.kubemq.ReceiveQueueMessagesResponse\"\x00\x12\x63\n\x12StreamQueueMessage\x12\".kubemq.StreamQueueMessagesRequest\x1a#.kubemq.StreamQueueMessagesResponse\"\x00(\x01\x30\x01\x12`\n\x13\x41\x63kAllQueueMessages\x12\".kubemq.AckAllQueueMessagesRequest\x1a#.kubemq.AckAllQueueMessagesResponse\"\x00\x12+\n\x04Ping\x12\r.kubemq.Empty\x1a\x12.kubemq.PingResult\"\x00\x62\x06proto3')
+    name='kubemq/grpc/kubemq.proto',
+    package='kubemq',
+    syntax='proto3',
+    serialized_options=None,
+    serialized_pb=_b(
+        '\n\x18kubemq/grpc/kubemq.proto\x12\x06kubemq\"a\n\nPingResult\x12\x0c\n\x04Host\x18\x01 \x01(\t\x12\x0f\n\x07Version\x18\x02 \x01(\t\x12\x17\n\x0fServerStartTime\x18\x03 \x01(\x03\x12\x1b\n\x13ServerUpTimeSeconds\x18\x04 \x01(\x03\"\x07\n\x05\x45mpty\"6\n\x06Result\x12\x0f\n\x07\x45ventID\x18\x01 \x01(\t\x12\x0c\n\x04Sent\x18\x02 \x01(\x08\x12\r\n\x05\x45rror\x18\x03 \x01(\t\"\xbe\x01\n\x05\x45vent\x12\x0f\n\x07\x45ventID\x18\x01 \x01(\t\x12\x10\n\x08\x43lientID\x18\x02 \x01(\t\x12\x0f\n\x07\x43hannel\x18\x03 \x01(\t\x12\x10\n\x08Metadata\x18\x04 \x01(\t\x12\x0c\n\x04\x42ody\x18\x05 \x01(\x0c\x12\r\n\x05Store\x18\x06 \x01(\x08\x12%\n\x04Tags\x18\x07 \x03(\x0b\x32\x17.kubemq.Event.TagsEntry\x1a+\n\tTagsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"\xd0\x01\n\x0c\x45ventReceive\x12\x0f\n\x07\x45ventID\x18\x01 \x01(\t\x12\x0f\n\x07\x43hannel\x18\x02 \x01(\t\x12\x10\n\x08Metadata\x18\x03 \x01(\t\x12\x0c\n\x04\x42ody\x18\x04 \x01(\x0c\x12\x11\n\tTimestamp\x18\x05 \x01(\x03\x12\x10\n\x08Sequence\x18\x06 \x01(\x04\x12,\n\x04Tags\x18\x07 \x03(\x0b\x32\x1e.kubemq.EventReceive.TagsEntry\x1a+\n\tTagsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"\xe3\x03\n\tSubscribe\x12:\n\x11SubscribeTypeData\x18\x01 \x01(\x0e\x32\x1f.kubemq.Subscribe.SubscribeType\x12\x10\n\x08\x43lientID\x18\x02 \x01(\t\x12\x0f\n\x07\x43hannel\x18\x03 \x01(\t\x12\r\n\x05Group\x18\x04 \x01(\t\x12>\n\x13\x45ventsStoreTypeData\x18\x05 \x01(\x0e\x32!.kubemq.Subscribe.EventsStoreType\x12\x1c\n\x14\x45ventsStoreTypeValue\x18\x06 \x01(\x03\"c\n\rSubscribeType\x12\x1a\n\x16SubscribeTypeUndefined\x10\x00\x12\n\n\x06\x45vents\x10\x01\x12\x0f\n\x0b\x45ventsStore\x10\x02\x12\x0c\n\x08\x43ommands\x10\x03\x12\x0b\n\x07Queries\x10\x04\"\xa4\x01\n\x0f\x45ventsStoreType\x12\x1c\n\x18\x45ventsStoreTypeUndefined\x10\x00\x12\x10\n\x0cStartNewOnly\x10\x01\x12\x12\n\x0eStartFromFirst\x10\x02\x12\x11\n\rStartFromLast\x10\x03\x12\x13\n\x0fStartAtSequence\x10\x04\x12\x0f\n\x0bStartAtTime\x10\x05\x12\x14\n\x10StartAtTimeDelta\x10\x06\"\x83\x03\n\x07Request\x12\x11\n\tRequestID\x18\x01 \x01(\t\x12\x34\n\x0fRequestTypeData\x18\x02 \x01(\x0e\x32\x1b.kubemq.Request.RequestType\x12\x10\n\x08\x43lientID\x18\x03 \x01(\t\x12\x0f\n\x07\x43hannel\x18\x04 \x01(\t\x12\x10\n\x08Metadata\x18\x05 \x01(\t\x12\x0c\n\x04\x42ody\x18\x06 \x01(\x0c\x12\x14\n\x0cReplyChannel\x18\x07 \x01(\t\x12\x0f\n\x07Timeout\x18\x08 \x01(\x05\x12\x10\n\x08\x43\x61\x63heKey\x18\t \x01(\t\x12\x10\n\x08\x43\x61\x63heTTL\x18\n \x01(\x05\x12\x0c\n\x04Span\x18\x0b \x01(\x0c\x12\'\n\x04Tags\x18\x0c \x03(\x0b\x32\x19.kubemq.Request.TagsEntry\x1a+\n\tTagsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"=\n\x0bRequestType\x12\x16\n\x12RequestTypeUnknown\x10\x00\x12\x0b\n\x07\x43ommand\x10\x01\x12\t\n\x05Query\x10\x02\"\x90\x02\n\x08Response\x12\x10\n\x08\x43lientID\x18\x01 \x01(\t\x12\x11\n\tRequestID\x18\x02 \x01(\t\x12\x14\n\x0cReplyChannel\x18\x03 \x01(\t\x12\x10\n\x08Metadata\x18\x04 \x01(\t\x12\x0c\n\x04\x42ody\x18\x05 \x01(\x0c\x12\x10\n\x08\x43\x61\x63heHit\x18\x06 \x01(\x08\x12\x11\n\tTimestamp\x18\x07 \x01(\x03\x12\x10\n\x08\x45xecuted\x18\x08 \x01(\x08\x12\r\n\x05\x45rror\x18\t \x01(\t\x12\x0c\n\x04Span\x18\n \x01(\x0c\x12(\n\x04Tags\x18\x0b \x03(\x0b\x32\x1a.kubemq.Response.TagsEntry\x1a+\n\tTagsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"\x9f\x02\n\x0cQueueMessage\x12\x11\n\tMessageID\x18\x01 \x01(\t\x12\x10\n\x08\x43lientID\x18\x02 \x01(\t\x12\x0f\n\x07\x43hannel\x18\x03 \x01(\t\x12\x10\n\x08Metadata\x18\x04 \x01(\t\x12\x0c\n\x04\x42ody\x18\x05 \x01(\x0c\x12,\n\x04Tags\x18\x06 \x03(\x0b\x32\x1e.kubemq.QueueMessage.TagsEntry\x12\x32\n\nAttributes\x18\x07 \x01(\x0b\x32\x1e.kubemq.QueueMessageAttributes\x12*\n\x06Policy\x18\x08 \x01(\x0b\x32\x1a.kubemq.QueueMessagePolicy\x1a+\n\tTagsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"T\n\x19QueueMessagesBatchRequest\x12\x0f\n\x07\x42\x61tchID\x18\x01 \x01(\t\x12&\n\x08Messages\x18\x02 \x03(\x0b\x32\x14.kubemq.QueueMessage\"r\n\x1aQueueMessagesBatchResponse\x12\x0f\n\x07\x42\x61tchID\x18\x01 \x01(\t\x12/\n\x07Results\x18\x02 \x03(\x0b\x32\x1e.kubemq.SendQueueMessageResult\x12\x12\n\nHaveErrors\x18\x03 \x01(\x08\"\xbc\x01\n\x16QueueMessageAttributes\x12\x11\n\tTimestamp\x18\x01 \x01(\x03\x12\x10\n\x08Sequence\x18\x02 \x01(\x04\x12\x11\n\tMD5OfBody\x18\x03 \x01(\t\x12\x14\n\x0cReceiveCount\x18\x04 \x01(\x05\x12\x10\n\x08ReRouted\x18\x05 \x01(\x08\x12\x19\n\x11ReRoutedFromQueue\x18\x06 \x01(\t\x12\x14\n\x0c\x45xpirationAt\x18\x07 \x01(\x03\x12\x11\n\tDelayedTo\x18\x08 \x01(\x03\"w\n\x12QueueMessagePolicy\x12\x19\n\x11\x45xpirationSeconds\x18\x01 \x01(\x05\x12\x14\n\x0c\x44\x65laySeconds\x18\x02 \x01(\x05\x12\x17\n\x0fMaxReceiveCount\x18\x03 \x01(\x05\x12\x17\n\x0fMaxReceiveQueue\x18\x04 \x01(\t\"\x84\x01\n\x16SendQueueMessageResult\x12\x11\n\tMessageID\x18\x01 \x01(\t\x12\x0e\n\x06SentAt\x18\x02 \x01(\x03\x12\x14\n\x0c\x45xpirationAt\x18\x03 \x01(\x03\x12\x11\n\tDelayedTo\x18\x04 \x01(\x03\x12\x0f\n\x07IsError\x18\x05 \x01(\x08\x12\r\n\x05\x45rror\x18\x06 \x01(\t\"\x99\x01\n\x1bReceiveQueueMessagesRequest\x12\x11\n\tRequestID\x18\x01 \x01(\t\x12\x10\n\x08\x43lientID\x18\x02 \x01(\t\x12\x0f\n\x07\x43hannel\x18\x03 \x01(\t\x12\x1b\n\x13MaxNumberOfMessages\x18\x04 \x01(\x05\x12\x17\n\x0fWaitTimeSeconds\x18\x05 \x01(\x05\x12\x0e\n\x06IsPeak\x18\x06 \x01(\x08\"\xbc\x01\n\x1cReceiveQueueMessagesResponse\x12\x11\n\tRequestID\x18\x01 \x01(\t\x12&\n\x08Messages\x18\x02 \x03(\x0b\x32\x14.kubemq.QueueMessage\x12\x18\n\x10MessagesReceived\x18\x03 \x01(\x05\x12\x17\n\x0fMessagesExpired\x18\x04 \x01(\x05\x12\x0e\n\x06IsPeak\x18\x05 \x01(\x08\x12\x0f\n\x07IsError\x18\x06 \x01(\x08\x12\r\n\x05\x45rror\x18\x07 \x01(\t\"k\n\x1a\x41\x63kAllQueueMessagesRequest\x12\x11\n\tRequestID\x18\x01 \x01(\t\x12\x10\n\x08\x43lientID\x18\x02 \x01(\t\x12\x0f\n\x07\x43hannel\x18\x03 \x01(\t\x12\x17\n\x0fWaitTimeSeconds\x18\x04 \x01(\x05\"j\n\x1b\x41\x63kAllQueueMessagesResponse\x12\x11\n\tRequestID\x18\x01 \x01(\t\x12\x18\n\x10\x41\x66\x66\x65\x63tedMessages\x18\x02 \x01(\x04\x12\x0f\n\x07IsError\x18\x03 \x01(\x08\x12\r\n\x05\x45rror\x18\x04 \x01(\t\"\x84\x02\n\x1aStreamQueueMessagesRequest\x12\x11\n\tRequestID\x18\x01 \x01(\t\x12\x10\n\x08\x43lientID\x18\x02 \x01(\t\x12\x38\n\x15StreamRequestTypeData\x18\x03 \x01(\x0e\x32\x19.kubemq.StreamRequestType\x12\x0f\n\x07\x43hannel\x18\x04 \x01(\t\x12\x19\n\x11VisibilitySeconds\x18\x05 \x01(\x05\x12\x17\n\x0fWaitTimeSeconds\x18\x06 \x01(\x05\x12\x13\n\x0bRefSequence\x18\x07 \x01(\x04\x12-\n\x0fModifiedMessage\x18\x08 \x01(\x0b\x32\x14.kubemq.QueueMessage\"\xb1\x01\n\x1bStreamQueueMessagesResponse\x12\x11\n\tRequestID\x18\x01 \x01(\t\x12\x38\n\x15StreamRequestTypeData\x18\x02 \x01(\x0e\x32\x19.kubemq.StreamRequestType\x12%\n\x07Message\x18\x03 \x01(\x0b\x32\x14.kubemq.QueueMessage\x12\x0f\n\x07IsError\x18\x04 \x01(\x08\x12\r\n\x05\x45rror\x18\x05 \x01(\t*\xaa\x01\n\x11StreamRequestType\x12\x1c\n\x18StreamRequestTypeUnknown\x10\x00\x12\x12\n\x0eReceiveMessage\x10\x01\x12\x0e\n\nAckMessage\x10\x02\x12\x11\n\rRejectMessage\x10\x03\x12\x14\n\x10ModifyVisibility\x10\x04\x12\x11\n\rResendMessage\x10\x05\x12\x17\n\x13SendModifiedMessage\x10\x06\x32\xdf\x06\n\x06kubemq\x12,\n\tSendEvent\x12\r.kubemq.Event\x1a\x0e.kubemq.Result\"\x00\x12\x37\n\x10SendEventsStream\x12\r.kubemq.Event\x1a\x0e.kubemq.Result\"\x00(\x01\x30\x01\x12@\n\x11SubscribeToEvents\x12\x11.kubemq.Subscribe\x1a\x14.kubemq.EventReceive\"\x00\x30\x01\x12=\n\x13SubscribeToRequests\x12\x11.kubemq.Subscribe\x1a\x0f.kubemq.Request\"\x00\x30\x01\x12\x32\n\x0bSendRequest\x12\x0f.kubemq.Request\x1a\x10.kubemq.Response\"\x00\x12\x31\n\x0cSendResponse\x12\x10.kubemq.Response\x1a\r.kubemq.Empty\"\x00\x12J\n\x10SendQueueMessage\x12\x14.kubemq.QueueMessage\x1a\x1e.kubemq.SendQueueMessageResult\"\x00\x12\x61\n\x16SendQueueMessagesBatch\x12!.kubemq.QueueMessagesBatchRequest\x1a\".kubemq.QueueMessagesBatchResponse\"\x00\x12\x63\n\x14ReceiveQueueMessages\x12#.kubemq.ReceiveQueueMessagesRequest\x1a$.kubemq.ReceiveQueueMessagesResponse\"\x00\x12\x63\n\x12StreamQueueMessage\x12\".kubemq.StreamQueueMessagesRequest\x1a#.kubemq.StreamQueueMessagesResponse\"\x00(\x01\x30\x01\x12`\n\x13\x41\x63kAllQueueMessages\x12\".kubemq.AckAllQueueMessagesRequest\x1a#.kubemq.AckAllQueueMessagesResponse\"\x00\x12+\n\x04Ping\x12\r.kubemq.Empty\x1a\x12.kubemq.PingResult\"\x00\x62\x06proto3')
 )
 
 _STREAMREQUESTTYPE = _descriptor.EnumDescriptor(
-  name='StreamRequestType',
-  full_name='kubemq.StreamRequestType',
-  filename=None,
-  file=DESCRIPTOR,
-  values=[
-    _descriptor.EnumValueDescriptor(
-      name='StreamRequestTypeUnknown', index=0, number=0,
-      serialized_options=None,
-      type=None),
-    _descriptor.EnumValueDescriptor(
-      name='ReceiveMessage', index=1, number=1,
-      serialized_options=None,
-      type=None),
-    _descriptor.EnumValueDescriptor(
-      name='AckMessage', index=2, number=2,
-      serialized_options=None,
-      type=None),
-    _descriptor.EnumValueDescriptor(
-      name='RejectMessage', index=3, number=3,
-      serialized_options=None,
-      type=None),
-    _descriptor.EnumValueDescriptor(
-      name='ModifyVisibility', index=4, number=4,
-      serialized_options=None,
-      type=None),
-    _descriptor.EnumValueDescriptor(
-      name='ResendMessage', index=5, number=5,
-      serialized_options=None,
-      type=None),
-    _descriptor.EnumValueDescriptor(
-      name='SendModifiedMessage', index=6, number=6,
-      serialized_options=None,
-      type=None),
-  ],
-  containing_type=None,
-  serialized_options=None,
-  serialized_start=3702,
-  serialized_end=3872,
+    name='StreamRequestType',
+    full_name='kubemq.StreamRequestType',
+    filename=None,
+    file=DESCRIPTOR,
+    values=[
+        _descriptor.EnumValueDescriptor(
+            name='StreamRequestTypeUnknown', index=0, number=0,
+            serialized_options=None,
+            type=None),
+        _descriptor.EnumValueDescriptor(
+            name='ReceiveMessage', index=1, number=1,
+            serialized_options=None,
+            type=None),
+        _descriptor.EnumValueDescriptor(
+            name='AckMessage', index=2, number=2,
+            serialized_options=None,
+            type=None),
+        _descriptor.EnumValueDescriptor(
+            name='RejectMessage', index=3, number=3,
+            serialized_options=None,
+            type=None),
+        _descriptor.EnumValueDescriptor(
+            name='ModifyVisibility', index=4, number=4,
+            serialized_options=None,
+            type=None),
+        _descriptor.EnumValueDescriptor(
+            name='ResendMessage', index=5, number=5,
+            serialized_options=None,
+            type=None),
+        _descriptor.EnumValueDescriptor(
+            name='SendModifiedMessage', index=6, number=6,
+            serialized_options=None,
+            type=None),
+    ],
+    containing_type=None,
+    serialized_options=None,
+    serialized_start=3702,
+    serialized_end=3872,
 )
 _sym_db.RegisterEnumDescriptor(_STREAMREQUESTTYPE)
 
@@ -75,1580 +75,1559 @@ ModifyVisibility = 4
 ResendMessage = 5
 SendModifiedMessage = 6
 
-
 _SUBSCRIBE_SUBSCRIBETYPE = _descriptor.EnumDescriptor(
-  name='SubscribeType',
-  full_name='kubemq.Subscribe.SubscribeType',
-  filename=None,
-  file=DESCRIPTOR,
-  values=[
-    _descriptor.EnumValueDescriptor(
-      name='SubscribeTypeUndefined', index=0, number=0,
-      serialized_options=None,
-      type=None),
-    _descriptor.EnumValueDescriptor(
-      name='Events', index=1, number=1,
-      serialized_options=None,
-      type=None),
-    _descriptor.EnumValueDescriptor(
-      name='EventsStore', index=2, number=2,
-      serialized_options=None,
-      type=None),
-    _descriptor.EnumValueDescriptor(
-      name='Commands', index=3, number=3,
-      serialized_options=None,
-      type=None),
-    _descriptor.EnumValueDescriptor(
-      name='Queries', index=4, number=4,
-      serialized_options=None,
-      type=None),
-  ],
-  containing_type=None,
-  serialized_options=None,
-  serialized_start=822,
-  serialized_end=921,
+    name='SubscribeType',
+    full_name='kubemq.Subscribe.SubscribeType',
+    filename=None,
+    file=DESCRIPTOR,
+    values=[
+        _descriptor.EnumValueDescriptor(
+            name='SubscribeTypeUndefined', index=0, number=0,
+            serialized_options=None,
+            type=None),
+        _descriptor.EnumValueDescriptor(
+            name='Events', index=1, number=1,
+            serialized_options=None,
+            type=None),
+        _descriptor.EnumValueDescriptor(
+            name='EventsStore', index=2, number=2,
+            serialized_options=None,
+            type=None),
+        _descriptor.EnumValueDescriptor(
+            name='Commands', index=3, number=3,
+            serialized_options=None,
+            type=None),
+        _descriptor.EnumValueDescriptor(
+            name='Queries', index=4, number=4,
+            serialized_options=None,
+            type=None),
+    ],
+    containing_type=None,
+    serialized_options=None,
+    serialized_start=822,
+    serialized_end=921,
 )
 _sym_db.RegisterEnumDescriptor(_SUBSCRIBE_SUBSCRIBETYPE)
 
 _SUBSCRIBE_EVENTSSTORETYPE = _descriptor.EnumDescriptor(
-  name='EventsStoreType',
-  full_name='kubemq.Subscribe.EventsStoreType',
-  filename=None,
-  file=DESCRIPTOR,
-  values=[
-    _descriptor.EnumValueDescriptor(
-      name='EventsStoreTypeUndefined', index=0, number=0,
-      serialized_options=None,
-      type=None),
-    _descriptor.EnumValueDescriptor(
-      name='StartNewOnly', index=1, number=1,
-      serialized_options=None,
-      type=None),
-    _descriptor.EnumValueDescriptor(
-      name='StartFromFirst', index=2, number=2,
-      serialized_options=None,
-      type=None),
-    _descriptor.EnumValueDescriptor(
-      name='StartFromLast', index=3, number=3,
-      serialized_options=None,
-      type=None),
-    _descriptor.EnumValueDescriptor(
-      name='StartAtSequence', index=4, number=4,
-      serialized_options=None,
-      type=None),
-    _descriptor.EnumValueDescriptor(
-      name='StartAtTime', index=5, number=5,
-      serialized_options=None,
-      type=None),
-    _descriptor.EnumValueDescriptor(
-      name='StartAtTimeDelta', index=6, number=6,
-      serialized_options=None,
-      type=None),
-  ],
-  containing_type=None,
-  serialized_options=None,
-  serialized_start=924,
-  serialized_end=1088,
+    name='EventsStoreType',
+    full_name='kubemq.Subscribe.EventsStoreType',
+    filename=None,
+    file=DESCRIPTOR,
+    values=[
+        _descriptor.EnumValueDescriptor(
+            name='EventsStoreTypeUndefined', index=0, number=0,
+            serialized_options=None,
+            type=None),
+        _descriptor.EnumValueDescriptor(
+            name='StartNewOnly', index=1, number=1,
+            serialized_options=None,
+            type=None),
+        _descriptor.EnumValueDescriptor(
+            name='StartFromFirst', index=2, number=2,
+            serialized_options=None,
+            type=None),
+        _descriptor.EnumValueDescriptor(
+            name='StartFromLast', index=3, number=3,
+            serialized_options=None,
+            type=None),
+        _descriptor.EnumValueDescriptor(
+            name='StartAtSequence', index=4, number=4,
+            serialized_options=None,
+            type=None),
+        _descriptor.EnumValueDescriptor(
+            name='StartAtTime', index=5, number=5,
+            serialized_options=None,
+            type=None),
+        _descriptor.EnumValueDescriptor(
+            name='StartAtTimeDelta', index=6, number=6,
+            serialized_options=None,
+            type=None),
+    ],
+    containing_type=None,
+    serialized_options=None,
+    serialized_start=924,
+    serialized_end=1088,
 )
 _sym_db.RegisterEnumDescriptor(_SUBSCRIBE_EVENTSSTORETYPE)
 
 _REQUEST_REQUESTTYPE = _descriptor.EnumDescriptor(
-  name='RequestType',
-  full_name='kubemq.Request.RequestType',
-  filename=None,
-  file=DESCRIPTOR,
-  values=[
-    _descriptor.EnumValueDescriptor(
-      name='RequestTypeUnknown', index=0, number=0,
-      serialized_options=None,
-      type=None),
-    _descriptor.EnumValueDescriptor(
-      name='Command', index=1, number=1,
-      serialized_options=None,
-      type=None),
-    _descriptor.EnumValueDescriptor(
-      name='Query', index=2, number=2,
-      serialized_options=None,
-      type=None),
-  ],
-  containing_type=None,
-  serialized_options=None,
-  serialized_start=1417,
-  serialized_end=1478,
+    name='RequestType',
+    full_name='kubemq.Request.RequestType',
+    filename=None,
+    file=DESCRIPTOR,
+    values=[
+        _descriptor.EnumValueDescriptor(
+            name='RequestTypeUnknown', index=0, number=0,
+            serialized_options=None,
+            type=None),
+        _descriptor.EnumValueDescriptor(
+            name='Command', index=1, number=1,
+            serialized_options=None,
+            type=None),
+        _descriptor.EnumValueDescriptor(
+            name='Query', index=2, number=2,
+            serialized_options=None,
+            type=None),
+    ],
+    containing_type=None,
+    serialized_options=None,
+    serialized_start=1417,
+    serialized_end=1478,
 )
 _sym_db.RegisterEnumDescriptor(_REQUEST_REQUESTTYPE)
 
-
 _PINGRESULT = _descriptor.Descriptor(
-  name='PingResult',
-  full_name='kubemq.PingResult',
-  filename=None,
-  file=DESCRIPTOR,
-  containing_type=None,
-  fields=[
-    _descriptor.FieldDescriptor(
-      name='Host', full_name='kubemq.PingResult.Host', index=0,
-      number=1, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=_b("").decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='Version', full_name='kubemq.PingResult.Version', index=1,
-      number=2, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=_b("").decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='ServerStartTime', full_name='kubemq.PingResult.ServerStartTime', index=2,
-      number=3, type=3, cpp_type=2, label=1,
-      has_default_value=False, default_value=0,
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='ServerUpTimeSeconds', full_name='kubemq.PingResult.ServerUpTimeSeconds', index=3,
-      number=4, type=3, cpp_type=2, label=1,
-      has_default_value=False, default_value=0,
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-  ],
-  extensions=[
-  ],
-  nested_types=[],
-  enum_types=[
-  ],
-  serialized_options=None,
-  is_extendable=False,
-  syntax='proto3',
-  extension_ranges=[],
-  oneofs=[
-  ],
-  serialized_start=36,
-  serialized_end=133,
+    name='PingResult',
+    full_name='kubemq.PingResult',
+    filename=None,
+    file=DESCRIPTOR,
+    containing_type=None,
+    fields=[
+        _descriptor.FieldDescriptor(
+            name='Host', full_name='kubemq.PingResult.Host', index=0,
+            number=1, type=9, cpp_type=9, label=1,
+            has_default_value=False, default_value=_b("").decode('utf-8'),
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='Version', full_name='kubemq.PingResult.Version', index=1,
+            number=2, type=9, cpp_type=9, label=1,
+            has_default_value=False, default_value=_b("").decode('utf-8'),
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='ServerStartTime', full_name='kubemq.PingResult.ServerStartTime', index=2,
+            number=3, type=3, cpp_type=2, label=1,
+            has_default_value=False, default_value=0,
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='ServerUpTimeSeconds', full_name='kubemq.PingResult.ServerUpTimeSeconds', index=3,
+            number=4, type=3, cpp_type=2, label=1,
+            has_default_value=False, default_value=0,
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+    ],
+    extensions=[
+    ],
+    nested_types=[],
+    enum_types=[
+    ],
+    serialized_options=None,
+    is_extendable=False,
+    syntax='proto3',
+    extension_ranges=[],
+    oneofs=[
+    ],
+    serialized_start=36,
+    serialized_end=133,
 )
-
 
 _EMPTY = _descriptor.Descriptor(
-  name='Empty',
-  full_name='kubemq.Empty',
-  filename=None,
-  file=DESCRIPTOR,
-  containing_type=None,
-  fields=[
-  ],
-  extensions=[
-  ],
-  nested_types=[],
-  enum_types=[
-  ],
-  serialized_options=None,
-  is_extendable=False,
-  syntax='proto3',
-  extension_ranges=[],
-  oneofs=[
-  ],
-  serialized_start=135,
-  serialized_end=142,
+    name='Empty',
+    full_name='kubemq.Empty',
+    filename=None,
+    file=DESCRIPTOR,
+    containing_type=None,
+    fields=[
+    ],
+    extensions=[
+    ],
+    nested_types=[],
+    enum_types=[
+    ],
+    serialized_options=None,
+    is_extendable=False,
+    syntax='proto3',
+    extension_ranges=[],
+    oneofs=[
+    ],
+    serialized_start=135,
+    serialized_end=142,
 )
-
 
 _RESULT = _descriptor.Descriptor(
-  name='Result',
-  full_name='kubemq.Result',
-  filename=None,
-  file=DESCRIPTOR,
-  containing_type=None,
-  fields=[
-    _descriptor.FieldDescriptor(
-      name='EventID', full_name='kubemq.Result.EventID', index=0,
-      number=1, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=_b("").decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='Sent', full_name='kubemq.Result.Sent', index=1,
-      number=2, type=8, cpp_type=7, label=1,
-      has_default_value=False, default_value=False,
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='Error', full_name='kubemq.Result.Error', index=2,
-      number=3, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=_b("").decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-  ],
-  extensions=[
-  ],
-  nested_types=[],
-  enum_types=[
-  ],
-  serialized_options=None,
-  is_extendable=False,
-  syntax='proto3',
-  extension_ranges=[],
-  oneofs=[
-  ],
-  serialized_start=144,
-  serialized_end=198,
+    name='Result',
+    full_name='kubemq.Result',
+    filename=None,
+    file=DESCRIPTOR,
+    containing_type=None,
+    fields=[
+        _descriptor.FieldDescriptor(
+            name='EventID', full_name='kubemq.Result.EventID', index=0,
+            number=1, type=9, cpp_type=9, label=1,
+            has_default_value=False, default_value=_b("").decode('utf-8'),
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='Sent', full_name='kubemq.Result.Sent', index=1,
+            number=2, type=8, cpp_type=7, label=1,
+            has_default_value=False, default_value=False,
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='Error', full_name='kubemq.Result.Error', index=2,
+            number=3, type=9, cpp_type=9, label=1,
+            has_default_value=False, default_value=_b("").decode('utf-8'),
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+    ],
+    extensions=[
+    ],
+    nested_types=[],
+    enum_types=[
+    ],
+    serialized_options=None,
+    is_extendable=False,
+    syntax='proto3',
+    extension_ranges=[],
+    oneofs=[
+    ],
+    serialized_start=144,
+    serialized_end=198,
 )
 
-
 _EVENT_TAGSENTRY = _descriptor.Descriptor(
-  name='TagsEntry',
-  full_name='kubemq.Event.TagsEntry',
-  filename=None,
-  file=DESCRIPTOR,
-  containing_type=None,
-  fields=[
-    _descriptor.FieldDescriptor(
-      name='key', full_name='kubemq.Event.TagsEntry.key', index=0,
-      number=1, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=_b("").decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='value', full_name='kubemq.Event.TagsEntry.value', index=1,
-      number=2, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=_b("").decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-  ],
-  extensions=[
-  ],
-  nested_types=[],
-  enum_types=[
-  ],
-  serialized_options=_b('8\001'),
-  is_extendable=False,
-  syntax='proto3',
-  extension_ranges=[],
-  oneofs=[
-  ],
-  serialized_start=348,
-  serialized_end=391,
+    name='TagsEntry',
+    full_name='kubemq.Event.TagsEntry',
+    filename=None,
+    file=DESCRIPTOR,
+    containing_type=None,
+    fields=[
+        _descriptor.FieldDescriptor(
+            name='key', full_name='kubemq.Event.TagsEntry.key', index=0,
+            number=1, type=9, cpp_type=9, label=1,
+            has_default_value=False, default_value=_b("").decode('utf-8'),
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='value', full_name='kubemq.Event.TagsEntry.value', index=1,
+            number=2, type=9, cpp_type=9, label=1,
+            has_default_value=False, default_value=_b("").decode('utf-8'),
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+    ],
+    extensions=[
+    ],
+    nested_types=[],
+    enum_types=[
+    ],
+    serialized_options=_b('8\001'),
+    is_extendable=False,
+    syntax='proto3',
+    extension_ranges=[],
+    oneofs=[
+    ],
+    serialized_start=348,
+    serialized_end=391,
 )
 
 _EVENT = _descriptor.Descriptor(
-  name='Event',
-  full_name='kubemq.Event',
-  filename=None,
-  file=DESCRIPTOR,
-  containing_type=None,
-  fields=[
-    _descriptor.FieldDescriptor(
-      name='EventID', full_name='kubemq.Event.EventID', index=0,
-      number=1, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=_b("").decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='ClientID', full_name='kubemq.Event.ClientID', index=1,
-      number=2, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=_b("").decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='Channel', full_name='kubemq.Event.Channel', index=2,
-      number=3, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=_b("").decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='Metadata', full_name='kubemq.Event.Metadata', index=3,
-      number=4, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=_b("").decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='Body', full_name='kubemq.Event.Body', index=4,
-      number=5, type=12, cpp_type=9, label=1,
-      has_default_value=False, default_value=_b(""),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='Store', full_name='kubemq.Event.Store', index=5,
-      number=6, type=8, cpp_type=7, label=1,
-      has_default_value=False, default_value=False,
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='Tags', full_name='kubemq.Event.Tags', index=6,
-      number=7, type=11, cpp_type=10, label=3,
-      has_default_value=False, default_value=[],
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-  ],
-  extensions=[
-  ],
-  nested_types=[_EVENT_TAGSENTRY, ],
-  enum_types=[
-  ],
-  serialized_options=None,
-  is_extendable=False,
-  syntax='proto3',
-  extension_ranges=[],
-  oneofs=[
-  ],
-  serialized_start=201,
-  serialized_end=391,
+    name='Event',
+    full_name='kubemq.Event',
+    filename=None,
+    file=DESCRIPTOR,
+    containing_type=None,
+    fields=[
+        _descriptor.FieldDescriptor(
+            name='EventID', full_name='kubemq.Event.EventID', index=0,
+            number=1, type=9, cpp_type=9, label=1,
+            has_default_value=False, default_value=_b("").decode('utf-8'),
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='ClientID', full_name='kubemq.Event.ClientID', index=1,
+            number=2, type=9, cpp_type=9, label=1,
+            has_default_value=False, default_value=_b("").decode('utf-8'),
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='Channel', full_name='kubemq.Event.Channel', index=2,
+            number=3, type=9, cpp_type=9, label=1,
+            has_default_value=False, default_value=_b("").decode('utf-8'),
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='Metadata', full_name='kubemq.Event.Metadata', index=3,
+            number=4, type=9, cpp_type=9, label=1,
+            has_default_value=False, default_value=_b("").decode('utf-8'),
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='Body', full_name='kubemq.Event.Body', index=4,
+            number=5, type=12, cpp_type=9, label=1,
+            has_default_value=False, default_value=_b(""),
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='Store', full_name='kubemq.Event.Store', index=5,
+            number=6, type=8, cpp_type=7, label=1,
+            has_default_value=False, default_value=False,
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='Tags', full_name='kubemq.Event.Tags', index=6,
+            number=7, type=11, cpp_type=10, label=3,
+            has_default_value=False, default_value=[],
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+    ],
+    extensions=[
+    ],
+    nested_types=[_EVENT_TAGSENTRY, ],
+    enum_types=[
+    ],
+    serialized_options=None,
+    is_extendable=False,
+    syntax='proto3',
+    extension_ranges=[],
+    oneofs=[
+    ],
+    serialized_start=201,
+    serialized_end=391,
 )
 
-
 _EVENTRECEIVE_TAGSENTRY = _descriptor.Descriptor(
-  name='TagsEntry',
-  full_name='kubemq.EventReceive.TagsEntry',
-  filename=None,
-  file=DESCRIPTOR,
-  containing_type=None,
-  fields=[
-    _descriptor.FieldDescriptor(
-      name='key', full_name='kubemq.EventReceive.TagsEntry.key', index=0,
-      number=1, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=_b("").decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='value', full_name='kubemq.EventReceive.TagsEntry.value', index=1,
-      number=2, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=_b("").decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-  ],
-  extensions=[
-  ],
-  nested_types=[],
-  enum_types=[
-  ],
-  serialized_options=_b('8\001'),
-  is_extendable=False,
-  syntax='proto3',
-  extension_ranges=[],
-  oneofs=[
-  ],
-  serialized_start=348,
-  serialized_end=391,
+    name='TagsEntry',
+    full_name='kubemq.EventReceive.TagsEntry',
+    filename=None,
+    file=DESCRIPTOR,
+    containing_type=None,
+    fields=[
+        _descriptor.FieldDescriptor(
+            name='key', full_name='kubemq.EventReceive.TagsEntry.key', index=0,
+            number=1, type=9, cpp_type=9, label=1,
+            has_default_value=False, default_value=_b("").decode('utf-8'),
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='value', full_name='kubemq.EventReceive.TagsEntry.value', index=1,
+            number=2, type=9, cpp_type=9, label=1,
+            has_default_value=False, default_value=_b("").decode('utf-8'),
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+    ],
+    extensions=[
+    ],
+    nested_types=[],
+    enum_types=[
+    ],
+    serialized_options=_b('8\001'),
+    is_extendable=False,
+    syntax='proto3',
+    extension_ranges=[],
+    oneofs=[
+    ],
+    serialized_start=348,
+    serialized_end=391,
 )
 
 _EVENTRECEIVE = _descriptor.Descriptor(
-  name='EventReceive',
-  full_name='kubemq.EventReceive',
-  filename=None,
-  file=DESCRIPTOR,
-  containing_type=None,
-  fields=[
-    _descriptor.FieldDescriptor(
-      name='EventID', full_name='kubemq.EventReceive.EventID', index=0,
-      number=1, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=_b("").decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='Channel', full_name='kubemq.EventReceive.Channel', index=1,
-      number=2, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=_b("").decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='Metadata', full_name='kubemq.EventReceive.Metadata', index=2,
-      number=3, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=_b("").decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='Body', full_name='kubemq.EventReceive.Body', index=3,
-      number=4, type=12, cpp_type=9, label=1,
-      has_default_value=False, default_value=_b(""),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='Timestamp', full_name='kubemq.EventReceive.Timestamp', index=4,
-      number=5, type=3, cpp_type=2, label=1,
-      has_default_value=False, default_value=0,
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='Sequence', full_name='kubemq.EventReceive.Sequence', index=5,
-      number=6, type=4, cpp_type=4, label=1,
-      has_default_value=False, default_value=0,
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='Tags', full_name='kubemq.EventReceive.Tags', index=6,
-      number=7, type=11, cpp_type=10, label=3,
-      has_default_value=False, default_value=[],
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-  ],
-  extensions=[
-  ],
-  nested_types=[_EVENTRECEIVE_TAGSENTRY, ],
-  enum_types=[
-  ],
-  serialized_options=None,
-  is_extendable=False,
-  syntax='proto3',
-  extension_ranges=[],
-  oneofs=[
-  ],
-  serialized_start=394,
-  serialized_end=602,
+    name='EventReceive',
+    full_name='kubemq.EventReceive',
+    filename=None,
+    file=DESCRIPTOR,
+    containing_type=None,
+    fields=[
+        _descriptor.FieldDescriptor(
+            name='EventID', full_name='kubemq.EventReceive.EventID', index=0,
+            number=1, type=9, cpp_type=9, label=1,
+            has_default_value=False, default_value=_b("").decode('utf-8'),
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='Channel', full_name='kubemq.EventReceive.Channel', index=1,
+            number=2, type=9, cpp_type=9, label=1,
+            has_default_value=False, default_value=_b("").decode('utf-8'),
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='Metadata', full_name='kubemq.EventReceive.Metadata', index=2,
+            number=3, type=9, cpp_type=9, label=1,
+            has_default_value=False, default_value=_b("").decode('utf-8'),
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='Body', full_name='kubemq.EventReceive.Body', index=3,
+            number=4, type=12, cpp_type=9, label=1,
+            has_default_value=False, default_value=_b(""),
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='Timestamp', full_name='kubemq.EventReceive.Timestamp', index=4,
+            number=5, type=3, cpp_type=2, label=1,
+            has_default_value=False, default_value=0,
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='Sequence', full_name='kubemq.EventReceive.Sequence', index=5,
+            number=6, type=4, cpp_type=4, label=1,
+            has_default_value=False, default_value=0,
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='Tags', full_name='kubemq.EventReceive.Tags', index=6,
+            number=7, type=11, cpp_type=10, label=3,
+            has_default_value=False, default_value=[],
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+    ],
+    extensions=[
+    ],
+    nested_types=[_EVENTRECEIVE_TAGSENTRY, ],
+    enum_types=[
+    ],
+    serialized_options=None,
+    is_extendable=False,
+    syntax='proto3',
+    extension_ranges=[],
+    oneofs=[
+    ],
+    serialized_start=394,
+    serialized_end=602,
 )
-
 
 _SUBSCRIBE = _descriptor.Descriptor(
-  name='Subscribe',
-  full_name='kubemq.Subscribe',
-  filename=None,
-  file=DESCRIPTOR,
-  containing_type=None,
-  fields=[
-    _descriptor.FieldDescriptor(
-      name='SubscribeTypeData', full_name='kubemq.Subscribe.SubscribeTypeData', index=0,
-      number=1, type=14, cpp_type=8, label=1,
-      has_default_value=False, default_value=0,
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='ClientID', full_name='kubemq.Subscribe.ClientID', index=1,
-      number=2, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=_b("").decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='Channel', full_name='kubemq.Subscribe.Channel', index=2,
-      number=3, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=_b("").decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='Group', full_name='kubemq.Subscribe.Group', index=3,
-      number=4, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=_b("").decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='EventsStoreTypeData', full_name='kubemq.Subscribe.EventsStoreTypeData', index=4,
-      number=5, type=14, cpp_type=8, label=1,
-      has_default_value=False, default_value=0,
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='EventsStoreTypeValue', full_name='kubemq.Subscribe.EventsStoreTypeValue', index=5,
-      number=6, type=3, cpp_type=2, label=1,
-      has_default_value=False, default_value=0,
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-  ],
-  extensions=[
-  ],
-  nested_types=[],
-  enum_types=[
-    _SUBSCRIBE_SUBSCRIBETYPE,
-    _SUBSCRIBE_EVENTSSTORETYPE,
-  ],
-  serialized_options=None,
-  is_extendable=False,
-  syntax='proto3',
-  extension_ranges=[],
-  oneofs=[
-  ],
-  serialized_start=605,
-  serialized_end=1088,
+    name='Subscribe',
+    full_name='kubemq.Subscribe',
+    filename=None,
+    file=DESCRIPTOR,
+    containing_type=None,
+    fields=[
+        _descriptor.FieldDescriptor(
+            name='SubscribeTypeData', full_name='kubemq.Subscribe.SubscribeTypeData', index=0,
+            number=1, type=14, cpp_type=8, label=1,
+            has_default_value=False, default_value=0,
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='ClientID', full_name='kubemq.Subscribe.ClientID', index=1,
+            number=2, type=9, cpp_type=9, label=1,
+            has_default_value=False, default_value=_b("").decode('utf-8'),
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='Channel', full_name='kubemq.Subscribe.Channel', index=2,
+            number=3, type=9, cpp_type=9, label=1,
+            has_default_value=False, default_value=_b("").decode('utf-8'),
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='Group', full_name='kubemq.Subscribe.Group', index=3,
+            number=4, type=9, cpp_type=9, label=1,
+            has_default_value=False, default_value=_b("").decode('utf-8'),
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='EventsStoreTypeData', full_name='kubemq.Subscribe.EventsStoreTypeData', index=4,
+            number=5, type=14, cpp_type=8, label=1,
+            has_default_value=False, default_value=0,
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='EventsStoreTypeValue', full_name='kubemq.Subscribe.EventsStoreTypeValue', index=5,
+            number=6, type=3, cpp_type=2, label=1,
+            has_default_value=False, default_value=0,
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+    ],
+    extensions=[
+    ],
+    nested_types=[],
+    enum_types=[
+        _SUBSCRIBE_SUBSCRIBETYPE,
+        _SUBSCRIBE_EVENTSSTORETYPE,
+    ],
+    serialized_options=None,
+    is_extendable=False,
+    syntax='proto3',
+    extension_ranges=[],
+    oneofs=[
+    ],
+    serialized_start=605,
+    serialized_end=1088,
 )
 
-
 _REQUEST_TAGSENTRY = _descriptor.Descriptor(
-  name='TagsEntry',
-  full_name='kubemq.Request.TagsEntry',
-  filename=None,
-  file=DESCRIPTOR,
-  containing_type=None,
-  fields=[
-    _descriptor.FieldDescriptor(
-      name='key', full_name='kubemq.Request.TagsEntry.key', index=0,
-      number=1, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=_b("").decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='value', full_name='kubemq.Request.TagsEntry.value', index=1,
-      number=2, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=_b("").decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-  ],
-  extensions=[
-  ],
-  nested_types=[],
-  enum_types=[
-  ],
-  serialized_options=_b('8\001'),
-  is_extendable=False,
-  syntax='proto3',
-  extension_ranges=[],
-  oneofs=[
-  ],
-  serialized_start=348,
-  serialized_end=391,
+    name='TagsEntry',
+    full_name='kubemq.Request.TagsEntry',
+    filename=None,
+    file=DESCRIPTOR,
+    containing_type=None,
+    fields=[
+        _descriptor.FieldDescriptor(
+            name='key', full_name='kubemq.Request.TagsEntry.key', index=0,
+            number=1, type=9, cpp_type=9, label=1,
+            has_default_value=False, default_value=_b("").decode('utf-8'),
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='value', full_name='kubemq.Request.TagsEntry.value', index=1,
+            number=2, type=9, cpp_type=9, label=1,
+            has_default_value=False, default_value=_b("").decode('utf-8'),
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+    ],
+    extensions=[
+    ],
+    nested_types=[],
+    enum_types=[
+    ],
+    serialized_options=_b('8\001'),
+    is_extendable=False,
+    syntax='proto3',
+    extension_ranges=[],
+    oneofs=[
+    ],
+    serialized_start=348,
+    serialized_end=391,
 )
 
 _REQUEST = _descriptor.Descriptor(
-  name='Request',
-  full_name='kubemq.Request',
-  filename=None,
-  file=DESCRIPTOR,
-  containing_type=None,
-  fields=[
-    _descriptor.FieldDescriptor(
-      name='RequestID', full_name='kubemq.Request.RequestID', index=0,
-      number=1, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=_b("").decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='RequestTypeData', full_name='kubemq.Request.RequestTypeData', index=1,
-      number=2, type=14, cpp_type=8, label=1,
-      has_default_value=False, default_value=0,
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='ClientID', full_name='kubemq.Request.ClientID', index=2,
-      number=3, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=_b("").decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='Channel', full_name='kubemq.Request.Channel', index=3,
-      number=4, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=_b("").decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='Metadata', full_name='kubemq.Request.Metadata', index=4,
-      number=5, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=_b("").decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='Body', full_name='kubemq.Request.Body', index=5,
-      number=6, type=12, cpp_type=9, label=1,
-      has_default_value=False, default_value=_b(""),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='ReplyChannel', full_name='kubemq.Request.ReplyChannel', index=6,
-      number=7, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=_b("").decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='Timeout', full_name='kubemq.Request.Timeout', index=7,
-      number=8, type=5, cpp_type=1, label=1,
-      has_default_value=False, default_value=0,
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='CacheKey', full_name='kubemq.Request.CacheKey', index=8,
-      number=9, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=_b("").decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='CacheTTL', full_name='kubemq.Request.CacheTTL', index=9,
-      number=10, type=5, cpp_type=1, label=1,
-      has_default_value=False, default_value=0,
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='Span', full_name='kubemq.Request.Span', index=10,
-      number=11, type=12, cpp_type=9, label=1,
-      has_default_value=False, default_value=_b(""),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='Tags', full_name='kubemq.Request.Tags', index=11,
-      number=12, type=11, cpp_type=10, label=3,
-      has_default_value=False, default_value=[],
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-  ],
-  extensions=[
-  ],
-  nested_types=[_REQUEST_TAGSENTRY, ],
-  enum_types=[
-    _REQUEST_REQUESTTYPE,
-  ],
-  serialized_options=None,
-  is_extendable=False,
-  syntax='proto3',
-  extension_ranges=[],
-  oneofs=[
-  ],
-  serialized_start=1091,
-  serialized_end=1478,
+    name='Request',
+    full_name='kubemq.Request',
+    filename=None,
+    file=DESCRIPTOR,
+    containing_type=None,
+    fields=[
+        _descriptor.FieldDescriptor(
+            name='RequestID', full_name='kubemq.Request.RequestID', index=0,
+            number=1, type=9, cpp_type=9, label=1,
+            has_default_value=False, default_value=_b("").decode('utf-8'),
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='RequestTypeData', full_name='kubemq.Request.RequestTypeData', index=1,
+            number=2, type=14, cpp_type=8, label=1,
+            has_default_value=False, default_value=0,
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='ClientID', full_name='kubemq.Request.ClientID', index=2,
+            number=3, type=9, cpp_type=9, label=1,
+            has_default_value=False, default_value=_b("").decode('utf-8'),
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='Channel', full_name='kubemq.Request.Channel', index=3,
+            number=4, type=9, cpp_type=9, label=1,
+            has_default_value=False, default_value=_b("").decode('utf-8'),
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='Metadata', full_name='kubemq.Request.Metadata', index=4,
+            number=5, type=9, cpp_type=9, label=1,
+            has_default_value=False, default_value=_b("").decode('utf-8'),
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='Body', full_name='kubemq.Request.Body', index=5,
+            number=6, type=12, cpp_type=9, label=1,
+            has_default_value=False, default_value=_b(""),
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='ReplyChannel', full_name='kubemq.Request.ReplyChannel', index=6,
+            number=7, type=9, cpp_type=9, label=1,
+            has_default_value=False, default_value=_b("").decode('utf-8'),
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='Timeout', full_name='kubemq.Request.Timeout', index=7,
+            number=8, type=5, cpp_type=1, label=1,
+            has_default_value=False, default_value=0,
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='CacheKey', full_name='kubemq.Request.CacheKey', index=8,
+            number=9, type=9, cpp_type=9, label=1,
+            has_default_value=False, default_value=_b("").decode('utf-8'),
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='CacheTTL', full_name='kubemq.Request.CacheTTL', index=9,
+            number=10, type=5, cpp_type=1, label=1,
+            has_default_value=False, default_value=0,
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='Span', full_name='kubemq.Request.Span', index=10,
+            number=11, type=12, cpp_type=9, label=1,
+            has_default_value=False, default_value=_b(""),
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='Tags', full_name='kubemq.Request.Tags', index=11,
+            number=12, type=11, cpp_type=10, label=3,
+            has_default_value=False, default_value=[],
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+    ],
+    extensions=[
+    ],
+    nested_types=[_REQUEST_TAGSENTRY, ],
+    enum_types=[
+        _REQUEST_REQUESTTYPE,
+    ],
+    serialized_options=None,
+    is_extendable=False,
+    syntax='proto3',
+    extension_ranges=[],
+    oneofs=[
+    ],
+    serialized_start=1091,
+    serialized_end=1478,
 )
 
-
 _RESPONSE_TAGSENTRY = _descriptor.Descriptor(
-  name='TagsEntry',
-  full_name='kubemq.Response.TagsEntry',
-  filename=None,
-  file=DESCRIPTOR,
-  containing_type=None,
-  fields=[
-    _descriptor.FieldDescriptor(
-      name='key', full_name='kubemq.Response.TagsEntry.key', index=0,
-      number=1, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=_b("").decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='value', full_name='kubemq.Response.TagsEntry.value', index=1,
-      number=2, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=_b("").decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-  ],
-  extensions=[
-  ],
-  nested_types=[],
-  enum_types=[
-  ],
-  serialized_options=_b('8\001'),
-  is_extendable=False,
-  syntax='proto3',
-  extension_ranges=[],
-  oneofs=[
-  ],
-  serialized_start=348,
-  serialized_end=391,
+    name='TagsEntry',
+    full_name='kubemq.Response.TagsEntry',
+    filename=None,
+    file=DESCRIPTOR,
+    containing_type=None,
+    fields=[
+        _descriptor.FieldDescriptor(
+            name='key', full_name='kubemq.Response.TagsEntry.key', index=0,
+            number=1, type=9, cpp_type=9, label=1,
+            has_default_value=False, default_value=_b("").decode('utf-8'),
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='value', full_name='kubemq.Response.TagsEntry.value', index=1,
+            number=2, type=9, cpp_type=9, label=1,
+            has_default_value=False, default_value=_b("").decode('utf-8'),
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+    ],
+    extensions=[
+    ],
+    nested_types=[],
+    enum_types=[
+    ],
+    serialized_options=_b('8\001'),
+    is_extendable=False,
+    syntax='proto3',
+    extension_ranges=[],
+    oneofs=[
+    ],
+    serialized_start=348,
+    serialized_end=391,
 )
 
 _RESPONSE = _descriptor.Descriptor(
-  name='Response',
-  full_name='kubemq.Response',
-  filename=None,
-  file=DESCRIPTOR,
-  containing_type=None,
-  fields=[
-    _descriptor.FieldDescriptor(
-      name='ClientID', full_name='kubemq.Response.ClientID', index=0,
-      number=1, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=_b("").decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='RequestID', full_name='kubemq.Response.RequestID', index=1,
-      number=2, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=_b("").decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='ReplyChannel', full_name='kubemq.Response.ReplyChannel', index=2,
-      number=3, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=_b("").decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='Metadata', full_name='kubemq.Response.Metadata', index=3,
-      number=4, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=_b("").decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='Body', full_name='kubemq.Response.Body', index=4,
-      number=5, type=12, cpp_type=9, label=1,
-      has_default_value=False, default_value=_b(""),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='CacheHit', full_name='kubemq.Response.CacheHit', index=5,
-      number=6, type=8, cpp_type=7, label=1,
-      has_default_value=False, default_value=False,
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='Timestamp', full_name='kubemq.Response.Timestamp', index=6,
-      number=7, type=3, cpp_type=2, label=1,
-      has_default_value=False, default_value=0,
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='Executed', full_name='kubemq.Response.Executed', index=7,
-      number=8, type=8, cpp_type=7, label=1,
-      has_default_value=False, default_value=False,
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='Error', full_name='kubemq.Response.Error', index=8,
-      number=9, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=_b("").decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='Span', full_name='kubemq.Response.Span', index=9,
-      number=10, type=12, cpp_type=9, label=1,
-      has_default_value=False, default_value=_b(""),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='Tags', full_name='kubemq.Response.Tags', index=10,
-      number=11, type=11, cpp_type=10, label=3,
-      has_default_value=False, default_value=[],
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-  ],
-  extensions=[
-  ],
-  nested_types=[_RESPONSE_TAGSENTRY, ],
-  enum_types=[
-  ],
-  serialized_options=None,
-  is_extendable=False,
-  syntax='proto3',
-  extension_ranges=[],
-  oneofs=[
-  ],
-  serialized_start=1481,
-  serialized_end=1753,
+    name='Response',
+    full_name='kubemq.Response',
+    filename=None,
+    file=DESCRIPTOR,
+    containing_type=None,
+    fields=[
+        _descriptor.FieldDescriptor(
+            name='ClientID', full_name='kubemq.Response.ClientID', index=0,
+            number=1, type=9, cpp_type=9, label=1,
+            has_default_value=False, default_value=_b("").decode('utf-8'),
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='RequestID', full_name='kubemq.Response.RequestID', index=1,
+            number=2, type=9, cpp_type=9, label=1,
+            has_default_value=False, default_value=_b("").decode('utf-8'),
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='ReplyChannel', full_name='kubemq.Response.ReplyChannel', index=2,
+            number=3, type=9, cpp_type=9, label=1,
+            has_default_value=False, default_value=_b("").decode('utf-8'),
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='Metadata', full_name='kubemq.Response.Metadata', index=3,
+            number=4, type=9, cpp_type=9, label=1,
+            has_default_value=False, default_value=_b("").decode('utf-8'),
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='Body', full_name='kubemq.Response.Body', index=4,
+            number=5, type=12, cpp_type=9, label=1,
+            has_default_value=False, default_value=_b(""),
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='CacheHit', full_name='kubemq.Response.CacheHit', index=5,
+            number=6, type=8, cpp_type=7, label=1,
+            has_default_value=False, default_value=False,
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='Timestamp', full_name='kubemq.Response.Timestamp', index=6,
+            number=7, type=3, cpp_type=2, label=1,
+            has_default_value=False, default_value=0,
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='Executed', full_name='kubemq.Response.Executed', index=7,
+            number=8, type=8, cpp_type=7, label=1,
+            has_default_value=False, default_value=False,
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='Error', full_name='kubemq.Response.Error', index=8,
+            number=9, type=9, cpp_type=9, label=1,
+            has_default_value=False, default_value=_b("").decode('utf-8'),
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='Span', full_name='kubemq.Response.Span', index=9,
+            number=10, type=12, cpp_type=9, label=1,
+            has_default_value=False, default_value=_b(""),
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='Tags', full_name='kubemq.Response.Tags', index=10,
+            number=11, type=11, cpp_type=10, label=3,
+            has_default_value=False, default_value=[],
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+    ],
+    extensions=[
+    ],
+    nested_types=[_RESPONSE_TAGSENTRY, ],
+    enum_types=[
+    ],
+    serialized_options=None,
+    is_extendable=False,
+    syntax='proto3',
+    extension_ranges=[],
+    oneofs=[
+    ],
+    serialized_start=1481,
+    serialized_end=1753,
 )
 
-
 _QUEUEMESSAGE_TAGSENTRY = _descriptor.Descriptor(
-  name='TagsEntry',
-  full_name='kubemq.QueueMessage.TagsEntry',
-  filename=None,
-  file=DESCRIPTOR,
-  containing_type=None,
-  fields=[
-    _descriptor.FieldDescriptor(
-      name='key', full_name='kubemq.QueueMessage.TagsEntry.key', index=0,
-      number=1, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=_b("").decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='value', full_name='kubemq.QueueMessage.TagsEntry.value', index=1,
-      number=2, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=_b("").decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-  ],
-  extensions=[
-  ],
-  nested_types=[],
-  enum_types=[
-  ],
-  serialized_options=_b('8\001'),
-  is_extendable=False,
-  syntax='proto3',
-  extension_ranges=[],
-  oneofs=[
-  ],
-  serialized_start=348,
-  serialized_end=391,
+    name='TagsEntry',
+    full_name='kubemq.QueueMessage.TagsEntry',
+    filename=None,
+    file=DESCRIPTOR,
+    containing_type=None,
+    fields=[
+        _descriptor.FieldDescriptor(
+            name='key', full_name='kubemq.QueueMessage.TagsEntry.key', index=0,
+            number=1, type=9, cpp_type=9, label=1,
+            has_default_value=False, default_value=_b("").decode('utf-8'),
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='value', full_name='kubemq.QueueMessage.TagsEntry.value', index=1,
+            number=2, type=9, cpp_type=9, label=1,
+            has_default_value=False, default_value=_b("").decode('utf-8'),
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+    ],
+    extensions=[
+    ],
+    nested_types=[],
+    enum_types=[
+    ],
+    serialized_options=_b('8\001'),
+    is_extendable=False,
+    syntax='proto3',
+    extension_ranges=[],
+    oneofs=[
+    ],
+    serialized_start=348,
+    serialized_end=391,
 )
 
 _QUEUEMESSAGE = _descriptor.Descriptor(
-  name='QueueMessage',
-  full_name='kubemq.QueueMessage',
-  filename=None,
-  file=DESCRIPTOR,
-  containing_type=None,
-  fields=[
-    _descriptor.FieldDescriptor(
-      name='MessageID', full_name='kubemq.QueueMessage.MessageID', index=0,
-      number=1, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=_b("").decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='ClientID', full_name='kubemq.QueueMessage.ClientID', index=1,
-      number=2, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=_b("").decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='Channel', full_name='kubemq.QueueMessage.Channel', index=2,
-      number=3, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=_b("").decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='Metadata', full_name='kubemq.QueueMessage.Metadata', index=3,
-      number=4, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=_b("").decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='Body', full_name='kubemq.QueueMessage.Body', index=4,
-      number=5, type=12, cpp_type=9, label=1,
-      has_default_value=False, default_value=_b(""),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='Tags', full_name='kubemq.QueueMessage.Tags', index=5,
-      number=6, type=11, cpp_type=10, label=3,
-      has_default_value=False, default_value=[],
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='Attributes', full_name='kubemq.QueueMessage.Attributes', index=6,
-      number=7, type=11, cpp_type=10, label=1,
-      has_default_value=False, default_value=None,
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='Policy', full_name='kubemq.QueueMessage.Policy', index=7,
-      number=8, type=11, cpp_type=10, label=1,
-      has_default_value=False, default_value=None,
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-  ],
-  extensions=[
-  ],
-  nested_types=[_QUEUEMESSAGE_TAGSENTRY, ],
-  enum_types=[
-  ],
-  serialized_options=None,
-  is_extendable=False,
-  syntax='proto3',
-  extension_ranges=[],
-  oneofs=[
-  ],
-  serialized_start=1756,
-  serialized_end=2043,
+    name='QueueMessage',
+    full_name='kubemq.QueueMessage',
+    filename=None,
+    file=DESCRIPTOR,
+    containing_type=None,
+    fields=[
+        _descriptor.FieldDescriptor(
+            name='MessageID', full_name='kubemq.QueueMessage.MessageID', index=0,
+            number=1, type=9, cpp_type=9, label=1,
+            has_default_value=False, default_value=_b("").decode('utf-8'),
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='ClientID', full_name='kubemq.QueueMessage.ClientID', index=1,
+            number=2, type=9, cpp_type=9, label=1,
+            has_default_value=False, default_value=_b("").decode('utf-8'),
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='Channel', full_name='kubemq.QueueMessage.Channel', index=2,
+            number=3, type=9, cpp_type=9, label=1,
+            has_default_value=False, default_value=_b("").decode('utf-8'),
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='Metadata', full_name='kubemq.QueueMessage.Metadata', index=3,
+            number=4, type=9, cpp_type=9, label=1,
+            has_default_value=False, default_value=_b("").decode('utf-8'),
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='Body', full_name='kubemq.QueueMessage.Body', index=4,
+            number=5, type=12, cpp_type=9, label=1,
+            has_default_value=False, default_value=_b(""),
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='Tags', full_name='kubemq.QueueMessage.Tags', index=5,
+            number=6, type=11, cpp_type=10, label=3,
+            has_default_value=False, default_value=[],
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='Attributes', full_name='kubemq.QueueMessage.Attributes', index=6,
+            number=7, type=11, cpp_type=10, label=1,
+            has_default_value=False, default_value=None,
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='Policy', full_name='kubemq.QueueMessage.Policy', index=7,
+            number=8, type=11, cpp_type=10, label=1,
+            has_default_value=False, default_value=None,
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+    ],
+    extensions=[
+    ],
+    nested_types=[_QUEUEMESSAGE_TAGSENTRY, ],
+    enum_types=[
+    ],
+    serialized_options=None,
+    is_extendable=False,
+    syntax='proto3',
+    extension_ranges=[],
+    oneofs=[
+    ],
+    serialized_start=1756,
+    serialized_end=2043,
 )
-
 
 _QUEUEMESSAGESBATCHREQUEST = _descriptor.Descriptor(
-  name='QueueMessagesBatchRequest',
-  full_name='kubemq.QueueMessagesBatchRequest',
-  filename=None,
-  file=DESCRIPTOR,
-  containing_type=None,
-  fields=[
-    _descriptor.FieldDescriptor(
-      name='BatchID', full_name='kubemq.QueueMessagesBatchRequest.BatchID', index=0,
-      number=1, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=_b("").decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='Messages', full_name='kubemq.QueueMessagesBatchRequest.Messages', index=1,
-      number=2, type=11, cpp_type=10, label=3,
-      has_default_value=False, default_value=[],
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-  ],
-  extensions=[
-  ],
-  nested_types=[],
-  enum_types=[
-  ],
-  serialized_options=None,
-  is_extendable=False,
-  syntax='proto3',
-  extension_ranges=[],
-  oneofs=[
-  ],
-  serialized_start=2045,
-  serialized_end=2129,
+    name='QueueMessagesBatchRequest',
+    full_name='kubemq.QueueMessagesBatchRequest',
+    filename=None,
+    file=DESCRIPTOR,
+    containing_type=None,
+    fields=[
+        _descriptor.FieldDescriptor(
+            name='BatchID', full_name='kubemq.QueueMessagesBatchRequest.BatchID', index=0,
+            number=1, type=9, cpp_type=9, label=1,
+            has_default_value=False, default_value=_b("").decode('utf-8'),
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='Messages', full_name='kubemq.QueueMessagesBatchRequest.Messages', index=1,
+            number=2, type=11, cpp_type=10, label=3,
+            has_default_value=False, default_value=[],
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+    ],
+    extensions=[
+    ],
+    nested_types=[],
+    enum_types=[
+    ],
+    serialized_options=None,
+    is_extendable=False,
+    syntax='proto3',
+    extension_ranges=[],
+    oneofs=[
+    ],
+    serialized_start=2045,
+    serialized_end=2129,
 )
-
 
 _QUEUEMESSAGESBATCHRESPONSE = _descriptor.Descriptor(
-  name='QueueMessagesBatchResponse',
-  full_name='kubemq.QueueMessagesBatchResponse',
-  filename=None,
-  file=DESCRIPTOR,
-  containing_type=None,
-  fields=[
-    _descriptor.FieldDescriptor(
-      name='BatchID', full_name='kubemq.QueueMessagesBatchResponse.BatchID', index=0,
-      number=1, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=_b("").decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='Results', full_name='kubemq.QueueMessagesBatchResponse.Results', index=1,
-      number=2, type=11, cpp_type=10, label=3,
-      has_default_value=False, default_value=[],
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='HaveErrors', full_name='kubemq.QueueMessagesBatchResponse.HaveErrors', index=2,
-      number=3, type=8, cpp_type=7, label=1,
-      has_default_value=False, default_value=False,
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-  ],
-  extensions=[
-  ],
-  nested_types=[],
-  enum_types=[
-  ],
-  serialized_options=None,
-  is_extendable=False,
-  syntax='proto3',
-  extension_ranges=[],
-  oneofs=[
-  ],
-  serialized_start=2131,
-  serialized_end=2245,
+    name='QueueMessagesBatchResponse',
+    full_name='kubemq.QueueMessagesBatchResponse',
+    filename=None,
+    file=DESCRIPTOR,
+    containing_type=None,
+    fields=[
+        _descriptor.FieldDescriptor(
+            name='BatchID', full_name='kubemq.QueueMessagesBatchResponse.BatchID', index=0,
+            number=1, type=9, cpp_type=9, label=1,
+            has_default_value=False, default_value=_b("").decode('utf-8'),
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='Results', full_name='kubemq.QueueMessagesBatchResponse.Results', index=1,
+            number=2, type=11, cpp_type=10, label=3,
+            has_default_value=False, default_value=[],
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='HaveErrors', full_name='kubemq.QueueMessagesBatchResponse.HaveErrors', index=2,
+            number=3, type=8, cpp_type=7, label=1,
+            has_default_value=False, default_value=False,
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+    ],
+    extensions=[
+    ],
+    nested_types=[],
+    enum_types=[
+    ],
+    serialized_options=None,
+    is_extendable=False,
+    syntax='proto3',
+    extension_ranges=[],
+    oneofs=[
+    ],
+    serialized_start=2131,
+    serialized_end=2245,
 )
-
 
 _QUEUEMESSAGEATTRIBUTES = _descriptor.Descriptor(
-  name='QueueMessageAttributes',
-  full_name='kubemq.QueueMessageAttributes',
-  filename=None,
-  file=DESCRIPTOR,
-  containing_type=None,
-  fields=[
-    _descriptor.FieldDescriptor(
-      name='Timestamp', full_name='kubemq.QueueMessageAttributes.Timestamp', index=0,
-      number=1, type=3, cpp_type=2, label=1,
-      has_default_value=False, default_value=0,
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='Sequence', full_name='kubemq.QueueMessageAttributes.Sequence', index=1,
-      number=2, type=4, cpp_type=4, label=1,
-      has_default_value=False, default_value=0,
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='MD5OfBody', full_name='kubemq.QueueMessageAttributes.MD5OfBody', index=2,
-      number=3, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=_b("").decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='ReceiveCount', full_name='kubemq.QueueMessageAttributes.ReceiveCount', index=3,
-      number=4, type=5, cpp_type=1, label=1,
-      has_default_value=False, default_value=0,
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='ReRouted', full_name='kubemq.QueueMessageAttributes.ReRouted', index=4,
-      number=5, type=8, cpp_type=7, label=1,
-      has_default_value=False, default_value=False,
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='ReRoutedFromQueue', full_name='kubemq.QueueMessageAttributes.ReRoutedFromQueue', index=5,
-      number=6, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=_b("").decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='ExpirationAt', full_name='kubemq.QueueMessageAttributes.ExpirationAt', index=6,
-      number=7, type=3, cpp_type=2, label=1,
-      has_default_value=False, default_value=0,
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='DelayedTo', full_name='kubemq.QueueMessageAttributes.DelayedTo', index=7,
-      number=8, type=3, cpp_type=2, label=1,
-      has_default_value=False, default_value=0,
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-  ],
-  extensions=[
-  ],
-  nested_types=[],
-  enum_types=[
-  ],
-  serialized_options=None,
-  is_extendable=False,
-  syntax='proto3',
-  extension_ranges=[],
-  oneofs=[
-  ],
-  serialized_start=2248,
-  serialized_end=2436,
+    name='QueueMessageAttributes',
+    full_name='kubemq.QueueMessageAttributes',
+    filename=None,
+    file=DESCRIPTOR,
+    containing_type=None,
+    fields=[
+        _descriptor.FieldDescriptor(
+            name='Timestamp', full_name='kubemq.QueueMessageAttributes.Timestamp', index=0,
+            number=1, type=3, cpp_type=2, label=1,
+            has_default_value=False, default_value=0,
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='Sequence', full_name='kubemq.QueueMessageAttributes.Sequence', index=1,
+            number=2, type=4, cpp_type=4, label=1,
+            has_default_value=False, default_value=0,
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='MD5OfBody', full_name='kubemq.QueueMessageAttributes.MD5OfBody', index=2,
+            number=3, type=9, cpp_type=9, label=1,
+            has_default_value=False, default_value=_b("").decode('utf-8'),
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='ReceiveCount', full_name='kubemq.QueueMessageAttributes.ReceiveCount', index=3,
+            number=4, type=5, cpp_type=1, label=1,
+            has_default_value=False, default_value=0,
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='ReRouted', full_name='kubemq.QueueMessageAttributes.ReRouted', index=4,
+            number=5, type=8, cpp_type=7, label=1,
+            has_default_value=False, default_value=False,
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='ReRoutedFromQueue', full_name='kubemq.QueueMessageAttributes.ReRoutedFromQueue', index=5,
+            number=6, type=9, cpp_type=9, label=1,
+            has_default_value=False, default_value=_b("").decode('utf-8'),
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='ExpirationAt', full_name='kubemq.QueueMessageAttributes.ExpirationAt', index=6,
+            number=7, type=3, cpp_type=2, label=1,
+            has_default_value=False, default_value=0,
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='DelayedTo', full_name='kubemq.QueueMessageAttributes.DelayedTo', index=7,
+            number=8, type=3, cpp_type=2, label=1,
+            has_default_value=False, default_value=0,
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+    ],
+    extensions=[
+    ],
+    nested_types=[],
+    enum_types=[
+    ],
+    serialized_options=None,
+    is_extendable=False,
+    syntax='proto3',
+    extension_ranges=[],
+    oneofs=[
+    ],
+    serialized_start=2248,
+    serialized_end=2436,
 )
-
 
 _QUEUEMESSAGEPOLICY = _descriptor.Descriptor(
-  name='QueueMessagePolicy',
-  full_name='kubemq.QueueMessagePolicy',
-  filename=None,
-  file=DESCRIPTOR,
-  containing_type=None,
-  fields=[
-    _descriptor.FieldDescriptor(
-      name='ExpirationSeconds', full_name='kubemq.QueueMessagePolicy.ExpirationSeconds', index=0,
-      number=1, type=5, cpp_type=1, label=1,
-      has_default_value=False, default_value=0,
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='DelaySeconds', full_name='kubemq.QueueMessagePolicy.DelaySeconds', index=1,
-      number=2, type=5, cpp_type=1, label=1,
-      has_default_value=False, default_value=0,
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='MaxReceiveCount', full_name='kubemq.QueueMessagePolicy.MaxReceiveCount', index=2,
-      number=3, type=5, cpp_type=1, label=1,
-      has_default_value=False, default_value=0,
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='MaxReceiveQueue', full_name='kubemq.QueueMessagePolicy.MaxReceiveQueue', index=3,
-      number=4, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=_b("").decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-  ],
-  extensions=[
-  ],
-  nested_types=[],
-  enum_types=[
-  ],
-  serialized_options=None,
-  is_extendable=False,
-  syntax='proto3',
-  extension_ranges=[],
-  oneofs=[
-  ],
-  serialized_start=2438,
-  serialized_end=2557,
+    name='QueueMessagePolicy',
+    full_name='kubemq.QueueMessagePolicy',
+    filename=None,
+    file=DESCRIPTOR,
+    containing_type=None,
+    fields=[
+        _descriptor.FieldDescriptor(
+            name='ExpirationSeconds', full_name='kubemq.QueueMessagePolicy.ExpirationSeconds', index=0,
+            number=1, type=5, cpp_type=1, label=1,
+            has_default_value=False, default_value=0,
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='DelaySeconds', full_name='kubemq.QueueMessagePolicy.DelaySeconds', index=1,
+            number=2, type=5, cpp_type=1, label=1,
+            has_default_value=False, default_value=0,
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='MaxReceiveCount', full_name='kubemq.QueueMessagePolicy.MaxReceiveCount', index=2,
+            number=3, type=5, cpp_type=1, label=1,
+            has_default_value=False, default_value=0,
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='MaxReceiveQueue', full_name='kubemq.QueueMessagePolicy.MaxReceiveQueue', index=3,
+            number=4, type=9, cpp_type=9, label=1,
+            has_default_value=False, default_value=_b("").decode('utf-8'),
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+    ],
+    extensions=[
+    ],
+    nested_types=[],
+    enum_types=[
+    ],
+    serialized_options=None,
+    is_extendable=False,
+    syntax='proto3',
+    extension_ranges=[],
+    oneofs=[
+    ],
+    serialized_start=2438,
+    serialized_end=2557,
 )
-
 
 _SENDQUEUEMESSAGERESULT = _descriptor.Descriptor(
-  name='SendQueueMessageResult',
-  full_name='kubemq.SendQueueMessageResult',
-  filename=None,
-  file=DESCRIPTOR,
-  containing_type=None,
-  fields=[
-    _descriptor.FieldDescriptor(
-      name='MessageID', full_name='kubemq.SendQueueMessageResult.MessageID', index=0,
-      number=1, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=_b("").decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='SentAt', full_name='kubemq.SendQueueMessageResult.SentAt', index=1,
-      number=2, type=3, cpp_type=2, label=1,
-      has_default_value=False, default_value=0,
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='ExpirationAt', full_name='kubemq.SendQueueMessageResult.ExpirationAt', index=2,
-      number=3, type=3, cpp_type=2, label=1,
-      has_default_value=False, default_value=0,
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='DelayedTo', full_name='kubemq.SendQueueMessageResult.DelayedTo', index=3,
-      number=4, type=3, cpp_type=2, label=1,
-      has_default_value=False, default_value=0,
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='IsError', full_name='kubemq.SendQueueMessageResult.IsError', index=4,
-      number=5, type=8, cpp_type=7, label=1,
-      has_default_value=False, default_value=False,
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='Error', full_name='kubemq.SendQueueMessageResult.Error', index=5,
-      number=6, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=_b("").decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-  ],
-  extensions=[
-  ],
-  nested_types=[],
-  enum_types=[
-  ],
-  serialized_options=None,
-  is_extendable=False,
-  syntax='proto3',
-  extension_ranges=[],
-  oneofs=[
-  ],
-  serialized_start=2560,
-  serialized_end=2692,
+    name='SendQueueMessageResult',
+    full_name='kubemq.SendQueueMessageResult',
+    filename=None,
+    file=DESCRIPTOR,
+    containing_type=None,
+    fields=[
+        _descriptor.FieldDescriptor(
+            name='MessageID', full_name='kubemq.SendQueueMessageResult.MessageID', index=0,
+            number=1, type=9, cpp_type=9, label=1,
+            has_default_value=False, default_value=_b("").decode('utf-8'),
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='SentAt', full_name='kubemq.SendQueueMessageResult.SentAt', index=1,
+            number=2, type=3, cpp_type=2, label=1,
+            has_default_value=False, default_value=0,
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='ExpirationAt', full_name='kubemq.SendQueueMessageResult.ExpirationAt', index=2,
+            number=3, type=3, cpp_type=2, label=1,
+            has_default_value=False, default_value=0,
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='DelayedTo', full_name='kubemq.SendQueueMessageResult.DelayedTo', index=3,
+            number=4, type=3, cpp_type=2, label=1,
+            has_default_value=False, default_value=0,
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='IsError', full_name='kubemq.SendQueueMessageResult.IsError', index=4,
+            number=5, type=8, cpp_type=7, label=1,
+            has_default_value=False, default_value=False,
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='Error', full_name='kubemq.SendQueueMessageResult.Error', index=5,
+            number=6, type=9, cpp_type=9, label=1,
+            has_default_value=False, default_value=_b("").decode('utf-8'),
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+    ],
+    extensions=[
+    ],
+    nested_types=[],
+    enum_types=[
+    ],
+    serialized_options=None,
+    is_extendable=False,
+    syntax='proto3',
+    extension_ranges=[],
+    oneofs=[
+    ],
+    serialized_start=2560,
+    serialized_end=2692,
 )
-
 
 _RECEIVEQUEUEMESSAGESREQUEST = _descriptor.Descriptor(
-  name='ReceiveQueueMessagesRequest',
-  full_name='kubemq.ReceiveQueueMessagesRequest',
-  filename=None,
-  file=DESCRIPTOR,
-  containing_type=None,
-  fields=[
-    _descriptor.FieldDescriptor(
-      name='RequestID', full_name='kubemq.ReceiveQueueMessagesRequest.RequestID', index=0,
-      number=1, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=_b("").decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='ClientID', full_name='kubemq.ReceiveQueueMessagesRequest.ClientID', index=1,
-      number=2, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=_b("").decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='Channel', full_name='kubemq.ReceiveQueueMessagesRequest.Channel', index=2,
-      number=3, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=_b("").decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='MaxNumberOfMessages', full_name='kubemq.ReceiveQueueMessagesRequest.MaxNumberOfMessages', index=3,
-      number=4, type=5, cpp_type=1, label=1,
-      has_default_value=False, default_value=0,
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='WaitTimeSeconds', full_name='kubemq.ReceiveQueueMessagesRequest.WaitTimeSeconds', index=4,
-      number=5, type=5, cpp_type=1, label=1,
-      has_default_value=False, default_value=0,
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='IsPeak', full_name='kubemq.ReceiveQueueMessagesRequest.IsPeak', index=5,
-      number=6, type=8, cpp_type=7, label=1,
-      has_default_value=False, default_value=False,
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-  ],
-  extensions=[
-  ],
-  nested_types=[],
-  enum_types=[
-  ],
-  serialized_options=None,
-  is_extendable=False,
-  syntax='proto3',
-  extension_ranges=[],
-  oneofs=[
-  ],
-  serialized_start=2695,
-  serialized_end=2848,
+    name='ReceiveQueueMessagesRequest',
+    full_name='kubemq.ReceiveQueueMessagesRequest',
+    filename=None,
+    file=DESCRIPTOR,
+    containing_type=None,
+    fields=[
+        _descriptor.FieldDescriptor(
+            name='RequestID', full_name='kubemq.ReceiveQueueMessagesRequest.RequestID', index=0,
+            number=1, type=9, cpp_type=9, label=1,
+            has_default_value=False, default_value=_b("").decode('utf-8'),
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='ClientID', full_name='kubemq.ReceiveQueueMessagesRequest.ClientID', index=1,
+            number=2, type=9, cpp_type=9, label=1,
+            has_default_value=False, default_value=_b("").decode('utf-8'),
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='Channel', full_name='kubemq.ReceiveQueueMessagesRequest.Channel', index=2,
+            number=3, type=9, cpp_type=9, label=1,
+            has_default_value=False, default_value=_b("").decode('utf-8'),
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='MaxNumberOfMessages', full_name='kubemq.ReceiveQueueMessagesRequest.MaxNumberOfMessages', index=3,
+            number=4, type=5, cpp_type=1, label=1,
+            has_default_value=False, default_value=0,
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='WaitTimeSeconds', full_name='kubemq.ReceiveQueueMessagesRequest.WaitTimeSeconds', index=4,
+            number=5, type=5, cpp_type=1, label=1,
+            has_default_value=False, default_value=0,
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='IsPeak', full_name='kubemq.ReceiveQueueMessagesRequest.IsPeak', index=5,
+            number=6, type=8, cpp_type=7, label=1,
+            has_default_value=False, default_value=False,
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+    ],
+    extensions=[
+    ],
+    nested_types=[],
+    enum_types=[
+    ],
+    serialized_options=None,
+    is_extendable=False,
+    syntax='proto3',
+    extension_ranges=[],
+    oneofs=[
+    ],
+    serialized_start=2695,
+    serialized_end=2848,
 )
-
 
 _RECEIVEQUEUEMESSAGESRESPONSE = _descriptor.Descriptor(
-  name='ReceiveQueueMessagesResponse',
-  full_name='kubemq.ReceiveQueueMessagesResponse',
-  filename=None,
-  file=DESCRIPTOR,
-  containing_type=None,
-  fields=[
-    _descriptor.FieldDescriptor(
-      name='RequestID', full_name='kubemq.ReceiveQueueMessagesResponse.RequestID', index=0,
-      number=1, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=_b("").decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='Messages', full_name='kubemq.ReceiveQueueMessagesResponse.Messages', index=1,
-      number=2, type=11, cpp_type=10, label=3,
-      has_default_value=False, default_value=[],
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='MessagesReceived', full_name='kubemq.ReceiveQueueMessagesResponse.MessagesReceived', index=2,
-      number=3, type=5, cpp_type=1, label=1,
-      has_default_value=False, default_value=0,
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='MessagesExpired', full_name='kubemq.ReceiveQueueMessagesResponse.MessagesExpired', index=3,
-      number=4, type=5, cpp_type=1, label=1,
-      has_default_value=False, default_value=0,
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='IsPeak', full_name='kubemq.ReceiveQueueMessagesResponse.IsPeak', index=4,
-      number=5, type=8, cpp_type=7, label=1,
-      has_default_value=False, default_value=False,
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='IsError', full_name='kubemq.ReceiveQueueMessagesResponse.IsError', index=5,
-      number=6, type=8, cpp_type=7, label=1,
-      has_default_value=False, default_value=False,
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='Error', full_name='kubemq.ReceiveQueueMessagesResponse.Error', index=6,
-      number=7, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=_b("").decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-  ],
-  extensions=[
-  ],
-  nested_types=[],
-  enum_types=[
-  ],
-  serialized_options=None,
-  is_extendable=False,
-  syntax='proto3',
-  extension_ranges=[],
-  oneofs=[
-  ],
-  serialized_start=2851,
-  serialized_end=3039,
+    name='ReceiveQueueMessagesResponse',
+    full_name='kubemq.ReceiveQueueMessagesResponse',
+    filename=None,
+    file=DESCRIPTOR,
+    containing_type=None,
+    fields=[
+        _descriptor.FieldDescriptor(
+            name='RequestID', full_name='kubemq.ReceiveQueueMessagesResponse.RequestID', index=0,
+            number=1, type=9, cpp_type=9, label=1,
+            has_default_value=False, default_value=_b("").decode('utf-8'),
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='Messages', full_name='kubemq.ReceiveQueueMessagesResponse.Messages', index=1,
+            number=2, type=11, cpp_type=10, label=3,
+            has_default_value=False, default_value=[],
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='MessagesReceived', full_name='kubemq.ReceiveQueueMessagesResponse.MessagesReceived', index=2,
+            number=3, type=5, cpp_type=1, label=1,
+            has_default_value=False, default_value=0,
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='MessagesExpired', full_name='kubemq.ReceiveQueueMessagesResponse.MessagesExpired', index=3,
+            number=4, type=5, cpp_type=1, label=1,
+            has_default_value=False, default_value=0,
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='IsPeak', full_name='kubemq.ReceiveQueueMessagesResponse.IsPeak', index=4,
+            number=5, type=8, cpp_type=7, label=1,
+            has_default_value=False, default_value=False,
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='IsError', full_name='kubemq.ReceiveQueueMessagesResponse.IsError', index=5,
+            number=6, type=8, cpp_type=7, label=1,
+            has_default_value=False, default_value=False,
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='Error', full_name='kubemq.ReceiveQueueMessagesResponse.Error', index=6,
+            number=7, type=9, cpp_type=9, label=1,
+            has_default_value=False, default_value=_b("").decode('utf-8'),
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+    ],
+    extensions=[
+    ],
+    nested_types=[],
+    enum_types=[
+    ],
+    serialized_options=None,
+    is_extendable=False,
+    syntax='proto3',
+    extension_ranges=[],
+    oneofs=[
+    ],
+    serialized_start=2851,
+    serialized_end=3039,
 )
-
 
 _ACKALLQUEUEMESSAGESREQUEST = _descriptor.Descriptor(
-  name='AckAllQueueMessagesRequest',
-  full_name='kubemq.AckAllQueueMessagesRequest',
-  filename=None,
-  file=DESCRIPTOR,
-  containing_type=None,
-  fields=[
-    _descriptor.FieldDescriptor(
-      name='RequestID', full_name='kubemq.AckAllQueueMessagesRequest.RequestID', index=0,
-      number=1, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=_b("").decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='ClientID', full_name='kubemq.AckAllQueueMessagesRequest.ClientID', index=1,
-      number=2, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=_b("").decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='Channel', full_name='kubemq.AckAllQueueMessagesRequest.Channel', index=2,
-      number=3, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=_b("").decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='WaitTimeSeconds', full_name='kubemq.AckAllQueueMessagesRequest.WaitTimeSeconds', index=3,
-      number=4, type=5, cpp_type=1, label=1,
-      has_default_value=False, default_value=0,
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-  ],
-  extensions=[
-  ],
-  nested_types=[],
-  enum_types=[
-  ],
-  serialized_options=None,
-  is_extendable=False,
-  syntax='proto3',
-  extension_ranges=[],
-  oneofs=[
-  ],
-  serialized_start=3041,
-  serialized_end=3148,
+    name='AckAllQueueMessagesRequest',
+    full_name='kubemq.AckAllQueueMessagesRequest',
+    filename=None,
+    file=DESCRIPTOR,
+    containing_type=None,
+    fields=[
+        _descriptor.FieldDescriptor(
+            name='RequestID', full_name='kubemq.AckAllQueueMessagesRequest.RequestID', index=0,
+            number=1, type=9, cpp_type=9, label=1,
+            has_default_value=False, default_value=_b("").decode('utf-8'),
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='ClientID', full_name='kubemq.AckAllQueueMessagesRequest.ClientID', index=1,
+            number=2, type=9, cpp_type=9, label=1,
+            has_default_value=False, default_value=_b("").decode('utf-8'),
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='Channel', full_name='kubemq.AckAllQueueMessagesRequest.Channel', index=2,
+            number=3, type=9, cpp_type=9, label=1,
+            has_default_value=False, default_value=_b("").decode('utf-8'),
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='WaitTimeSeconds', full_name='kubemq.AckAllQueueMessagesRequest.WaitTimeSeconds', index=3,
+            number=4, type=5, cpp_type=1, label=1,
+            has_default_value=False, default_value=0,
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+    ],
+    extensions=[
+    ],
+    nested_types=[],
+    enum_types=[
+    ],
+    serialized_options=None,
+    is_extendable=False,
+    syntax='proto3',
+    extension_ranges=[],
+    oneofs=[
+    ],
+    serialized_start=3041,
+    serialized_end=3148,
 )
-
 
 _ACKALLQUEUEMESSAGESRESPONSE = _descriptor.Descriptor(
-  name='AckAllQueueMessagesResponse',
-  full_name='kubemq.AckAllQueueMessagesResponse',
-  filename=None,
-  file=DESCRIPTOR,
-  containing_type=None,
-  fields=[
-    _descriptor.FieldDescriptor(
-      name='RequestID', full_name='kubemq.AckAllQueueMessagesResponse.RequestID', index=0,
-      number=1, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=_b("").decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='AffectedMessages', full_name='kubemq.AckAllQueueMessagesResponse.AffectedMessages', index=1,
-      number=2, type=4, cpp_type=4, label=1,
-      has_default_value=False, default_value=0,
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='IsError', full_name='kubemq.AckAllQueueMessagesResponse.IsError', index=2,
-      number=3, type=8, cpp_type=7, label=1,
-      has_default_value=False, default_value=False,
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='Error', full_name='kubemq.AckAllQueueMessagesResponse.Error', index=3,
-      number=4, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=_b("").decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-  ],
-  extensions=[
-  ],
-  nested_types=[],
-  enum_types=[
-  ],
-  serialized_options=None,
-  is_extendable=False,
-  syntax='proto3',
-  extension_ranges=[],
-  oneofs=[
-  ],
-  serialized_start=3150,
-  serialized_end=3256,
+    name='AckAllQueueMessagesResponse',
+    full_name='kubemq.AckAllQueueMessagesResponse',
+    filename=None,
+    file=DESCRIPTOR,
+    containing_type=None,
+    fields=[
+        _descriptor.FieldDescriptor(
+            name='RequestID', full_name='kubemq.AckAllQueueMessagesResponse.RequestID', index=0,
+            number=1, type=9, cpp_type=9, label=1,
+            has_default_value=False, default_value=_b("").decode('utf-8'),
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='AffectedMessages', full_name='kubemq.AckAllQueueMessagesResponse.AffectedMessages', index=1,
+            number=2, type=4, cpp_type=4, label=1,
+            has_default_value=False, default_value=0,
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='IsError', full_name='kubemq.AckAllQueueMessagesResponse.IsError', index=2,
+            number=3, type=8, cpp_type=7, label=1,
+            has_default_value=False, default_value=False,
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='Error', full_name='kubemq.AckAllQueueMessagesResponse.Error', index=3,
+            number=4, type=9, cpp_type=9, label=1,
+            has_default_value=False, default_value=_b("").decode('utf-8'),
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+    ],
+    extensions=[
+    ],
+    nested_types=[],
+    enum_types=[
+    ],
+    serialized_options=None,
+    is_extendable=False,
+    syntax='proto3',
+    extension_ranges=[],
+    oneofs=[
+    ],
+    serialized_start=3150,
+    serialized_end=3256,
 )
-
 
 _STREAMQUEUEMESSAGESREQUEST = _descriptor.Descriptor(
-  name='StreamQueueMessagesRequest',
-  full_name='kubemq.StreamQueueMessagesRequest',
-  filename=None,
-  file=DESCRIPTOR,
-  containing_type=None,
-  fields=[
-    _descriptor.FieldDescriptor(
-      name='RequestID', full_name='kubemq.StreamQueueMessagesRequest.RequestID', index=0,
-      number=1, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=_b("").decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='ClientID', full_name='kubemq.StreamQueueMessagesRequest.ClientID', index=1,
-      number=2, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=_b("").decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='StreamRequestTypeData', full_name='kubemq.StreamQueueMessagesRequest.StreamRequestTypeData', index=2,
-      number=3, type=14, cpp_type=8, label=1,
-      has_default_value=False, default_value=0,
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='Channel', full_name='kubemq.StreamQueueMessagesRequest.Channel', index=3,
-      number=4, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=_b("").decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='VisibilitySeconds', full_name='kubemq.StreamQueueMessagesRequest.VisibilitySeconds', index=4,
-      number=5, type=5, cpp_type=1, label=1,
-      has_default_value=False, default_value=0,
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='WaitTimeSeconds', full_name='kubemq.StreamQueueMessagesRequest.WaitTimeSeconds', index=5,
-      number=6, type=5, cpp_type=1, label=1,
-      has_default_value=False, default_value=0,
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='RefSequence', full_name='kubemq.StreamQueueMessagesRequest.RefSequence', index=6,
-      number=7, type=4, cpp_type=4, label=1,
-      has_default_value=False, default_value=0,
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='ModifiedMessage', full_name='kubemq.StreamQueueMessagesRequest.ModifiedMessage', index=7,
-      number=8, type=11, cpp_type=10, label=1,
-      has_default_value=False, default_value=None,
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-  ],
-  extensions=[
-  ],
-  nested_types=[],
-  enum_types=[
-  ],
-  serialized_options=None,
-  is_extendable=False,
-  syntax='proto3',
-  extension_ranges=[],
-  oneofs=[
-  ],
-  serialized_start=3259,
-  serialized_end=3519,
+    name='StreamQueueMessagesRequest',
+    full_name='kubemq.StreamQueueMessagesRequest',
+    filename=None,
+    file=DESCRIPTOR,
+    containing_type=None,
+    fields=[
+        _descriptor.FieldDescriptor(
+            name='RequestID', full_name='kubemq.StreamQueueMessagesRequest.RequestID', index=0,
+            number=1, type=9, cpp_type=9, label=1,
+            has_default_value=False, default_value=_b("").decode('utf-8'),
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='ClientID', full_name='kubemq.StreamQueueMessagesRequest.ClientID', index=1,
+            number=2, type=9, cpp_type=9, label=1,
+            has_default_value=False, default_value=_b("").decode('utf-8'),
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='StreamRequestTypeData', full_name='kubemq.StreamQueueMessagesRequest.StreamRequestTypeData', index=2,
+            number=3, type=14, cpp_type=8, label=1,
+            has_default_value=False, default_value=0,
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='Channel', full_name='kubemq.StreamQueueMessagesRequest.Channel', index=3,
+            number=4, type=9, cpp_type=9, label=1,
+            has_default_value=False, default_value=_b("").decode('utf-8'),
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='VisibilitySeconds', full_name='kubemq.StreamQueueMessagesRequest.VisibilitySeconds', index=4,
+            number=5, type=5, cpp_type=1, label=1,
+            has_default_value=False, default_value=0,
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='WaitTimeSeconds', full_name='kubemq.StreamQueueMessagesRequest.WaitTimeSeconds', index=5,
+            number=6, type=5, cpp_type=1, label=1,
+            has_default_value=False, default_value=0,
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='RefSequence', full_name='kubemq.StreamQueueMessagesRequest.RefSequence', index=6,
+            number=7, type=4, cpp_type=4, label=1,
+            has_default_value=False, default_value=0,
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='ModifiedMessage', full_name='kubemq.StreamQueueMessagesRequest.ModifiedMessage', index=7,
+            number=8, type=11, cpp_type=10, label=1,
+            has_default_value=False, default_value=None,
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+    ],
+    extensions=[
+    ],
+    nested_types=[],
+    enum_types=[
+    ],
+    serialized_options=None,
+    is_extendable=False,
+    syntax='proto3',
+    extension_ranges=[],
+    oneofs=[
+    ],
+    serialized_start=3259,
+    serialized_end=3519,
 )
 
-
 _STREAMQUEUEMESSAGESRESPONSE = _descriptor.Descriptor(
-  name='StreamQueueMessagesResponse',
-  full_name='kubemq.StreamQueueMessagesResponse',
-  filename=None,
-  file=DESCRIPTOR,
-  containing_type=None,
-  fields=[
-    _descriptor.FieldDescriptor(
-      name='RequestID', full_name='kubemq.StreamQueueMessagesResponse.RequestID', index=0,
-      number=1, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=_b("").decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='StreamRequestTypeData', full_name='kubemq.StreamQueueMessagesResponse.StreamRequestTypeData', index=1,
-      number=2, type=14, cpp_type=8, label=1,
-      has_default_value=False, default_value=0,
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='Message', full_name='kubemq.StreamQueueMessagesResponse.Message', index=2,
-      number=3, type=11, cpp_type=10, label=1,
-      has_default_value=False, default_value=None,
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='IsError', full_name='kubemq.StreamQueueMessagesResponse.IsError', index=3,
-      number=4, type=8, cpp_type=7, label=1,
-      has_default_value=False, default_value=False,
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='Error', full_name='kubemq.StreamQueueMessagesResponse.Error', index=4,
-      number=5, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=_b("").decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-  ],
-  extensions=[
-  ],
-  nested_types=[],
-  enum_types=[
-  ],
-  serialized_options=None,
-  is_extendable=False,
-  syntax='proto3',
-  extension_ranges=[],
-  oneofs=[
-  ],
-  serialized_start=3522,
-  serialized_end=3699,
+    name='StreamQueueMessagesResponse',
+    full_name='kubemq.StreamQueueMessagesResponse',
+    filename=None,
+    file=DESCRIPTOR,
+    containing_type=None,
+    fields=[
+        _descriptor.FieldDescriptor(
+            name='RequestID', full_name='kubemq.StreamQueueMessagesResponse.RequestID', index=0,
+            number=1, type=9, cpp_type=9, label=1,
+            has_default_value=False, default_value=_b("").decode('utf-8'),
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='StreamRequestTypeData', full_name='kubemq.StreamQueueMessagesResponse.StreamRequestTypeData', index=1,
+            number=2, type=14, cpp_type=8, label=1,
+            has_default_value=False, default_value=0,
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='Message', full_name='kubemq.StreamQueueMessagesResponse.Message', index=2,
+            number=3, type=11, cpp_type=10, label=1,
+            has_default_value=False, default_value=None,
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='IsError', full_name='kubemq.StreamQueueMessagesResponse.IsError', index=3,
+            number=4, type=8, cpp_type=7, label=1,
+            has_default_value=False, default_value=False,
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+        _descriptor.FieldDescriptor(
+            name='Error', full_name='kubemq.StreamQueueMessagesResponse.Error', index=4,
+            number=5, type=9, cpp_type=9, label=1,
+            has_default_value=False, default_value=_b("").decode('utf-8'),
+            message_type=None, enum_type=None, containing_type=None,
+            is_extension=False, extension_scope=None,
+            serialized_options=None, file=DESCRIPTOR),
+    ],
+    extensions=[
+    ],
+    nested_types=[],
+    enum_types=[
+    ],
+    serialized_options=None,
+    is_extendable=False,
+    syntax='proto3',
+    extension_ranges=[],
+    oneofs=[
+    ],
+    serialized_start=3522,
+    serialized_end=3699,
 )
 
 _EVENT_TAGSENTRY.containing_type = _EVENT
@@ -1700,185 +1679,191 @@ DESCRIPTOR.enum_types_by_name['StreamRequestType'] = _STREAMREQUESTTYPE
 _sym_db.RegisterFileDescriptor(DESCRIPTOR)
 
 PingResult = _reflection.GeneratedProtocolMessageType('PingResult', (_message.Message,), {
-  'DESCRIPTOR' : _PINGRESULT,
-  '__module__' : 'kubemq.grpc.kubemq_pb2'
-  # @@protoc_insertion_point(class_scope:kubemq.PingResult)
-  })
+    'DESCRIPTOR': _PINGRESULT,
+    '__module__': 'kubemq.grpc.kubemq_pb2'
+    # @@protoc_insertion_point(class_scope:kubemq.PingResult)
+})
 _sym_db.RegisterMessage(PingResult)
 
 Empty = _reflection.GeneratedProtocolMessageType('Empty', (_message.Message,), {
-  'DESCRIPTOR' : _EMPTY,
-  '__module__' : 'kubemq.grpc.kubemq_pb2'
-  # @@protoc_insertion_point(class_scope:kubemq.Empty)
-  })
+    'DESCRIPTOR': _EMPTY,
+    '__module__': 'kubemq.grpc.kubemq_pb2'
+    # @@protoc_insertion_point(class_scope:kubemq.Empty)
+})
 _sym_db.RegisterMessage(Empty)
 
 Result = _reflection.GeneratedProtocolMessageType('Result', (_message.Message,), {
-  'DESCRIPTOR' : _RESULT,
-  '__module__' : 'kubemq.grpc.kubemq_pb2'
-  # @@protoc_insertion_point(class_scope:kubemq.Result)
-  })
+    'DESCRIPTOR': _RESULT,
+    '__module__': 'kubemq.grpc.kubemq_pb2'
+    # @@protoc_insertion_point(class_scope:kubemq.Result)
+})
 _sym_db.RegisterMessage(Result)
 
 Event = _reflection.GeneratedProtocolMessageType('Event', (_message.Message,), {
 
-  'TagsEntry' : _reflection.GeneratedProtocolMessageType('TagsEntry', (_message.Message,), {
-    'DESCRIPTOR' : _EVENT_TAGSENTRY,
-    '__module__' : 'kubemq.grpc.kubemq_pb2'
-    # @@protoc_insertion_point(class_scope:kubemq.Event.TagsEntry)
+    'TagsEntry': _reflection.GeneratedProtocolMessageType('TagsEntry', (_message.Message,), {
+        'DESCRIPTOR': _EVENT_TAGSENTRY,
+        '__module__': 'kubemq.grpc.kubemq_pb2'
+        # @@protoc_insertion_point(class_scope:kubemq.Event.TagsEntry)
     })
-  ,
-  'DESCRIPTOR' : _EVENT,
-  '__module__' : 'kubemq.grpc.kubemq_pb2'
-  # @@protoc_insertion_point(class_scope:kubemq.Event)
-  })
+    ,
+    'DESCRIPTOR': _EVENT,
+    '__module__': 'kubemq.grpc.kubemq_pb2'
+    # @@protoc_insertion_point(class_scope:kubemq.Event)
+})
 _sym_db.RegisterMessage(Event)
 _sym_db.RegisterMessage(Event.TagsEntry)
 
 EventReceive = _reflection.GeneratedProtocolMessageType('EventReceive', (_message.Message,), {
 
-  'TagsEntry' : _reflection.GeneratedProtocolMessageType('TagsEntry', (_message.Message,), {
-    'DESCRIPTOR' : _EVENTRECEIVE_TAGSENTRY,
-    '__module__' : 'kubemq.grpc.kubemq_pb2'
-    # @@protoc_insertion_point(class_scope:kubemq.EventReceive.TagsEntry)
+    'TagsEntry': _reflection.GeneratedProtocolMessageType('TagsEntry', (_message.Message,), {
+        'DESCRIPTOR': _EVENTRECEIVE_TAGSENTRY,
+        '__module__': 'kubemq.grpc.kubemq_pb2'
+        # @@protoc_insertion_point(class_scope:kubemq.EventReceive.TagsEntry)
     })
-  ,
-  'DESCRIPTOR' : _EVENTRECEIVE,
-  '__module__' : 'kubemq.grpc.kubemq_pb2'
-  # @@protoc_insertion_point(class_scope:kubemq.EventReceive)
-  })
+    ,
+    'DESCRIPTOR': _EVENTRECEIVE,
+    '__module__': 'kubemq.grpc.kubemq_pb2'
+    # @@protoc_insertion_point(class_scope:kubemq.EventReceive)
+})
 _sym_db.RegisterMessage(EventReceive)
 _sym_db.RegisterMessage(EventReceive.TagsEntry)
 
 Subscribe = _reflection.GeneratedProtocolMessageType('Subscribe', (_message.Message,), {
-  'DESCRIPTOR' : _SUBSCRIBE,
-  '__module__' : 'kubemq.grpc.kubemq_pb2'
-  # @@protoc_insertion_point(class_scope:kubemq.Subscribe)
-  })
+    'DESCRIPTOR': _SUBSCRIBE,
+    '__module__': 'kubemq.grpc.kubemq_pb2'
+    # @@protoc_insertion_point(class_scope:kubemq.Subscribe)
+})
 _sym_db.RegisterMessage(Subscribe)
 
 Request = _reflection.GeneratedProtocolMessageType('Request', (_message.Message,), {
 
-  'TagsEntry' : _reflection.GeneratedProtocolMessageType('TagsEntry', (_message.Message,), {
-    'DESCRIPTOR' : _REQUEST_TAGSENTRY,
-    '__module__' : 'kubemq.grpc.kubemq_pb2'
-    # @@protoc_insertion_point(class_scope:kubemq.Request.TagsEntry)
+    'TagsEntry': _reflection.GeneratedProtocolMessageType('TagsEntry', (_message.Message,), {
+        'DESCRIPTOR': _REQUEST_TAGSENTRY,
+        '__module__': 'kubemq.grpc.kubemq_pb2'
+        # @@protoc_insertion_point(class_scope:kubemq.Request.TagsEntry)
     })
-  ,
-  'DESCRIPTOR' : _REQUEST,
-  '__module__' : 'kubemq.grpc.kubemq_pb2'
-  # @@protoc_insertion_point(class_scope:kubemq.Request)
-  })
+    ,
+    'DESCRIPTOR': _REQUEST,
+    '__module__': 'kubemq.grpc.kubemq_pb2'
+    # @@protoc_insertion_point(class_scope:kubemq.Request)
+})
 _sym_db.RegisterMessage(Request)
 _sym_db.RegisterMessage(Request.TagsEntry)
 
 Response = _reflection.GeneratedProtocolMessageType('Response', (_message.Message,), {
 
-  'TagsEntry' : _reflection.GeneratedProtocolMessageType('TagsEntry', (_message.Message,), {
-    'DESCRIPTOR' : _RESPONSE_TAGSENTRY,
-    '__module__' : 'kubemq.grpc.kubemq_pb2'
-    # @@protoc_insertion_point(class_scope:kubemq.Response.TagsEntry)
+    'TagsEntry': _reflection.GeneratedProtocolMessageType('TagsEntry', (_message.Message,), {
+        'DESCRIPTOR': _RESPONSE_TAGSENTRY,
+        '__module__': 'kubemq.grpc.kubemq_pb2'
+        # @@protoc_insertion_point(class_scope:kubemq.Response.TagsEntry)
     })
-  ,
-  'DESCRIPTOR' : _RESPONSE,
-  '__module__' : 'kubemq.grpc.kubemq_pb2'
-  # @@protoc_insertion_point(class_scope:kubemq.Response)
-  })
+    ,
+    'DESCRIPTOR': _RESPONSE,
+    '__module__': 'kubemq.grpc.kubemq_pb2'
+    # @@protoc_insertion_point(class_scope:kubemq.Response)
+})
 _sym_db.RegisterMessage(Response)
 _sym_db.RegisterMessage(Response.TagsEntry)
 
 QueueMessage = _reflection.GeneratedProtocolMessageType('QueueMessage', (_message.Message,), {
 
-  'TagsEntry' : _reflection.GeneratedProtocolMessageType('TagsEntry', (_message.Message,), {
-    'DESCRIPTOR' : _QUEUEMESSAGE_TAGSENTRY,
-    '__module__' : 'kubemq.grpc.kubemq_pb2'
-    # @@protoc_insertion_point(class_scope:kubemq.QueueMessage.TagsEntry)
+    'TagsEntry': _reflection.GeneratedProtocolMessageType('TagsEntry', (_message.Message,), {
+        'DESCRIPTOR': _QUEUEMESSAGE_TAGSENTRY,
+        '__module__': 'kubemq.grpc.kubemq_pb2'
+        # @@protoc_insertion_point(class_scope:kubemq.QueueMessage.TagsEntry)
     })
-  ,
-  'DESCRIPTOR' : _QUEUEMESSAGE,
-  '__module__' : 'kubemq.grpc.kubemq_pb2'
-  # @@protoc_insertion_point(class_scope:kubemq.QueueMessage)
-  })
+    ,
+    'DESCRIPTOR': _QUEUEMESSAGE,
+    '__module__': 'kubemq.grpc.kubemq_pb2'
+    # @@protoc_insertion_point(class_scope:kubemq.QueueMessage)
+})
 _sym_db.RegisterMessage(QueueMessage)
 _sym_db.RegisterMessage(QueueMessage.TagsEntry)
 
 QueueMessagesBatchRequest = _reflection.GeneratedProtocolMessageType('QueueMessagesBatchRequest', (_message.Message,), {
-  'DESCRIPTOR' : _QUEUEMESSAGESBATCHREQUEST,
-  '__module__' : 'kubemq.grpc.kubemq_pb2'
-  # @@protoc_insertion_point(class_scope:kubemq.QueueMessagesBatchRequest)
-  })
+    'DESCRIPTOR': _QUEUEMESSAGESBATCHREQUEST,
+    '__module__': 'kubemq.grpc.kubemq_pb2'
+    # @@protoc_insertion_point(class_scope:kubemq.QueueMessagesBatchRequest)
+})
 _sym_db.RegisterMessage(QueueMessagesBatchRequest)
 
-QueueMessagesBatchResponse = _reflection.GeneratedProtocolMessageType('QueueMessagesBatchResponse', (_message.Message,), {
-  'DESCRIPTOR' : _QUEUEMESSAGESBATCHRESPONSE,
-  '__module__' : 'kubemq.grpc.kubemq_pb2'
-  # @@protoc_insertion_point(class_scope:kubemq.QueueMessagesBatchResponse)
-  })
+QueueMessagesBatchResponse = _reflection.GeneratedProtocolMessageType('QueueMessagesBatchResponse', (_message.Message,),
+                                                                      {
+                                                                          'DESCRIPTOR': _QUEUEMESSAGESBATCHRESPONSE,
+                                                                          '__module__': 'kubemq.grpc.kubemq_pb2'
+                                                                          # @@protoc_insertion_point(class_scope:kubemq.QueueMessagesBatchResponse)
+                                                                      })
 _sym_db.RegisterMessage(QueueMessagesBatchResponse)
 
 QueueMessageAttributes = _reflection.GeneratedProtocolMessageType('QueueMessageAttributes', (_message.Message,), {
-  'DESCRIPTOR' : _QUEUEMESSAGEATTRIBUTES,
-  '__module__' : 'kubemq.grpc.kubemq_pb2'
-  # @@protoc_insertion_point(class_scope:kubemq.QueueMessageAttributes)
-  })
+    'DESCRIPTOR': _QUEUEMESSAGEATTRIBUTES,
+    '__module__': 'kubemq.grpc.kubemq_pb2'
+    # @@protoc_insertion_point(class_scope:kubemq.QueueMessageAttributes)
+})
 _sym_db.RegisterMessage(QueueMessageAttributes)
 
 QueueMessagePolicy = _reflection.GeneratedProtocolMessageType('QueueMessagePolicy', (_message.Message,), {
-  'DESCRIPTOR' : _QUEUEMESSAGEPOLICY,
-  '__module__' : 'kubemq.grpc.kubemq_pb2'
-  # @@protoc_insertion_point(class_scope:kubemq.QueueMessagePolicy)
-  })
+    'DESCRIPTOR': _QUEUEMESSAGEPOLICY,
+    '__module__': 'kubemq.grpc.kubemq_pb2'
+    # @@protoc_insertion_point(class_scope:kubemq.QueueMessagePolicy)
+})
 _sym_db.RegisterMessage(QueueMessagePolicy)
 
 SendQueueMessageResult = _reflection.GeneratedProtocolMessageType('SendQueueMessageResult', (_message.Message,), {
-  'DESCRIPTOR' : _SENDQUEUEMESSAGERESULT,
-  '__module__' : 'kubemq.grpc.kubemq_pb2'
-  # @@protoc_insertion_point(class_scope:kubemq.SendQueueMessageResult)
-  })
+    'DESCRIPTOR': _SENDQUEUEMESSAGERESULT,
+    '__module__': 'kubemq.grpc.kubemq_pb2'
+    # @@protoc_insertion_point(class_scope:kubemq.SendQueueMessageResult)
+})
 _sym_db.RegisterMessage(SendQueueMessageResult)
 
-ReceiveQueueMessagesRequest = _reflection.GeneratedProtocolMessageType('ReceiveQueueMessagesRequest', (_message.Message,), {
-  'DESCRIPTOR' : _RECEIVEQUEUEMESSAGESREQUEST,
-  '__module__' : 'kubemq.grpc.kubemq_pb2'
-  # @@protoc_insertion_point(class_scope:kubemq.ReceiveQueueMessagesRequest)
-  })
+ReceiveQueueMessagesRequest = _reflection.GeneratedProtocolMessageType('ReceiveQueueMessagesRequest',
+                                                                       (_message.Message,), {
+                                                                           'DESCRIPTOR': _RECEIVEQUEUEMESSAGESREQUEST,
+                                                                           '__module__': 'kubemq.grpc.kubemq_pb2'
+                                                                           # @@protoc_insertion_point(class_scope:kubemq.ReceiveQueueMessagesRequest)
+                                                                       })
 _sym_db.RegisterMessage(ReceiveQueueMessagesRequest)
 
-ReceiveQueueMessagesResponse = _reflection.GeneratedProtocolMessageType('ReceiveQueueMessagesResponse', (_message.Message,), {
-  'DESCRIPTOR' : _RECEIVEQUEUEMESSAGESRESPONSE,
-  '__module__' : 'kubemq.grpc.kubemq_pb2'
-  # @@protoc_insertion_point(class_scope:kubemq.ReceiveQueueMessagesResponse)
-  })
+ReceiveQueueMessagesResponse = _reflection.GeneratedProtocolMessageType('ReceiveQueueMessagesResponse',
+                                                                        (_message.Message,), {
+                                                                            'DESCRIPTOR': _RECEIVEQUEUEMESSAGESRESPONSE,
+                                                                            '__module__': 'kubemq.grpc.kubemq_pb2'
+                                                                            # @@protoc_insertion_point(class_scope:kubemq.ReceiveQueueMessagesResponse)
+                                                                        })
 _sym_db.RegisterMessage(ReceiveQueueMessagesResponse)
 
-AckAllQueueMessagesRequest = _reflection.GeneratedProtocolMessageType('AckAllQueueMessagesRequest', (_message.Message,), {
-  'DESCRIPTOR' : _ACKALLQUEUEMESSAGESREQUEST,
-  '__module__' : 'kubemq.grpc.kubemq_pb2'
-  # @@protoc_insertion_point(class_scope:kubemq.AckAllQueueMessagesRequest)
-  })
+AckAllQueueMessagesRequest = _reflection.GeneratedProtocolMessageType('AckAllQueueMessagesRequest', (_message.Message,),
+                                                                      {
+                                                                          'DESCRIPTOR': _ACKALLQUEUEMESSAGESREQUEST,
+                                                                          '__module__': 'kubemq.grpc.kubemq_pb2'
+                                                                          # @@protoc_insertion_point(class_scope:kubemq.AckAllQueueMessagesRequest)
+                                                                      })
 _sym_db.RegisterMessage(AckAllQueueMessagesRequest)
 
-AckAllQueueMessagesResponse = _reflection.GeneratedProtocolMessageType('AckAllQueueMessagesResponse', (_message.Message,), {
-  'DESCRIPTOR' : _ACKALLQUEUEMESSAGESRESPONSE,
-  '__module__' : 'kubemq.grpc.kubemq_pb2'
-  # @@protoc_insertion_point(class_scope:kubemq.AckAllQueueMessagesResponse)
-  })
+AckAllQueueMessagesResponse = _reflection.GeneratedProtocolMessageType('AckAllQueueMessagesResponse',
+                                                                       (_message.Message,), {
+                                                                           'DESCRIPTOR': _ACKALLQUEUEMESSAGESRESPONSE,
+                                                                           '__module__': 'kubemq.grpc.kubemq_pb2'
+                                                                           # @@protoc_insertion_point(class_scope:kubemq.AckAllQueueMessagesResponse)
+                                                                       })
 _sym_db.RegisterMessage(AckAllQueueMessagesResponse)
 
-StreamQueueMessagesRequest = _reflection.GeneratedProtocolMessageType('StreamQueueMessagesRequest', (_message.Message,), {
-  'DESCRIPTOR' : _STREAMQUEUEMESSAGESREQUEST,
-  '__module__' : 'kubemq.grpc.kubemq_pb2'
-  # @@protoc_insertion_point(class_scope:kubemq.StreamQueueMessagesRequest)
-  })
+StreamQueueMessagesRequest = _reflection.GeneratedProtocolMessageType('StreamQueueMessagesRequest', (_message.Message,),
+                                                                      {
+                                                                          'DESCRIPTOR': _STREAMQUEUEMESSAGESREQUEST,
+                                                                          '__module__': 'kubemq.grpc.kubemq_pb2'
+                                                                          # @@protoc_insertion_point(class_scope:kubemq.StreamQueueMessagesRequest)
+                                                                      })
 _sym_db.RegisterMessage(StreamQueueMessagesRequest)
 
-StreamQueueMessagesResponse = _reflection.GeneratedProtocolMessageType('StreamQueueMessagesResponse', (_message.Message,), {
-  'DESCRIPTOR' : _STREAMQUEUEMESSAGESRESPONSE,
-  '__module__' : 'kubemq.grpc.kubemq_pb2'
-  # @@protoc_insertion_point(class_scope:kubemq.StreamQueueMessagesResponse)
-  })
+StreamQueueMessagesResponse = _reflection.GeneratedProtocolMessageType('StreamQueueMessagesResponse',
+                                                                       (_message.Message,), {
+                                                                           'DESCRIPTOR': _STREAMQUEUEMESSAGESRESPONSE,
+                                                                           '__module__': 'kubemq.grpc.kubemq_pb2'
+                                                                           # @@protoc_insertion_point(class_scope:kubemq.StreamQueueMessagesResponse)
+                                                                       })
 _sym_db.RegisterMessage(StreamQueueMessagesResponse)
-
 
 _EVENT_TAGSENTRY._options = None
 _EVENTRECEIVE_TAGSENTRY._options = None
@@ -1887,123 +1872,123 @@ _RESPONSE_TAGSENTRY._options = None
 _QUEUEMESSAGE_TAGSENTRY._options = None
 
 _KUBEMQ = _descriptor.ServiceDescriptor(
-  name='kubemq',
-  full_name='kubemq.kubemq',
-  file=DESCRIPTOR,
-  index=0,
-  serialized_options=None,
-  serialized_start=3875,
-  serialized_end=4738,
-  methods=[
-  _descriptor.MethodDescriptor(
-    name='SendEvent',
-    full_name='kubemq.kubemq.SendEvent',
+    name='kubemq',
+    full_name='kubemq.kubemq',
+    file=DESCRIPTOR,
     index=0,
-    containing_service=None,
-    input_type=_EVENT,
-    output_type=_RESULT,
     serialized_options=None,
-  ),
-  _descriptor.MethodDescriptor(
-    name='SendEventsStream',
-    full_name='kubemq.kubemq.SendEventsStream',
-    index=1,
-    containing_service=None,
-    input_type=_EVENT,
-    output_type=_RESULT,
-    serialized_options=None,
-  ),
-  _descriptor.MethodDescriptor(
-    name='SubscribeToEvents',
-    full_name='kubemq.kubemq.SubscribeToEvents',
-    index=2,
-    containing_service=None,
-    input_type=_SUBSCRIBE,
-    output_type=_EVENTRECEIVE,
-    serialized_options=None,
-  ),
-  _descriptor.MethodDescriptor(
-    name='SubscribeToRequests',
-    full_name='kubemq.kubemq.SubscribeToRequests',
-    index=3,
-    containing_service=None,
-    input_type=_SUBSCRIBE,
-    output_type=_REQUEST,
-    serialized_options=None,
-  ),
-  _descriptor.MethodDescriptor(
-    name='SendRequest',
-    full_name='kubemq.kubemq.SendRequest',
-    index=4,
-    containing_service=None,
-    input_type=_REQUEST,
-    output_type=_RESPONSE,
-    serialized_options=None,
-  ),
-  _descriptor.MethodDescriptor(
-    name='SendResponse',
-    full_name='kubemq.kubemq.SendResponse',
-    index=5,
-    containing_service=None,
-    input_type=_RESPONSE,
-    output_type=_EMPTY,
-    serialized_options=None,
-  ),
-  _descriptor.MethodDescriptor(
-    name='SendQueueMessage',
-    full_name='kubemq.kubemq.SendQueueMessage',
-    index=6,
-    containing_service=None,
-    input_type=_QUEUEMESSAGE,
-    output_type=_SENDQUEUEMESSAGERESULT,
-    serialized_options=None,
-  ),
-  _descriptor.MethodDescriptor(
-    name='SendQueueMessagesBatch',
-    full_name='kubemq.kubemq.SendQueueMessagesBatch',
-    index=7,
-    containing_service=None,
-    input_type=_QUEUEMESSAGESBATCHREQUEST,
-    output_type=_QUEUEMESSAGESBATCHRESPONSE,
-    serialized_options=None,
-  ),
-  _descriptor.MethodDescriptor(
-    name='ReceiveQueueMessages',
-    full_name='kubemq.kubemq.ReceiveQueueMessages',
-    index=8,
-    containing_service=None,
-    input_type=_RECEIVEQUEUEMESSAGESREQUEST,
-    output_type=_RECEIVEQUEUEMESSAGESRESPONSE,
-    serialized_options=None,
-  ),
-  _descriptor.MethodDescriptor(
-    name='StreamQueueMessage',
-    full_name='kubemq.kubemq.StreamQueueMessage',
-    index=9,
-    containing_service=None,
-    input_type=_STREAMQUEUEMESSAGESREQUEST,
-    output_type=_STREAMQUEUEMESSAGESRESPONSE,
-    serialized_options=None,
-  ),
-  _descriptor.MethodDescriptor(
-    name='AckAllQueueMessages',
-    full_name='kubemq.kubemq.AckAllQueueMessages',
-    index=10,
-    containing_service=None,
-    input_type=_ACKALLQUEUEMESSAGESREQUEST,
-    output_type=_ACKALLQUEUEMESSAGESRESPONSE,
-    serialized_options=None,
-  ),
-  _descriptor.MethodDescriptor(
-    name='Ping',
-    full_name='kubemq.kubemq.Ping',
-    index=11,
-    containing_service=None,
-    input_type=_EMPTY,
-    output_type=_PINGRESULT,
-    serialized_options=None,
-  ),
-])
+    serialized_start=3875,
+    serialized_end=4738,
+    methods=[
+        _descriptor.MethodDescriptor(
+            name='SendEvent',
+            full_name='kubemq.kubemq.SendEvent',
+            index=0,
+            containing_service=None,
+            input_type=_EVENT,
+            output_type=_RESULT,
+            serialized_options=None,
+        ),
+        _descriptor.MethodDescriptor(
+            name='SendEventsStream',
+            full_name='kubemq.kubemq.SendEventsStream',
+            index=1,
+            containing_service=None,
+            input_type=_EVENT,
+            output_type=_RESULT,
+            serialized_options=None,
+        ),
+        _descriptor.MethodDescriptor(
+            name='SubscribeToEvents',
+            full_name='kubemq.kubemq.SubscribeToEvents',
+            index=2,
+            containing_service=None,
+            input_type=_SUBSCRIBE,
+            output_type=_EVENTRECEIVE,
+            serialized_options=None,
+        ),
+        _descriptor.MethodDescriptor(
+            name='SubscribeToRequests',
+            full_name='kubemq.kubemq.SubscribeToRequests',
+            index=3,
+            containing_service=None,
+            input_type=_SUBSCRIBE,
+            output_type=_REQUEST,
+            serialized_options=None,
+        ),
+        _descriptor.MethodDescriptor(
+            name='SendRequest',
+            full_name='kubemq.kubemq.SendRequest',
+            index=4,
+            containing_service=None,
+            input_type=_REQUEST,
+            output_type=_RESPONSE,
+            serialized_options=None,
+        ),
+        _descriptor.MethodDescriptor(
+            name='SendResponse',
+            full_name='kubemq.kubemq.SendResponse',
+            index=5,
+            containing_service=None,
+            input_type=_RESPONSE,
+            output_type=_EMPTY,
+            serialized_options=None,
+        ),
+        _descriptor.MethodDescriptor(
+            name='SendQueueMessage',
+            full_name='kubemq.kubemq.SendQueueMessage',
+            index=6,
+            containing_service=None,
+            input_type=_QUEUEMESSAGE,
+            output_type=_SENDQUEUEMESSAGERESULT,
+            serialized_options=None,
+        ),
+        _descriptor.MethodDescriptor(
+            name='SendQueueMessagesBatch',
+            full_name='kubemq.kubemq.SendQueueMessagesBatch',
+            index=7,
+            containing_service=None,
+            input_type=_QUEUEMESSAGESBATCHREQUEST,
+            output_type=_QUEUEMESSAGESBATCHRESPONSE,
+            serialized_options=None,
+        ),
+        _descriptor.MethodDescriptor(
+            name='ReceiveQueueMessages',
+            full_name='kubemq.kubemq.ReceiveQueueMessages',
+            index=8,
+            containing_service=None,
+            input_type=_RECEIVEQUEUEMESSAGESREQUEST,
+            output_type=_RECEIVEQUEUEMESSAGESRESPONSE,
+            serialized_options=None,
+        ),
+        _descriptor.MethodDescriptor(
+            name='StreamQueueMessage',
+            full_name='kubemq.kubemq.StreamQueueMessage',
+            index=9,
+            containing_service=None,
+            input_type=_STREAMQUEUEMESSAGESREQUEST,
+            output_type=_STREAMQUEUEMESSAGESRESPONSE,
+            serialized_options=None,
+        ),
+        _descriptor.MethodDescriptor(
+            name='AckAllQueueMessages',
+            full_name='kubemq.kubemq.AckAllQueueMessages',
+            index=10,
+            containing_service=None,
+            input_type=_ACKALLQUEUEMESSAGESREQUEST,
+            output_type=_ACKALLQUEUEMESSAGESRESPONSE,
+            serialized_options=None,
+        ),
+        _descriptor.MethodDescriptor(
+            name='Ping',
+            full_name='kubemq.kubemq.Ping',
+            index=11,
+            containing_service=None,
+            input_type=_EMPTY,
+            output_type=_PINGRESULT,
+            serialized_options=None,
+        ),
+    ])
 _sym_db.RegisterServiceDescriptor(_KUBEMQ)
 
 DESCRIPTOR.services_by_name['kubemq'] = _KUBEMQ

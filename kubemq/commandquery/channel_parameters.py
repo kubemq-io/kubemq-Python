@@ -24,7 +24,7 @@
 class ChannelParameters:
 
     def __init__(self, channel_name=None, client_id=None, timeout=None, cache_key=None, cache_ttl=None,
-                 request_type=None, kubemq_address=None,encryptionHeader=None):
+                 request_type=None, kubemq_address=None, encryptionHeader=None):
         """
         Initializes a new instance of the ChannelParameters
 
@@ -58,6 +58,6 @@ class ChannelParameters:
 
         self.kubemq_address = kubemq_address
         """Represents The address of the KubeMQ server."""
-        
+
         self.encryptionHeader = encryptionHeader
         """the header for authentication using kubemq."""

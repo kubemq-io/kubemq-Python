@@ -21,24 +21,23 @@
 # SOFTWARE.
 
 
-
-
 class AckAllMessagesResponse:
     def __init__(self, ack_all_messages_response=None):
         if ack_all_messages_response:
             self.request_id = ack_all_messages_response.RequestID
             """Represents Unique identifier for the Request."""
 
-            self.is_error= ack_all_messages_response.IsError
+            self.is_error = ack_all_messages_response.IsError
             """Returned from KubeMQ, false if no error."""
 
-            self.error=ack_all_messages_response.Error
+            self.error = ack_all_messages_response.Error
             """Error message, valid only if IsError true."""
             if ack_all_messages_response.AffectedMessages:
-                self.affected_messages=ack_all_messages_response.AffectedMessages
+                self.affected_messages = ack_all_messages_response.AffectedMessages
             else:
-                self.affected_messages=None
+                self.affected_messages = None
             """"Number of affected messages."""
+
     def __repr__(self):
         return "<AckAllMessagesResponse request_id:%s is_error:%s error:%s affected_messages:%s>" % (
             self.request_id,

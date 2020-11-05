@@ -27,16 +27,17 @@ from kubemq.basic.grpc_client import GrpcClient
 from kubemq.commandquery.request_receive import RequestReceive
 from kubemq.tools.listener_cancellation_token import ListenerCancellationToken
 
+
 class Responder(GrpcClient):
     """An instance that responsible on receiving request from the kubeMQ."""
 
-    def __init__(self, kubemq_address=None,encryptionHeader=None):
+    def __init__(self, kubemq_address=None, encryptionHeader=None):
         """
         Initialize a new Responder to subscribe to Response.
 
         :param str kubemq_address: KubeMQ server address. if None will be parsed from Config or environment parameter.
         """
-        GrpcClient.__init__(self,encryptionHeader)
+        GrpcClient.__init__(self, encryptionHeader)
         if kubemq_address:
             self._kubemq_address = kubemq_address
 
@@ -46,7 +47,8 @@ class Responder(GrpcClient):
         logging.debug("Responder KubeMQ address:%s ping result:%s'" % (self._kubemq_address, ping_result))
         return ping_result
 
-    def subscribe_to_requests(self, subscribe_request, handler,error_handler,listener_cancellation_token=ListenerCancellationToken()):
+    def subscribe_to_requests(self, subscribe_request, handler, error_handler,
+                              listener_cancellation_token=ListenerCancellationToken()):
         """
         Register to kubeMQ Channel using handler.
         :param SubscribeRequest subscribe_request: represent by that will determine the subscription configuration.
@@ -86,7 +88,7 @@ class Responder(GrpcClient):
                                 response.reply_channel
                             ))
 
-                            self.get_kubemq_client().SendResponse(response.convert(),None, self._metadata)
+                            self.get_kubemq_client().SendResponse(response.convert(), None, self._metadata)
                         except grpc.RpcError as error:
                             if (listener_cancellation_token.is_cancelled):
                                 logging.info("Sub closed by listener request")
