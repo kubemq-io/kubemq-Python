@@ -1,3 +1,6 @@
 future==0.17.1
 grpcio==1.27.2
-protobuf==3.6.1
+protobuf==3.13.0
+kubemq~=1.1.0
+jwt~=1.1.0
+setuptools~=40.8.0
