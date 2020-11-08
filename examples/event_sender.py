@@ -19,4 +19,9 @@ if __name__ == "__main__":
         ('key', 'value'),
         ('key2', 'value2'),
     ]
-    sender.send_event(event)
+    try:
+        sender.send_event(event)
+    except Exception as err:
+        print('error, error:%s' % (
+            err
+        ))

@@ -23,7 +23,12 @@ def create_low_level_request(request_type):
 if __name__ == "__main__":
     print("Starting CommandQueryInitiator example...\n")
 
-    initiator = Initiator("localhost:50000")
-    response = initiator.send_request(create_low_level_request(RequestType.Query))
-    print("Recieved response")
-    initiator.send_request(create_low_level_request(RequestType.Command))
+    try:
+        initiator = Initiator("localhost:50000")
+        response = initiator.send_request(create_low_level_request(RequestType.Query))
+        print("Recieved response")
+        initiator.send_request(create_low_level_request(RequestType.Command))
+    except Exception as err:
+        print('error, error:%s' % (
+            err
+        ))
