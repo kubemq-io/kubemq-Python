@@ -55,8 +55,15 @@ if __name__ == "__main__":
         group="",
         subscribe_type=SubscribeType.Events
     )
-    subscriber.subscribe_to_events(subscribe_request, handle_incoming_events, handle_incoming_error, cancel_token)
+    try:
+        subscriber.subscribe_to_events(subscribe_request, handle_incoming_events, handle_incoming_error, cancel_token)
 
-    input("Press 'Enter' to stop Listen...\n")
-    cancel_token.cancel()
-    input("Press 'Enter' to stop the application...\n")
+        input("Press 'Enter' to stop Listen...\n")
+        cancel_token.cancel()
+        input("Press 'Enter' to stop the application...\n")
+    except Exception as err:
+        print(
+            "'error sending:'%s'" % (
+                err
+            )
+        )

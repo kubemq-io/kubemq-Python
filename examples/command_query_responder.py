@@ -58,14 +58,16 @@ def handle_incoming_error(error_msg):
 if __name__ == "__main__":
     print("Starting CommandQueryResponder example...\n")
     cancel_token = ListenerCancellationToken()
-    responder = Responder("localhost:50000")
 
-    subscribe_request = create_subscribe_request(SubscribeType.Queries)
-    responder.subscribe_to_requests(subscribe_request, handle_incoming_request, handle_incoming_error, cancel_token)
+    try:
+        responder = Responder("localhost:50000")
+        subscribe_request = create_subscribe_request(SubscribeType.Queries)
+        responder.subscribe_to_requests(subscribe_request, handle_incoming_request, handle_incoming_error, cancel_token)
 
-    # subscribe_request = create_subscribe_request(SubscribeType.Commands)
-    # responder.subscribe_to_requests(subscribe_request, handle_incoming_request,handle_incoming_error,cancel_token)
-
-    input("Press 'Enter' to stop Listen...\n")
-    cancel_token.cancel()
-    input("Press 'Enter' to stop the application...\n")
+        input("Press 'Enter' to stop Listen...\n")
+        cancel_token.cancel()
+        input("Press 'Enter' to stop the application...\n")
+    except Exception as err:
+        print('error, error:%s' % (
+            err
+        ))

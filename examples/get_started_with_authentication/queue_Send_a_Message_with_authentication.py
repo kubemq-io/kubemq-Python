@@ -38,6 +38,6 @@ if __name__ == "__main__":
                 sent.sent_at
             ))
     except Exception as err:
-        print('message enqueue error, error:%s' % (
+        print('message error, error:%s' % (
             err
         ))

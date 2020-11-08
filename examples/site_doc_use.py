@@ -260,7 +260,7 @@ def send_single_event(channel_name, client_id, kube_add):
         body=("Event Created on time %s" % datetime.datetime.utcnow()).encode('UTF-8'),
         store=False,
         channel=channel_name,
-        client_id="EventSender"
+        client_id=client_id
     )
     event.tags = [
         ('key', 'value'),
@@ -279,7 +279,7 @@ def send_event_stream(channel_name, client_id, kube_add):
                 body=("Event %s Created on time %s" % (counter, datetime.datetime.utcnow())).encode('UTF-8'),
                 store=False,
                 channel=channel_name,
-                client_id="EventSenderStream",
+                client_id=client_id,
             )
 
     def result_handler(result):
@@ -295,7 +295,7 @@ def send_event_to_store(channel_name, client_id, kube_add):
         body=("Event Created on time %s" % datetime.datetime.utcnow()).encode('UTF-8'),
         store=True,
         channel=channel_name,
-        client_id="EventSenderStore"
+        client_id=client_id
     )
     event.tags = [
         ('key', 'value'),
@@ -314,7 +314,7 @@ def stream_to_event_store(channel_name, client_id, kube_add):
                 body=("Event %s Created on time %s" % (counter, datetime.datetime.utcnow())).encode('UTF-8'),
                 store=True,
                 channel=channel_name,
-                client_id="EventSenderStore",
+                client_id=client_id,
             )
 
     def result_handler(result):
@@ -323,7 +323,7 @@ def stream_to_event_store(channel_name, client_id, kube_add):
     sender.stream_event(async_streamer(), result_handler)
 
 
-def subcribe_to_event_store(channel_name, p_client_id, kube_add):
+def subscribe_to_event_store(channel_name, p_client_id, kube_add):
     subscriber = Subscriber(kube_add)
     cancel_token = ListenerCancellationToken()
     sub_req = SubscribeRequest(
@@ -393,7 +393,7 @@ def send_command_request(channel_name, client_id, kube_add):
         cache_key="",
         cache_ttl=0,
         channel=channel_name,
-        client_id="CommandQueryInitiator",
+        client_id=client_id,
         timeout=1000,
         request_type=RequestType.Command,
         tags=[
@@ -412,7 +412,7 @@ def send_query_request(channel_name, client_id, kube_add):
         cache_key="",
         cache_ttl=0,
         channel=channel_name,
-        client_id="QueryInitiator",
+        client_id=client_id,
         timeout=1000,
         request_type=RequestType.Query,
         tags=[
@@ -448,4 +448,10 @@ def create_queue_message(meta_data, body, policy=None):
 
 
 if __name__ == "__main__":
-    print("test")
+
+    kube_add = "localhost:50000"
+    max_number_messages = 32
+    max_timeout = 5
+    expiration = 5
+    delay = 5
+    dlq = "dlq"

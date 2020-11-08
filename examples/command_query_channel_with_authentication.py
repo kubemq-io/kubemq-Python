@@ -31,7 +31,12 @@ def send_query_request():
         ]
     )
 
-    response = request_channel.send_request(request)
+    try:
+        response = request_channel.send_request(request)
+    except Exception as err:
+        print('error, error:%s' % (
+            err
+        ))
 
 
 def send_command_request():
@@ -47,7 +52,12 @@ def send_command_request():
         ]
     )
 
-    request_channel.send_request(request)
+    try:
+        request_channel.send_request(request)
+    except Exception as err:
+        print('message send error, error:%s' % (
+            err
+        ))
 
 
 if __name__ == "__main__":

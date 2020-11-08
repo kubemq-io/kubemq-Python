@@ -24,4 +24,9 @@ if __name__ == "__main__":
         print(result)
 
 
-    sender.stream_event(async_streamer(), result_handler)
+    try:
+        sender.stream_event(async_streamer(), result_handler)
+    except Exception as err:
+        print('error, error:%s' % (
+            err
+        ))

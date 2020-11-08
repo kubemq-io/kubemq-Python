@@ -60,14 +60,19 @@ if __name__ == "__main__":
     cancel_token = ListenerCancellationToken()
 
     encryptionHeader = jwt.encode({}, algorithm="HS256", key="some-key")
-    responder = Responder("localhost:50000", encryptionHeader)
+    try:
+        responder = Responder("localhost:50000", encryptionHeader)
 
-    subscribe_request = create_subscribe_request(SubscribeType.Queries)
-    responder.subscribe_to_requests(subscribe_request, handle_incoming_request, handle_incoming_error, cancel_token)
+        subscribe_request = create_subscribe_request(SubscribeType.Queries)
+        responder.subscribe_to_requests(subscribe_request, handle_incoming_request, handle_incoming_error, cancel_token)
 
-    subscribe_request = create_subscribe_request(SubscribeType.Commands)
-    responder.subscribe_to_requests(subscribe_request, handle_incoming_request, handle_incoming_error, cancel_token)
+        subscribe_request = create_subscribe_request(SubscribeType.Commands)
+        responder.subscribe_to_requests(subscribe_request, handle_incoming_request, handle_incoming_error, cancel_token)
+        input("Press 'Enter' to stop Listen...\n")
+        cancel_token.cancel()
+        input("Press 'Enter' to stop the application...\n")
 
-    input("Press 'Enter' to stop Listen...\n")
-    cancel_token.cancel()
-    input("Press 'Enter' to stop the application...\n")
+    except Exception as err:
+        print('error, error:%s' % (
+            err
+        ))

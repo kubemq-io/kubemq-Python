@@ -18,4 +18,9 @@ if __name__ == "__main__":
 
     event = Event(body="Event".encode('UTF-8'), metadata="EventChannel")
 
-    channel.send_event(event)
+    try:
+        channel.send_event(event)
+    except Exception as err:
+        print('error, error:%s' % (
+            err
+        ))

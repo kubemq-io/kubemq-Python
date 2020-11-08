@@ -22,5 +22,10 @@ if __name__ == "__main__":
     def result_handler(result):
         print(result)
 
+    try:
+        sender.stream_event(async_streamer(), result_handler)
+    except Exception as err:
+        print('error, error:%s' % (
+            err
+        ))
 
-    sender.stream_event(async_streamer(), result_handler)

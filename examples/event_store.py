@@ -1,4 +1,3 @@
-import jwt
 from builtins import input
 from random import randint
 from kubemq.tools.listener_cancellation_token import ListenerCancellationToken
@@ -41,11 +40,10 @@ def handle_incoming_error(error_msg):
 if __name__ == "__main__":
     print("Subscribing to event on channel example")
     cancel_token = ListenerCancellationToken()
-    # Subscribe to events
+    # Subscribe to events with store
     try:
-        encryptionHeader = jwt.encode({}, algorithm="HS256", key="some-key")
-        subscriber = Subscriber("localhost:50000", encryptionHeader)
-        subscribe_request = create_subscribe_request(SubscribeType.Events, EventsStoreType.Undefined, 0)
+        subscriber = Subscriber("localhost:50000")
+        subscribe_request = create_subscribe_request(SubscribeType.EventsStore, EventsStoreType.StartAtSequence, 2)
         subscriber.subscribe_to_events(subscribe_request, handle_incoming_events, handle_incoming_error, cancel_token)
 
         input("Press 'Enter' to stop Listen...\n")
@@ -53,6 +51,6 @@ if __name__ == "__main__":
         input("Press 'Enter' to stop the application...\n")
 
     except Exception as err:
-        print('message send error, error:%s' % (
+        print('error, error:%s' % (
             err
         ))
