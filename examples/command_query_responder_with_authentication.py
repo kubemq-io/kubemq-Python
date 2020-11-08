@@ -1,7 +1,9 @@
-import datetime
+import datetime, jwt
 from builtins import input
 from random import randint
+import sys
 
+sys.path.append(".")
 from kubemq.commandquery.responder import Responder
 from kubemq.commandquery.response import Response
 from kubemq.subscription.events_store_type import EventsStoreType
@@ -43,26 +45,34 @@ def handle_incoming_request(request):
         response.executed = True
         response.metadata = "OK"
         response.timestamp = datetime.datetime.now()
-        response.tags=request.tags
+        response.tags = request.tags
         return response
 
+
 def handle_incoming_error(error_msg):
-        print("received error:%s'" % (
-            error_msg
-        ))
+    print("received error:%s'" % (
+        error_msg
+    ))
 
 
 if __name__ == "__main__":
     print("Starting CommandQueryResponder example...\n")
-    cancel_token=ListenerCancellationToken()
-    responder = Responder("localhost:50000")
+    cancel_token = ListenerCancellationToken()
 
-    subscribe_request = create_subscribe_request(SubscribeType.Queries)
-    responder.subscribe_to_requests(subscribe_request, handle_incoming_request,handle_incoming_error,cancel_token)
+    encryptionHeader = jwt.encode({}, algorithm="HS256", key="some-key")
+    try:
+        responder = Responder("localhost:50000", encryptionHeader)
 
-    subscribe_request = create_subscribe_request(SubscribeType.Commands)
-    responder.subscribe_to_requests(subscribe_request, handle_incoming_request,handle_incoming_error,cancel_token)
+        subscribe_request = create_subscribe_request(SubscribeType.Queries)
+        responder.subscribe_to_requests(subscribe_request, handle_incoming_request, handle_incoming_error, cancel_token)
 
-    input("Press 'Enter' to stop Listen...\n")
-    cancel_token.cancel()
-    input("Press 'Enter' to stop the application...\n")
+        subscribe_request = create_subscribe_request(SubscribeType.Commands)
+        responder.subscribe_to_requests(subscribe_request, handle_incoming_request, handle_incoming_error, cancel_token)
+        input("Press 'Enter' to stop Listen...\n")
+        cancel_token.cancel()
+        input("Press 'Enter' to stop the application...\n")
+
+    except Exception as err:
+        print('error, error:%s' % (
+            err
+        ))

@@ -17,7 +17,7 @@
 # SOFTWARE. 
 
 
-import datetime
+import datetime, jwt
 from builtins import input
 from random import randint
 
@@ -58,7 +58,7 @@ def handle_incoming_error(error_msg):
 
 if __name__ == "__main__":
     cancel_token = ListenerCancellationToken()
-    receiver = Responder("localhost:50000")
+    receiver = Responder("localhost:50000", encryptionHeader=jwt.encode({}, algorithm="HS256", key="some-key"))
 
     subscribe_request = SubscribeRequest(
         channel="testing_Command_channel",

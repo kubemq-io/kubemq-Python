@@ -42,5 +42,5 @@ class EventReceive:
             self.sequence = inner_event_receive.Sequence
             """"Represents the sequnce of the event (set by Kubemq)"""
 
-            self.tags=inner_event_receive.Tags
+            self.tags = inner_event_receive.Tags
             """Represents key value pairs that help distinguish the message"""

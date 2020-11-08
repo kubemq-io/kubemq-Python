@@ -1,4 +1,4 @@
-import time,datetime
+import time, datetime
 from random import randint
 from kubemq.queue.message_queue import MessageQueue
 from kubemq.grpc import QueueMessagePolicy
@@ -18,13 +18,14 @@ from kubemq.commandquery.request_type import RequestType
 from kubemq.commandquery.lowlevel.initiator import Initiator
 
 
-def send_message_to_queue(queue_name,client_id,kube_add):
+def send_message_to_queue(queue_name, client_id, kube_add):
     queue = MessageQueue(queue_name, client_id, kube_add)
     message = create_queue_message("someMeta", "some-simple_queue-queue-message".encode('UTF-8'))
     queue_send_response = queue.send_queue_message(message)
     print("finished sending to queue answer. message_id: %s, body: %s" % (queue_send_response.message_id, message.body))
 
-def send_message_to_a_queue_with_expiration(queue_name,client_id,kube_add,max_number_messages,max_timeout):
+
+def send_message_to_a_queue_with_expiration(queue_name, client_id, kube_add, max_number_messages, max_timeout):
     queue = MessageQueue(queue_name, client_id, kube_add, max_number_messages, max_timeout)
     policy = QueueMessagePolicy()
     policy.ExpirationSeconds = 5
@@ -33,7 +34,8 @@ def send_message_to_a_queue_with_expiration(queue_name,client_id,kube_add,max_nu
     print("finished sending message to queue with expiration answer: {} ".format(
         queue_send_message_to_queue_with_expiration_response))
 
-def send_message_to_a_queue_with_delay(queue_name,client_id,kube_add,max_number_messages,max_timeout):
+
+def send_message_to_a_queue_with_delay(queue_name, client_id, kube_add, max_number_messages, max_timeout):
     queue = MessageQueue(queue_name, client_id, kube_add, max_number_messages, max_timeout)
     policy = QueueMessagePolicy()
     policy.DelaySeconds = 5
@@ -42,7 +44,8 @@ def send_message_to_a_queue_with_delay(queue_name,client_id,kube_add,max_number_
     print("finished sending message to queue with delay answer: {} ".format(
         queue_send_message_to_queue_with_delay_response))
 
-def send_message_to_a_queue_with_deadletter_queue(queue_name,client_id,kube_add,max_number_messages,max_timeout):
+
+def send_message_to_a_queue_with_deadletter_queue(queue_name, client_id, kube_add, max_number_messages, max_timeout):
     queue = MessageQueue(queue_name, client_id, kube_add, max_number_messages, max_timeout)
     policy = QueueMessagePolicy()
     policy.MaxReceiveCount = 3
@@ -53,7 +56,7 @@ def send_message_to_a_queue_with_deadletter_queue(queue_name,client_id,kube_add,
         queue_send_message_to_queue_with_deadletter_response))
 
 
-def send_batch_message_to_queue(queue_name,client_id,kube_add,max_number_messages,max_timeout):
+def send_batch_message_to_queue(queue_name, client_id, kube_add, max_number_messages, max_timeout):
     queue = MessageQueue(queue_name, client_id, kube_add, max_number_messages, max_timeout)
     mm = []
     for i in range(2):
@@ -63,25 +66,25 @@ def send_batch_message_to_queue(queue_name,client_id,kube_add,max_number_message
     print("finished sending message to queue with batch answer: {} ".format(queue_send_batch_response))
 
 
-def receive_message_from_queue(queue_name,client_id,kube_add,max_number_messages,max_timeout):
+def receive_message_from_queue(queue_name, client_id, kube_add, max_number_messages, max_timeout):
     queue = MessageQueue(queue_name, client_id, kube_add, max_number_messages, max_timeout)
     queue_receive_response = queue.receive_queue_messages()
     print("finished sending message to receive_queue answer: {} ".format(queue_receive_response))
 
 
-def peek_message_from_queue(queue_name,client_id,kube_add,max_number_messages,max_timeout):
+def peek_message_from_queue(queue_name, client_id, kube_add, max_number_messages, max_timeout):
     queue = MessageQueue(queue_name, client_id, kube_add, max_number_messages, max_timeout)
     queue_receive_response = queue.peek_queue_message(5)
     print("finished sending message to peek answer: {} ".format(queue_receive_response))
 
 
-def ack_all_messages_in_a_queue(queue_name,client_id,kube_add,max_number_messages,max_timeout):
+def ack_all_messages_in_a_queue(queue_name, client_id, kube_add, max_number_messages, max_timeout):
     queue = MessageQueue(queue_name, client_id, kube_add, max_number_messages, max_timeout)
     queue_ack_response = queue.ack_all_queue_messages()
     print("finished sending message to ack answer: {} ".format(queue_ack_response))
 
 
-def transactional_queue_ack(queue_name,client_id,kube_add):
+def transactional_queue_ack(queue_name, client_id, kube_add):
     queue = MessageQueue(queue_name, client_id, kube_add)
     transaction = queue.create_transaction()
     res_rec = transaction.receive(10, 10)
@@ -89,7 +92,8 @@ def transactional_queue_ack(queue_name,client_id,kube_add):
     if res_rec.is_error:
         raise "Message dequeue error, error: %s" % res_rec.is_error
 
-    print("Received message id: {}, body: {} tags:{}".format(res_rec.message.MessageID, res_rec.message.Body,res_rec.message.Tags))
+    print("Received message id: {}, body: {} tags:{}".format(res_rec.message.MessageID, res_rec.message.Body,
+                                                             res_rec.message.Tags))
 
     res_ack = transaction.ack_message(res_rec.message.Attributes.Sequence)
     if res_ack.is_error:
@@ -97,7 +101,8 @@ def transactional_queue_ack(queue_name,client_id,kube_add):
 
     print("Received message of type: %s" % StreamRequestType(res_ack.stream_request_type).name)
 
-def transactional_queue_reject(queue_name,client_id,kube_add):
+
+def transactional_queue_reject(queue_name, client_id, kube_add):
     queue = MessageQueue(queue_name, client_id, kube_add)
     transaction = queue.create_transaction()
     res_rec = transaction.receive(10, 10)
@@ -105,30 +110,32 @@ def transactional_queue_reject(queue_name,client_id,kube_add):
     if res_rec.is_error:
         raise "Message dequeue error, error: %s" % res_rec.is_error
 
-    print("Received message id: {}, body: {} tags:{}".format(res_rec.message.MessageID, res_rec.message.Body,res_rec.message.Tags))
+    print("Received message id: {}, body: {} tags:{}".format(res_rec.message.MessageID, res_rec.message.Body,
+                                                             res_rec.message.Tags))
 
     res_rej = transaction.rejected_message(res_rec.message.Attributes.Sequence)
     if res_rej.is_error:
         raise Exception("Ack message error: %s" % res_rej.error)
 
     print("rejected message message of type: %s" % StreamRequestType(res_rej.stream_request_type).name)
-    
 
-def transactional_queue_extand_visibility(queue_name,client_id,kube_add):
+
+def transactional_queue_extand_visibility(queue_name, client_id, kube_add):
     queue_rej = MessageQueue("reject_test", client_id, kube_add)
 
     message = create_queue_message("queueName {}".format(0), "my reject".encode('UTF-8'))
     queue_rej.send_queue_message(message)
 
-    queue= MessageQueue("reject_test", client_id, kube_add)
-    tran=queue.create_transaction()
+    queue = MessageQueue("reject_test", client_id, kube_add)
+    tran = queue.create_transaction()
 
-    res_rec=tran.receive(5,10)
+    res_rec = tran.receive(5, 10)
 
     if res_rec.is_error:
         raise "Message dequeue error, error: %s" % res_rec.is_error
 
-    print("Received message id: {}, body: {} tags: {}".format(res_rec.message.MessageID, res_rec.message.Body,res_rec.message.Tags))
+    print("Received message id: {}, body: {} tags: {}".format(res_rec.message.MessageID, res_rec.message.Body,
+                                                              res_rec.message.Tags))
 
     print("work for 1 second")
 
@@ -136,7 +143,7 @@ def transactional_queue_extand_visibility(queue_name,client_id,kube_add):
 
     print("Need more time to process, extend visibility for more 3 seconds")
 
-    res_ext=tran.extend_visibility(3)
+    res_ext = tran.extend_visibility(3)
 
     if res_ext.is_error:
         raise Exception("Ack message error: %s" % res_ext.error)
@@ -147,33 +154,34 @@ def transactional_queue_extand_visibility(queue_name,client_id,kube_add):
 
     print("Work done... ack the message")
 
-
-    res_ack=tran.ack_message(res_rec.message.Attributes.Sequence)
+    res_ack = tran.ack_message(res_rec.message.Attributes.Sequence)
 
     if res_ack.is_error:
         raise Exception("Ack message error: %s" % res_ack.error)
 
     print("ack done")
 
-def transactional_queue_resend_to_new_queue(queue_name,client_id,kube_add):
+
+def transactional_queue_resend_to_new_queue(queue_name, client_id, kube_add):
     queue_rej = MessageQueue(queue_name, client_id, kube_add)
 
     message = create_queue_message("resend to new queue {}".format(0), "my resend".encode('UTF-8'))
     queue_rej.send_queue_message(message)
 
-    queue= MessageQueue(queue_name, client_id, kube_add)
-    tran=queue.create_transaction()
+    queue = MessageQueue(queue_name, client_id, kube_add)
+    tran = queue.create_transaction()
 
-    res_rec=tran.receive(5,10)
+    res_rec = tran.receive(5, 10)
 
     if res_rec.is_error:
         raise "Message dequeue error, error: %s" % res_rec.is_error
 
-    print("Received message id: {}, body: {} tags:{}".format(res_rec.message.MessageID, res_rec.message.Body, res_rec.message.Tags))
+    print("Received message id: {}, body: {} tags:{}".format(res_rec.message.MessageID, res_rec.message.Body,
+                                                             res_rec.message.Tags))
 
     print("resend to new queue")
 
-    res_resend=tran.resend("new-queue")
+    res_resend = tran.resend("new-queue")
 
     if res_resend.is_error:
         raise "Message resend error, error: %s" % res_resend.is_error
@@ -181,38 +189,40 @@ def transactional_queue_resend_to_new_queue(queue_name,client_id,kube_add):
     print("Done")
 
 
-def transactional_queue_resend_modify_message(queue_name,client_id,kube_add):
+def transactional_queue_resend_modify_message(queue_name, client_id, kube_add):
     queue_res = MessageQueue(queue_name, client_id, kube_add)
 
     message = create_queue_message("resend to new queue {}".format(0), "my resend modify".encode('UTF-8'))
     queue_res.send_queue_message(message)
 
-    queue= MessageQueue(queue_name, client_id, kube_add)
-    tran=queue.create_transaction()
+    queue = MessageQueue(queue_name, client_id, kube_add)
+    tran = queue.create_transaction()
 
-    res_rec=tran.receive(3,5)
+    res_rec = tran.receive(3, 5)
 
     if res_rec.is_error:
         raise "Message dequeue error, error: %s" % res_rec.is_error
 
-    print("Received message id: {}, body: {} tags:{}".format(res_rec.message.MessageID, res_rec.message.Body,res_rec.message.Tags))
+    print("Received message id: {}, body: {} tags:{}".format(res_rec.message.MessageID, res_rec.message.Body,
+                                                             res_rec.message.Tags))
 
-    mod_msg=res_rec.message
-    mod_msg.Channel="receiverB"
-    
-    mod_msg.Metadata="new Metadata"
+    mod_msg = res_rec.message
+    mod_msg.Channel = "receiverB"
 
-    res_mod=tran.modify(mod_msg)
+    mod_msg.Metadata = "new Metadata"
+
+    res_mod = tran.modify(mod_msg)
 
     if res_mod.is_error:
         raise "Message modify error, error: %s" % res_mod.is_error
 
     print("Done")
 
-def event_subscriber(channel_name,p_client_id,kube_add):
+
+def event_subscriber(channel_name, p_client_id, kube_add):
     subscriber = Subscriber(kube_add)
-    cancel_token=ListenerCancellationToken()
-    sub_req= SubscribeRequest(
+    cancel_token = ListenerCancellationToken()
+    sub_req = SubscribeRequest(
         channel=channel_name,
         client_id=p_client_id,
         events_store_type=EventsStoreType.Undefined,
@@ -220,7 +230,7 @@ def event_subscriber(channel_name,p_client_id,kube_add):
         group="",
         subscribe_type=SubscribeType.Events
     )
-    subscriber.subscribe_to_events(sub_req, handle_incoming_events,handle_incoming_error,cancel_token)
+    subscriber.subscribe_to_events(sub_req, handle_incoming_events, handle_incoming_error, cancel_token)
     print("sub for 2 seconds")
     time.sleep(2.0)
     print("Canceled token")
@@ -236,29 +246,31 @@ def handle_incoming_events(event):
             event.tags
         ))
 
-def handle_incoming_error(error_msg):
-        print("received error:%s'" % (
-            error_msg
-        ))
 
-def send_single_event(channel_name,client_id,kube_add):
+def handle_incoming_error(error_msg):
+    print("received error:%s'" % (
+        error_msg
+    ))
+
+
+def send_single_event(channel_name, client_id, kube_add):
     sender = Sender(kube_add)
     event = Event(
         metadata="EventMetaData",
         body=("Event Created on time %s" % datetime.datetime.utcnow()).encode('UTF-8'),
         store=False,
         channel=channel_name,
-        client_id="EventSender"
+        client_id=client_id
     )
-    event.tags=[
-            ('key', 'value'),
-            ('key2', 'value2'),
-        ]
+    event.tags = [
+        ('key', 'value'),
+        ('key2', 'value2'),
+    ]
     sender.send_event(event)
 
-def send_event_stream(channel_name,client_id,kube_add):
-    sender = Sender(kube_add)
 
+def send_event_stream(channel_name, client_id, kube_add):
+    sender = Sender(kube_add)
 
     def async_streamer():
         for counter in range(3):
@@ -267,32 +279,32 @@ def send_event_stream(channel_name,client_id,kube_add):
                 body=("Event %s Created on time %s" % (counter, datetime.datetime.utcnow())).encode('UTF-8'),
                 store=False,
                 channel=channel_name,
-                client_id="EventSenderStream",
+                client_id=client_id,
             )
-
 
     def result_handler(result):
         print(result)
 
-
     sender.stream_event(async_streamer(), result_handler)
 
-def send_event_to_store(channel_name,client_id,kube_add):
-        sender = Sender(kube_add)
-        event = Event(
-            metadata="EventMetaData",
-            body=("Event Created on time %s" % datetime.datetime.utcnow()).encode('UTF-8'),
-            store=True,
-            channel=channel_name,
-            client_id="EventSenderStore"
-        )
-        event.tags=[
-                ('key', 'value'),
-                ('key2', 'value2'),
-            ]
-        sender.send_event(event)
 
-def stream_to_event_store(channel_name,client_id,kube_add):
+def send_event_to_store(channel_name, client_id, kube_add):
+    sender = Sender(kube_add)
+    event = Event(
+        metadata="EventMetaData",
+        body=("Event Created on time %s" % datetime.datetime.utcnow()).encode('UTF-8'),
+        store=True,
+        channel=channel_name,
+        client_id=client_id
+    )
+    event.tags = [
+        ('key', 'value'),
+        ('key2', 'value2'),
+    ]
+    sender.send_event(event)
+
+
+def stream_to_event_store(channel_name, client_id, kube_add):
     sender = Sender(kube_add)
 
     def async_streamer():
@@ -302,19 +314,19 @@ def stream_to_event_store(channel_name,client_id,kube_add):
                 body=("Event %s Created on time %s" % (counter, datetime.datetime.utcnow())).encode('UTF-8'),
                 store=True,
                 channel=channel_name,
-                client_id="EventSenderStore",
+                client_id=client_id,
             )
-
 
     def result_handler(result):
         print(result)
 
     sender.stream_event(async_streamer(), result_handler)
 
-def subcribe_to_event_store(channel_name,p_client_id,kube_add):
+
+def subscribe_to_event_store(channel_name, p_client_id, kube_add):
     subscriber = Subscriber(kube_add)
-    cancel_token=ListenerCancellationToken()
-    sub_req= SubscribeRequest(
+    cancel_token = ListenerCancellationToken()
+    sub_req = SubscribeRequest(
         channel=channel_name,
         client_id=p_client_id,
         events_store_type=EventsStoreType.StartFromFirst,
@@ -322,16 +334,17 @@ def subcribe_to_event_store(channel_name,p_client_id,kube_add):
         group="",
         subscribe_type=SubscribeType.EventsStore
     )
-    subscriber.subscribe_to_events(sub_req, handle_incoming_events,handle_incoming_error,cancel_token)
+    subscriber.subscribe_to_events(sub_req, handle_incoming_events, handle_incoming_error, cancel_token)
     print("sub for 2 seconds")
     time.sleep(2.0)
     print("Canceled token")
     cancel_token.cancel()
 
-def subscribe_to_requests(channel_name,p_client_id,kube_add):
+
+def subscribe_to_requests(channel_name, p_client_id, kube_add):
     responder = Responder(kube_add)
-    cancel_token=ListenerCancellationToken()
-    sub_req= SubscribeRequest(
+    cancel_token = ListenerCancellationToken()
+    sub_req = SubscribeRequest(
         channel=channel_name,
         client_id=p_client_id,
         events_store_type=EventsStoreType.Undefined,
@@ -339,11 +352,12 @@ def subscribe_to_requests(channel_name,p_client_id,kube_add):
         group="",
         subscribe_type=SubscribeType.Queries
     )
-    responder.subscribe_to_requests(sub_req, handle_incoming_request,handle_incoming_error,cancel_token)
+    responder.subscribe_to_requests(sub_req, handle_incoming_request, handle_incoming_error, cancel_token)
     print("sub for 10 seconds")
     time.sleep(10.0)
     print("Canceled token")
     cancel_token.cancel()
+
 
 def handle_incoming_request(request):
     if request:
@@ -353,7 +367,7 @@ def handle_incoming_request(request):
             request.body,
             request.tags
         ))
-        
+
         response = Response(request)
         response.body = "OK".encode('UTF-8')
         response.cache_hit = False
@@ -362,22 +376,24 @@ def handle_incoming_request(request):
         response.executed = True
         response.metadata = "OK"
         response.timestamp = datetime.datetime.now()
-        response.tags=request.tags
+        response.tags = request.tags
         return response
 
-def handle_request_incoming_error(error_msg):
-        print("received error:%s'" % (
-            error_msg
-        ))
 
-def send_command_request(channel_name,client_id,kube_add):
+def handle_request_incoming_error(error_msg):
+    print("received error:%s'" % (
+        error_msg
+    ))
+
+
+def send_command_request(channel_name, client_id, kube_add):
     request = Request(
         body="Request".encode('UTF-8'),
         metadata="MyMetadata",
         cache_key="",
         cache_ttl=0,
         channel=channel_name,
-        client_id="CommandQueryInitiator",
+        client_id=client_id,
         timeout=1000,
         request_type=RequestType.Command,
         tags=[
@@ -388,14 +404,15 @@ def send_command_request(channel_name,client_id,kube_add):
     initiator = Initiator(kube_add)
     response = initiator.send_request(request)
 
-def send_query_request(channel_name,client_id,kube_add):
+
+def send_query_request(channel_name, client_id, kube_add):
     request = Request(
         body="Request".encode('UTF-8'),
         metadata="MyMetadata",
         cache_key="",
         cache_ttl=0,
         channel=channel_name,
-        client_id="QueryInitiator",
+        client_id=client_id,
         timeout=1000,
         request_type=RequestType.Query,
         tags=[
@@ -406,14 +423,16 @@ def send_query_request(channel_name,client_id,kube_add):
     initiator = Initiator(kube_add)
     response = initiator.send_request(request)
 
+
 def create_check_connection():
-    sender= Sender()
+    sender = Sender()
     try:
-        result=sender.ping()
+        result = sender.ping()
     except Exception as identifier:
         print('error {}'.format(identifier))
         exit()
     print(result)
+
 
 def create_queue_message(meta_data, body, policy=None):
     message = Message()
@@ -429,6 +448,10 @@ def create_queue_message(meta_data, body, policy=None):
 
 
 if __name__ == "__main__":
-    print("test")
 
-
+    kube_add = "localhost:50000"
+    max_number_messages = 32
+    max_timeout = 5
+    expiration = 5
+    delay = 5
+    dlq = "dlq"

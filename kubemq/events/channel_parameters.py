@@ -24,7 +24,8 @@
 class ChannelParameters:
     """Configuration parameters for a Channel."""
 
-    def __init__(self, channel_name=None, client_id=None, store=None, kubemq_address=None, return_result=False):
+    def __init__(self, channel_name=None, client_id=None, store=None, kubemq_address=None, return_result=False,
+                 encryptionHeader=None):
         """
         Initializes a new instance of the ChannelParameters class with set parameters.
 
@@ -32,16 +33,20 @@ class ChannelParameters:
         :param client_id: Represents the sender ID that the messages will be send under.
         :param store: Represents the channel persistence property.
         :param kubemq_address: Represents The address of the KubeMQ server.
+        :param byte[] encryptionHeader: the encrypted header requested by kubemq authentication.
         """
         self.channel_name = channel_name
         self.client_id = client_id
         self.store = store
         self.kubemq_address = kubemq_address
+        self.encryptionHeader = encryptionHeader
+        """Represents the header for authentication using kubemq."""
 
     def __repr__(self):
-        return "<ChannelParameters channel_name:%s client_id:%s store:%s kubemq_address:%s>" % (
+        return "<ChannelParameters channel_name:%s client_id:%s store:%s kubemq_address:%s encryptionHeader:%s>" % (
             self.channel_name,
             self.client_id,
             self.store,
             self.kubemq_address,
+            self.encryptionHeader
         )

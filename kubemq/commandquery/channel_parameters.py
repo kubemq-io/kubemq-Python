@@ -24,7 +24,7 @@
 class ChannelParameters:
 
     def __init__(self, channel_name=None, client_id=None, timeout=None, cache_key=None, cache_ttl=None,
-                 request_type=None, kubemq_address=None):
+                 request_type=None, kubemq_address=None, encryptionHeader=None):
         """
         Initializes a new instance of the ChannelParameters
 
@@ -35,6 +35,7 @@ class ChannelParameters:
         :param int cache_ttl: Cache time to live : for how long does the request should be saved in Cache.
         :param RequestType request_type: Represents the type of request operation.
         :param str kubemq_address: Represents The address of the KubeMQ server.
+        :param byte[] encryptionHeader: the encrypted header requested by kubemq authentication.
         """
 
         self.channel_name = channel_name
@@ -57,3 +58,6 @@ class ChannelParameters:
 
         self.kubemq_address = kubemq_address
         """Represents The address of the KubeMQ server."""
+
+        self.encryptionHeader = encryptionHeader
+        """the header for authentication using kubemq."""

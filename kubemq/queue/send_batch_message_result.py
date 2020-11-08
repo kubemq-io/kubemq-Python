@@ -26,11 +26,12 @@ from kubemq.grpc import QueueMessagesBatchResponse as QueueMessagesBatchResponse
 
 def convert_from_queue_messages_batch_response(queue_messages_batch_response):
     """Convert from QueueMessagesBatchResponse to SendBatchMessageResult"""
-    batch_message_result= SendBatchMessageResult()
-    batch_message_result.batch_id=queue_messages_batch_response.BatchID
-    batch_message_result.result=queue_messages_batch_response.Results
-    batch_message_result.have_errors=queue_messages_batch_response.HaveErrors
+    batch_message_result = SendBatchMessageResult()
+    batch_message_result.batch_id = queue_messages_batch_response.BatchID
+    batch_message_result.result = queue_messages_batch_response.Results
+    batch_message_result.have_errors = queue_messages_batch_response.HaveErrors
     return batch_message_result
+
 
 class SendBatchMessageResult:
     def __init__(self, queue_messages_batch_response=None):
@@ -38,10 +39,10 @@ class SendBatchMessageResult:
             self.batch_id = queue_messages_batch_response.BatchID
             """Represents Unique identifier for the Request."""
 
-            self.have_errors= queue_messages_batch_response.HaveErrors
+            self.have_errors = queue_messages_batch_response.HaveErrors
             """Returned from KubeMQ, false if no error."""
 
-            self.result=queue_messages_batch_response.Error
+            self.result = queue_messages_batch_response.Error
             """Error message, valid only if IsError true."""
 
     def __repr__(self):
@@ -50,8 +51,8 @@ class SendBatchMessageResult:
             self.have_errors,
             self.result
         )
-    def convert_to_send_message_result(self,results):
+
+    def convert_to_send_message_result(self, results):
         """convert a few results to SendMessageResult """
         for result in results:
             yield create_result.SendMessageResult(result)
-

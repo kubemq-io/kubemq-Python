@@ -22,17 +22,17 @@
 
 
 class Event:
-    def __init__(self, event_id=None, metadata=None, body=None,tags=None):
+    def __init__(self, event_id=None, metadata=None, body=None, tags=None):
         self.event_id = event_id
         """Represents a Event identifier."""
 
         self.metadata = metadata
         """Represents text as str."""
-        
+
         self.body = body
         """Represents the content of the Event"""
-        self.tags=tags
-        
+        self.tags = tags
+
     def __repr__(self):
         return "<Event event_id:%s metadata:%s body:%s tags:%s>" % (
             self.event_id,

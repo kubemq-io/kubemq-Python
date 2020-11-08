@@ -1,4 +1,3 @@
-
 # MIT License
 # Copyright (c) 2018 KubeMQ
 # Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -22,13 +21,10 @@ from kubemq.commandquery.lowlevel.initiator import Initiator
 from kubemq.commandquery.lowlevel.request import Request
 from kubemq.commandquery.request_type import RequestType
 
-
-
-
 if __name__ == "__main__":
 
     initiator = Initiator("localhost:50000")
-    request  = Request(
+    request = Request(
         body="hello kubemq - sending a command, please reply'".encode('UTF-8'),
         metadata="",
         cache_key="",
@@ -40,12 +36,11 @@ if __name__ == "__main__":
     )
     try:
         response = initiator.send_request(request)
-        print('Response Received:%s Executed at::%s'  % (
+        print('Response Received:%s Executed at::%s' % (
             response.request_id,
             response.timestamp
-                    ))
-    except Exception as err :
-        print('command error::%s'  % (
+        ))
+    except Exception as err:
+        print('command error::%s' % (
             err
-                    ))
-
+        ))
