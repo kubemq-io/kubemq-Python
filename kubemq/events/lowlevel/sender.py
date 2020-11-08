@@ -29,13 +29,14 @@ from kubemq.events.result import Result
 class Sender(GrpcClient):
     """Represents the instance that is responsible to send events to the kubemq."""
 
-    def __init__(self, kubemq_address=None):
+    def __init__(self, kubemq_address=None, encryptionHeader=None):
         """
         Initialize a new Sender under the requested KubeMQ Server Address.
 
         :param str kubemq_address: KubeMQ server address. if None will be parsed from Config or environment parameter.
+        :param byte[] encryptionHeader: the encrypted header requested by kubemq authentication.
         """
-        GrpcClient.__init__(self)
+        GrpcClient.__init__(self, encryptionHeader)
         if kubemq_address:
             self._kubemq_address = kubemq_address
 
@@ -48,9 +49,9 @@ class Sender(GrpcClient):
                 return Result(inner_result=result)
         except Exception as e:
             logging.exception(
-                        "Sender received 'Result': Error:'%s'" % (
-                            e
-                        ))
+                "Sender received 'Result': Error:'%s'" % (
+                    e
+                ))
             raise
 
     def stream_event(self, events_stream, response_handler=None):
@@ -72,12 +73,11 @@ class Sender(GrpcClient):
                     response_handler(result)
         except Exception as e:
             logging.exception(
-                        "Sender received 'Result': Error:'%s'" % (
-                            e
-                        ))
+                "Sender received 'Result': Error:'%s'" % (
+                    e
+                ))
             raise
 
-        
     def ping(self):
         """ping check connection to the kubemq"""
         ping_result = self.get_kubemq_client().Ping(Empty())

@@ -26,56 +26,56 @@ from kubemq.tools.id_generator import get_next_id as get_next_id
 
 
 class Message:
-    def __init__(self, queue_message=None,message_id=None,client_id=None,queue=None,metadata=None,body=None,tags=None,attributes=None,policy=None):
+    def __init__(self, queue_message=None, message_id=None, client_id=None, queue=None, metadata=None, body=None,
+                 tags=None, attributes=None, policy=None):
         if queue_message:
             self.message_id = queue_message.MessageID
             """Represents identifier to help distinguish the message"""
 
-            self.client_id= queue_message.ClientID
+            self.client_id = queue_message.ClientID
             """Represents identifier to help distinguish the sender"""
 
-            self.queue=queue_message.Channel
+            self.queue = queue_message.Channel
             """Represents the channel name to send the message to."""
 
-            self.metadata=queue_message.Metadata
+            self.metadata = queue_message.Metadata
             """Represents text as str."""
 
-            self.body=queue_message.Body
+            self.body = queue_message.Body
             """Represents The content of the Message."""
 
-            self.tags=tags
+            self.tags = tags
             """Represents key value pairs that help distinguish the message"""
 
-            self.attributes=queue_message.Attributes
+            self.attributes = queue_message.Attributes
             """Contain general data on the message."""
 
-            self.policy=queue_message.Policy
+            self.policy = queue_message.Policy
             """A set of 'rules' that can be assign to the message"""
         else:
             self.message_id = message_id
             """Represents identifier to help distinguish the message"""
 
-            self.client_id= client_id
+            self.client_id = client_id
             """Represents identifier to help distinguish the sender"""
 
-            self.queue=queue
+            self.queue = queue
             """Represents the channel name to send the message to."""
 
-            self.metadata=metadata
+            self.metadata = metadata
             """Represents text as str."""
 
-            self.body=body
+            self.body = body
             """Represents The content of the Message."""
 
-            self.tags=tags
+            self.tags = tags
             """Represents key value pairs that help distinguish the message"""
 
-            self.attributes=attributes
+            self.attributes = attributes
             """Contain general data on the message."""
 
-            self.policy=policy
+            self.policy = policy
             """A set of 'rules' that can be assign to the message"""
-            
 
     def __repr__(self):
         return "<Message message_id:%s client_id:%s queue:%s metadata:%s body:%s tags:%s attributes:%s policy:%s>" % (
@@ -88,9 +88,8 @@ class Message:
             self.attributes,
             self.policy,
         )
-        
 
-    def convert_to_queue_message(self,queue=None):
+    def convert_to_queue_message(self, queue=None):
         """Convert a Message to an QueueMessage"""
         return QueueMessage(
             MessageID=self.message_id or get_next_id(),
@@ -103,23 +102,21 @@ class Message:
             Policy=self.policy
         )
 
-def convert_queue_message_batch_request(uuid,messages):
+
+def convert_queue_message_batch_request(uuid, messages):
     """Convert a messages to an QueueMessagesBatchRequest"""
     return QueueMessagesBatchRequest(
-    BatchID=uuid,
-    Messages=messages,
-)
-        
+        BatchID=uuid,
+        Messages=messages,
+    )
 
-def to_queue_messages(messages,queue=None,channel_name=None):
+
+def to_queue_messages(messages, queue=None, channel_name=None):
     """Convert  messages to a single message"""
-    queue_messages=[]
+    queue_messages = []
     for message in messages:
         if message.queue is None and channel_name is not None:
-            message.queue=channel_name
+            message.queue = channel_name
         queue_messages.append(message.convert_to_queue_message(queue))
 
     return queue_messages
-    
-
-    

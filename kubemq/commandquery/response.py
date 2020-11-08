@@ -66,7 +66,7 @@ class Response:
             self.error = request.Error
             """Error message"""
 
-            self.tags=request.Tags
+            self.tags = request.Tags
             """Represents key value pairs that help distinguish the message"""
 
         else:

@@ -24,6 +24,7 @@ import threading
 _lock = threading.Lock()
 _counter = 0
 
+
 def get_next_id():
     """Get an unique thread safety ID between 1 to 65535"""
     global _lock, _counter

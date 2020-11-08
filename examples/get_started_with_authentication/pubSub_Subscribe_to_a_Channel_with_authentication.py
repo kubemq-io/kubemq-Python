@@ -14,10 +14,11 @@
 # AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-# SOFTWARE. 
+# SOFTWARE.
+
+import jwt
 
 from builtins import input
-from random import randint
 from kubemq.events.subscriber import Subscriber
 from kubemq.tools.listener_cancellation_token import ListenerCancellationToken
 from kubemq.subscription.subscribe_type import SubscribeType
@@ -46,7 +47,7 @@ if __name__ == "__main__":
     cancel_token = ListenerCancellationToken()
 
     # Subscribe to events without store
-    subscriber = Subscriber("localhost:50000")
+    subscriber = Subscriber("localhost:50000", encryptionHeader=jwt.encode({}, algorithm="HS256", key="some-key"))
     subscribe_request = SubscribeRequest(
         channel="testing_event_channel",
         client_id="hello-world-subscriber",
@@ -55,15 +56,8 @@ if __name__ == "__main__":
         group="",
         subscribe_type=SubscribeType.Events
     )
-    try:
-        subscriber.subscribe_to_events(subscribe_request, handle_incoming_events, handle_incoming_error, cancel_token)
+    subscriber.subscribe_to_events(subscribe_request, handle_incoming_events, handle_incoming_error, cancel_token)
 
-        input("Press 'Enter' to stop Listen...\n")
-        cancel_token.cancel()
-        input("Press 'Enter' to stop the application...\n")
-    except Exception as err:
-        print(
-            "'error sending:'%s'" % (
-                err
-            )
-        )
+    input("Press 'Enter' to stop Listen...\n")
+    cancel_token.cancel()
+    input("Press 'Enter' to stop the application...\n")

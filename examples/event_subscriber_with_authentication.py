@@ -1,3 +1,4 @@
+import jwt
 from builtins import input
 from random import randint
 from kubemq.tools.listener_cancellation_token import ListenerCancellationToken
@@ -30,25 +31,28 @@ def handle_incoming_events(event):
             event.tags
         ))
 
+
 def handle_incoming_error(error_msg):
-        print("received error:%s'" % (
-            error_msg
-        ))
+    print("received error:%s'" % (
+        error_msg
+    ))
 
 
 if __name__ == "__main__":
     print("Subscribing to event on channel example")
-    cancel_token=ListenerCancellationToken()
-    # Subscribe to events with store
-    subscriber = Subscriber("localhost:50000")
-    subscribe_request = create_subscribe_request(SubscribeType.EventsStore, EventsStoreType.StartAtSequence, 2)
-    subscriber.subscribe_to_events(subscribe_request, handle_incoming_events,handle_incoming_error,cancel_token)
+    cancel_token = ListenerCancellationToken()
+    # Subscribe to events
+    try:
+        encryptionHeader = jwt.encode({}, algorithm="HS256", key="some-key")
+        subscriber = Subscriber("localhost:50000", encryptionHeader)
+        subscribe_request = create_subscribe_request(SubscribeType.Events, EventsStoreType.Undefined, 0)
+        subscriber.subscribe_to_events(subscribe_request, handle_incoming_events, handle_incoming_error, cancel_token)
 
-    # Subscribe to events without store
-    subscriber = Subscriber("localhost:50000")
-    subscribe_request = create_subscribe_request(SubscribeType.Events)
-    subscriber.subscribe_to_events(subscribe_request, handle_incoming_events,handle_incoming_error,cancel_token)
-    
-    input("Press 'Enter' to stop Listen...\n")
-    cancel_token.cancel()
-    input("Press 'Enter' to stop the application...\n")
+        input("Press 'Enter' to stop Listen...\n")
+        cancel_token.cancel()
+        input("Press 'Enter' to stop the application...\n")
+
+    except Exception as err:
+        print('message send error, error:%s' % (
+            err
+        ))

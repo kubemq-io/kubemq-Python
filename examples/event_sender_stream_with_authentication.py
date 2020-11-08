@@ -1,12 +1,11 @@
-import datetime
-
+import datetime, jwt
 from kubemq.events.lowlevel.event import Event
 from kubemq.events.lowlevel.sender import Sender
 
 if __name__ == "__main__":
     print("Sending event using sender example")
-
-    sender = Sender("localhost:50000")
+    encryptionHeader = jwt.encode({}, algorithm="HS256", key="some-key")
+    sender = Sender("localhost:50000", encryptionHeader)
 
 
     def async_streamer():
@@ -23,5 +22,10 @@ if __name__ == "__main__":
     def result_handler(result):
         print(result)
 
+    try:
+        sender.stream_event(async_streamer(), result_handler)
+    except Exception as err:
+        print('error, error:%s' % (
+            err
+        ))
 
-    sender.stream_event(async_streamer(), result_handler)

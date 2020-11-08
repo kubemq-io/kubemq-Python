@@ -58,7 +58,7 @@ class Transaction(GrpcClient):
         Initializes a new Transaction using MessageQueue .
         :param queue: should be called from queue.transaction()".
         """
-        super().__init__()
+        super().__init__(queue.encryptionHeader)
         self.queue = queue
         self.stream = False
         self.inner_stream = None
@@ -142,13 +142,13 @@ class Transaction(GrpcClient):
         """Resend the new message to a new channel."""
         if not self.check_call_is_in_transaction():
             return TransactionMessagesResponse(None, None, True,
-                                               "no active message to rmodifyesend, call Receive first")
+                                               "no active message to modify, call Receive first")
         else:
             try:
-                if isinstance(msg,Message):
-                    msg.client_id= msg.client_id or self.queue.client_id
-                    msg=msg.convert_to_queue_message()
-                msg.ClientID =msg.ClientID
+                if isinstance(msg, Message):
+                    msg.client_id = msg.client_id or self.queue.client_id
+                    msg = msg.convert_to_queue_message()
+                msg.ClientID = msg.ClientID
                 msg.MessageID = get_next_id()
 
                 msg = create_stream_queue_message_modify_request(self.queue, msg)
@@ -182,7 +182,7 @@ class Transaction(GrpcClient):
                 stream_observer.put(ControlMessages.CLOSE_STREAM)
                 self.stream = False
 
-            self.inner_stream = self.client.StreamQueueMessage(stream())
+            self.inner_stream = self.client.StreamQueueMessage(stream(), metadata=self.queue._metadata)
             self.inner_stream.add_done_callback(done)
 
             self.stream_observer = stream_observer
