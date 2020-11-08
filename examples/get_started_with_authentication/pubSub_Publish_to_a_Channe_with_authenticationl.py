@@ -17,13 +17,12 @@
 # SOFTWARE. 
 
 
-import datetime, jwt
+import jwt
 
 from kubemq.events.lowlevel.event import Event
 from kubemq.events.lowlevel.sender import Sender
 
 if __name__ == "__main__":
-
     publisher = Sender("localhost:50000", encryptionHeader=jwt.encode({}, algorithm="HS256", key="some-key"))
     event = Event(
         metadata="EventMetaData",

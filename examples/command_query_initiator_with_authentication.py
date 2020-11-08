@@ -23,8 +23,8 @@ def create_low_level_request(request_type):
 
 if __name__ == "__main__":
     print("Starting CommandQueryInitiator example...\n")
-    encryptionHeader=jwt.encode({},algorithm="HS256",key="some-key")
-    initiator = Initiator("localhost:50000",encryptionHeader)
+    encryptionHeader = jwt.encode({}, algorithm="HS256", key="some-key")
+    initiator = Initiator("localhost:50000", encryptionHeader)
     response = initiator.send_request(create_low_level_request(RequestType.Query))
     print("Recieved response")
     initiator.send_request(create_low_level_request(RequestType.Command))
