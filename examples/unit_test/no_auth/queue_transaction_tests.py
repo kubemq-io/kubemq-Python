@@ -1,7 +1,7 @@
 import unittest, random, string
 import sys
 
-sys.path.append(".")
+sys.path.append("..")
 from kubemq.queue.message_queue import MessageQueue
 from kubemq.queue.message import Message
 from kubemq.grpc import QueueMessagePolicy

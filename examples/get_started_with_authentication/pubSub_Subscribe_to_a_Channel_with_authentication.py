@@ -16,7 +16,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import jwt
+from PyJWT import enco
 from builtins import input
 from kubemq.events.subscriber import Subscriber
 from kubemq.tools.listener_cancellation_token import ListenerCancellationToken
@@ -46,7 +46,7 @@ if __name__ == "__main__":
     cancel_token = ListenerCancellationToken()
 
     # Subscribe to events without store
-    subscriber = Subscriber("localhost:50000", encryptionHeader=jwt.encode({}, algorithm="HS256", key="some-key"))
+    subscriber = Subscriber("localhost:50000", encryptionHeader=PyJWT.encode({}, algorithm="HS256", key="some-key"))
     subscribe_request = SubscribeRequest(
         channel="testing_event_channel",
         client_id="hello-world-subscriber",

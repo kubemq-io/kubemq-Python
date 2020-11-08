@@ -60,6 +60,8 @@ class Channel:
             self.cache_ttl = cache_ttl
             """Cache time to live : for how long does the request should be saved in Cache."""
 
+            self.kubemq_address = kubemq_address
+
             self.encryptionHeader = encryptionHeader
             """the header for authentication using kubemq."""
 

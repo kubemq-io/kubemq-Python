@@ -1,5 +1,6 @@
 import datetime
 import sys
+
 sys.path.append(".")
 from kubemq.events.lowlevel.event import Event
 from kubemq.events.lowlevel.sender import Sender
@@ -14,8 +15,8 @@ if __name__ == "__main__":
         channel="MyTestChannelName",
         client_id="EventSender"
     )
-    event.tags=[
-            ('key', 'value'),
-            ('key2', 'value2'),
-        ]
+    event.tags = [
+        ('key', 'value'),
+        ('key2', 'value2'),
+    ]
     sender.send_event(event)

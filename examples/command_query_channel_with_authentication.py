@@ -14,7 +14,7 @@ def create_request_channel_parameters(request_type):
         cache_ttl=0,
         request_type=request_type,
         kubemq_address="localhost:50000",
-        encryptionHeader=jwt.encode({},algorithm="HS256",key="some-key")
+        encryptionHeader=jwt.encode({}, algorithm="HS256", key="some-key")
     )
 
 
