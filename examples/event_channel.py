@@ -10,8 +10,7 @@ if __name__ == "__main__":
         client_id="EventChannelID",
         store=True,
         return_result=False,
-        kubemq_address="localhost:50000",
-        encryptionHeader=jwt.encode({}, algorithm="HS256", key="some-key")
+        kubemq_address="localhost:50000"
     )
 
     channel = Channel(params=params)
