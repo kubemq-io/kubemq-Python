@@ -26,7 +26,7 @@ if __name__ == "__main__":
     try:
         initiator = Initiator("localhost:50000")
         response = initiator.send_request(create_low_level_request(RequestType.Query))
-        print("Recieved response")
+        print("Received response")
         initiator.send_request(create_low_level_request(RequestType.Command))
     except Exception as err:
         print('error, error:%s' % (
