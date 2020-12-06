@@ -11,7 +11,7 @@ if __name__ == "__main__":
     event = Event(
         metadata="EventMetaData",
         body=("Event Created on time %s" % datetime.datetime.utcnow()).encode('UTF-8'),
-        store=True,
+        store=False,
         channel="MyTestChannelName",
         client_id="EventSender"
     )
