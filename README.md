@@ -16,6 +16,11 @@ The recommended way to use the SDK for Python in your project is to consume it f
 pip install kubemq
 ```
 
+This package uses setuptools for the installation if needed please run:
+```
+python3 -m pip install --upgrade pip setuptools wheel
+```
+
 ## Generating Documentation
 
 Sphinx is used for documentation. Use the Makefile to build the docs, like so:
