@@ -46,7 +46,7 @@ class TestStringMethods(unittest.TestCase):
     def test_send_receive_tran_ack_pass_with_auth(self):
         client_id = "tran_ack_pass"
         kube_add = "localhost:50000"
-        queue = MessageQueue("SendReciveTranAck_Pass", client_id, kube_add,
+        queue = MessageQueue("SendReceiveTranAck_Pass", client_id, kube_add,
                              encryptionHeader=jwt.encode({}, algorithm="HS256", key="some-key"))
 
         message = create_queue_message("first test Ack", "hi there".encode('UTF-8'))

@@ -76,10 +76,10 @@ class TestStringMethods(unittest.TestCase):
         self.assertTrue(recm2.is_error)
         tr.close_stream()
 
-    def test_send_receive_tran_visability_expired_fail(self):
+    def test_send_receive_tran_visibility_expired_fail(self):
         client_id = "expired_fail"
         kube_add = "localhost:50000"
-        queue = MessageQueue("send_receive_tran_visability_expired_fail", client_id, kube_add)
+        queue = MessageQueue("send_receive_tran_visibility_expired_fail", client_id, kube_add)
 
         message = create_queue_message("first test Ack", "hi there".encode('UTF-8'))
 
@@ -91,10 +91,10 @@ class TestStringMethods(unittest.TestCase):
         ackms = tr.ack_message(recm.message.Attributes.Sequence)
         self.assertEqual(ackms.error, "Error 129: current visibility timer expired")
 
-    def test_send_receive_tran_visability_expired_pass(self):
+    def test_send_receive_tran_visibility_expired_pass(self):
         client_id = "expired_pass"
         kube_add = "localhost:50000"
-        queue = MessageQueue("send_receive_tran_visability_expired_pass", client_id, kube_add)
+        queue = MessageQueue("send_receive_tran_visibility_expired_pass", client_id, kube_add)
 
         message = create_queue_message("first test Ack", "hi there".encode('UTF-8'))
 
