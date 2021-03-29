@@ -10,7 +10,7 @@ README = (HERE / "README.md").read_text()
 
 
 setuptools.setup(name='kubemq',
-      version='2.2.1',
+      version='2.2.3',
       description='KubeMQ SDK for Python',
 	  long_description=README,
 	  long_description_content_type="text/markdown",
@@ -20,10 +20,9 @@ setuptools.setup(name='kubemq',
       license='MIT',
       packages=setuptools.find_packages(),
       install_requires=[
-          'future>=0.18',
           'grpcio>=1.27.2',
           'protobuf>=3.13.0',
-          'setuptools~=40.8.0',
+          'setuptools>=40.8.0',
           'PyJWT>=1.7.1',
       ],
       zip_safe=False)
