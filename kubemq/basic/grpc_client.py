@@ -49,7 +49,8 @@ class GrpcClient:
                 client_cert_file = configuration_loader.get_certificate_file()
                 if client_cert_file:
                     # Open SSL/TLS connection
-                    credentials = open(client_cert_file).read()
+                    with open(client_cert_file, 'rb') as f:
+                        credentials = grpc.ssl_channel_credentials(f.read())
                     self._channel = grpc.secure_channel(kubemq_address, credentials)
                 else:
                     # Open Insecure connection
