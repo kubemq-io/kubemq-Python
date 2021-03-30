@@ -35,6 +35,10 @@ def get_server_address():
     _path = get_from_environment_variable("KubeMQServerAddress")
     if _path:
         return _path
+    else:
+        _path = get_from_environment_variable("KUBEMQSERVERADDRESS")
+        if _path:
+            return _path
 
     return _path
 
@@ -49,7 +53,11 @@ def get_registration_key():
     if _key:
         return _key
     else:
-        _key = ""
+        _key = get_from_environment_variable("KUBEMQREGISTRATIONKEY")
+        if _key:
+            return _key
+        else:
+            _key = ""
 
     return _key
 
@@ -64,7 +72,11 @@ def get_certificate_file():
     if _cert:
         return _cert
     else:
-        _cert = ""
+        _cert = get_from_environment_variable("KUBEMQCERTIFICATEFILE")
+        if _cert:
+            return _cert
+        else:
+            _cert = ""
 
     return _cert
 
