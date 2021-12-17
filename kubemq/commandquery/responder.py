@@ -27,6 +27,8 @@ from kubemq.basic.grpc_client import GrpcClient
 from kubemq.commandquery.request_receive import RequestReceive
 from kubemq.tools.listener_cancellation_token import ListenerCancellationToken
 
+logger = logging.getLogger(__name__)
+
 
 class Responder(GrpcClient):
     """An instance that responsible on receiving request from the kubeMQ."""
@@ -44,7 +46,7 @@ class Responder(GrpcClient):
     def ping(self):
         """ping check connection to the kubemq"""
         ping_result = self.get_kubemq_client().Ping(Empty())
-        logging.debug("Responder KubeMQ address:%s ping result:%s'" % (self._kubemq_address, ping_result))
+        logger.debug("Responder KubeMQ address:%s ping result:%s'" % (self._kubemq_address, ping_result))
         return ping_result
 
     def subscribe_to_requests(self, subscribe_request, handler, error_handler,
@@ -72,7 +74,7 @@ class Responder(GrpcClient):
             while True:
                 try:
                     event_receive = call.next()
-                    logging.debug("Responder InnerRequest. ID:'%s', Channel:'%s', ReplyChannel:'%s tags:'%s''" % (
+                    logger.debug("Responder InnerRequest. ID:'%s', Channel:'%s', ReplyChannel:'%s tags:'%s''" % (
                         event_receive.RequestID,
                         event_receive.Channel,
                         event_receive.ReplyChannel,
@@ -83,7 +85,7 @@ class Responder(GrpcClient):
                         try:
                             response = handler(RequestReceive(event_receive))
 
-                            logging.debug("Responder InnerResponse. ID:'%s', ReplyChannel:'%s'" % (
+                            logger.debug("Responder InnerResponse. ID:'%s', ReplyChannel:'%s'" % (
                                 response.request_id,
                                 response.reply_channel
                             ))
@@ -91,24 +93,24 @@ class Responder(GrpcClient):
                             self.get_kubemq_client().SendResponse(response.convert(), None, self._metadata)
                         except grpc.RpcError as error:
                             if (listener_cancellation_token.is_cancelled):
-                                logging.info("Sub closed by listener request")
+                                logger.info("Sub closed by listener request")
                                 error_handler(str(error))
                             else:
-                                logging.exception("Subscriber Received Error: Error:'%s'" % (error))
+                                logger.exception("Subscriber Received Error: Error:'%s'" % (error))
                                 error_handler(str(error))
                         except Exception as e:
-                            logging.exception("Subscriber Received Error: Error:'%s'" % (e))
+                            logger.exception("Subscriber Received Error: Error:'%s'" % (e))
                             error_handler(str(e))
 
                 except Exception as e:
-                    logging.exception("An exception occurred while listening for request:'%s'" % (e))
+                    logger.exception("An exception occurred while listening for request:'%s'" % (e))
                     error_handler(str(e))
                     raise  # re-raise the original exception, keeping full stack trace
 
         def check_sub_to_valid(listener_cancellation_token):
             while True:
                 if (listener_cancellation_token.is_cancelled):
-                    logging.info("Sub closed by listener request")
+                    logger.info("Sub closed by listener request")
                     call.cancel()
                     return
 
