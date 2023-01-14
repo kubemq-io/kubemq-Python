@@ -35,6 +35,7 @@ from kubemq.queue.send_batch_message_result import \
 from kubemq.tools.id_generator import get_next_id as get_next_id
 from kubemq.queue.transaction import Transaction
 
+logger = logging.getLogger(__name__)
 
 class MessageQueue(GrpcClient):
     """Represents a MessageQueue pattern."""
@@ -78,7 +79,7 @@ class MessageQueue(GrpcClient):
             inner_response = self.get_kubemq_client().SendQueueMessage(inner_queue_message, metadata=self._metadata)
             return SendMessageResult(inner_response)
         except Exception as e:
-            logging.exception("Grpc Exception in send_queue_message_result:'%s'" % (e))
+            logger.exception("Grpc Exception in send_queue_message_result:'%s'" % (e))
             raise
 
     def send_queue_messages_batch(self, messages):
@@ -89,7 +90,7 @@ class MessageQueue(GrpcClient):
                 convert_queue_message_batch_request(id, to_queue_messages(messages, self)), metadata=self._metadata)
             return convert_from_queue_messages_batch_response(inner_response)
         except Exception as e:
-            logging.exception("Grpc Exception in send_queue_messages_batch:'%s'" % (e))
+            logger.exception("Grpc Exception in send_queue_messages_batch:'%s'" % (e))
             raise
 
     def receive_queue_messages(self, number_of_messages=None):
@@ -100,7 +101,7 @@ class MessageQueue(GrpcClient):
                 self.convert_to_receive_queue_messages_request(id, False, number_of_messages), metadata=self._metadata)
             return ReceiveMessagesResponse(inner_response)
         except Exception as e:
-            logging.exception("Grpc Exception in send_queue_messages:'%s'" % (e))
+            logger.exception("Grpc Exception in send_queue_messages:'%s'" % (e))
             raise
 
     def peek_queue_message(self, number_of_messages=None):
@@ -111,7 +112,7 @@ class MessageQueue(GrpcClient):
                 self.convert_to_receive_queue_messages_request(id, True, number_of_messages), metadata=self._metadata)
             return ReceiveMessagesResponse(inner_response)
         except Exception as e:
-            logging.exception("Grpc Exception in send_queue_messages_batch:'%s'" % (e))
+            logger.exception("Grpc Exception in send_queue_messages_batch:'%s'" % (e))
             raise
 
     def ack_all_queue_messages(self):
@@ -121,13 +122,13 @@ class MessageQueue(GrpcClient):
                 self.convert_to_ack_all_queue_message_request(), metadata=self._metadata)
             return AckAllMessagesResponse(inner_response)
         except Exception as e:
-            logging.exception("Grpc Exception in ack_all_queue_messages:'%s'" % (e))
+            logger.exception("Grpc Exception in ack_all_queue_messages:'%s'" % (e))
             raise
 
     def ping(self):
         """ping check connection to the kubemq"""
         ping_result = self.get_kubemq_client().Ping(Empty())
-        logging.debug("MessageQueue KubeMQ address:%s ping result:%s'" % (self._kubemq_address, ping_result))
+        logger.debug("MessageQueue KubeMQ address:%s ping result:%s'" % (self._kubemq_address, ping_result))
         return ping_result
 
     def convert_to_ack_all_queue_message_request(self):

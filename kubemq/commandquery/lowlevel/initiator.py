@@ -24,6 +24,8 @@ from kubemq.grpc import Empty
 from kubemq.basic.grpc_client import GrpcClient
 from kubemq.commandquery.response import Response
 
+logger = logging.getLogger(__name__)
+
 
 class Initiator(GrpcClient):
     """Represents the instance that is responsible to send requests to the kubemq."""
@@ -41,7 +43,7 @@ class Initiator(GrpcClient):
     def ping(self):
         """ping check connection to the kubemq"""
         ping_result = self.get_kubemq_client().Ping(Empty())
-        logging.debug("Initiator KubeMQ address:%s ping result:%s'" % (self._kubemq_address, ping_result))
+        logger.debug("Initiator KubeMQ address:%s ping result:%s'" % (self._kubemq_address, ping_result))
         return ping_result
 
     def send_request_async(self, request, handler):
@@ -55,7 +57,7 @@ class Initiator(GrpcClient):
             call_future = self.get_kubemq_client().SendRequest.future(inner_request, None, self._metadata)
             call_future.add_done_callback(process_response)
         except Exception as e:
-            logging.exception("Grpc Exception in send_request_async'%s'" % (e))
+            logger.exception("Grpc Exception in send_request_async'%s'" % (e))
             raise
 
     def send_request(self, request):
@@ -65,5 +67,5 @@ class Initiator(GrpcClient):
             inner_response = self.get_kubemq_client().SendRequest(inner_request, None, self._metadata)
             return Response(inner_response)
         except Exception as e:
-            logging.exception("Grpc Exception in send_request:'%s'" % (e))
+            logger.exception("Grpc Exception in send_request:'%s'" % (e))
             raise

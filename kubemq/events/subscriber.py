@@ -7,6 +7,7 @@ from kubemq.events.event_receive import EventReceive
 from kubemq.subscription import SubscribeType, EventsStoreType
 from kubemq.tools.listener_cancellation_token import ListenerCancellationToken
 
+logger = logging.getLogger(__name__)
 
 class Subscriber(GrpcClient):
 
@@ -24,7 +25,7 @@ class Subscriber(GrpcClient):
     def ping(self):
         """ping check connection to the kubemq"""
         ping_result = self.get_kubemq_client().Ping(Empty())
-        logging.debug("event subscriber KubeMQ address:%s ping result:%s'" % (self._kubemq_address, ping_result))
+        logger.debug("event subscriber KubeMQ address:%s ping result:%s'" % (self._kubemq_address, ping_result))
         return ping_result
 
     def subscribe_to_events(self, subscribe_request, handler, error_handler,
@@ -59,7 +60,7 @@ class Subscriber(GrpcClient):
                 while True:
                     event_receive = call.next()
 
-                    logging.info("Subscriber Received Event: EventID:'%s', Channel:'%s', Body:'%s Tags:%s'" % (
+                    logger.info("Subscriber Received Event: EventID:'%s', Channel:'%s', Body:'%s Tags:%s'" % (
                         event_receive.EventID,
                         event_receive.Channel,
                         event_receive.Body,
@@ -69,19 +70,19 @@ class Subscriber(GrpcClient):
                     handler(EventReceive(event_receive))
             except grpc.RpcError as error:
                 if (listener_cancellation_token.is_cancelled):
-                    logging.info("Sub closed by listener request")
+                    logger.info("Sub closed by listener request")
                     error_handler(str(error))
                 else:
-                    logging.exception("Subscriber Received Error: Error:'%s'" % (error))
+                    logger.exception("Subscriber Received Error: Error:'%s'" % (error))
                     error_handler(str(error))
             except Exception as e:
-                logging.exception("Subscriber Received Error: Error:'%s'" % (e))
+                logger.exception("Subscriber Received Error: Error:'%s'" % (e))
                 error_handler(str(e))
 
         def check_sub_to_valid(listener_cancellation_token):
             while True:
                 if (listener_cancellation_token.is_cancelled):
-                    logging.info("Sub closed by listener request")
+                    logger.info("Sub closed by listener request")
                     call.cancel()
                     return
 
