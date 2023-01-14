@@ -37,6 +37,8 @@ from kubemq.queue.transaction_messages import create_stream_queue_message_reject
 from kubemq.queue.transaction_messages import create_stream_queue_message_resend_request
 from kubemq.tools.id_generator import get_next_id
 
+logger = logging.getLogger(__name__)
+
 
 class ControlMessages(enum.Enum):
     CLOSE_STREAM = enum.auto()
@@ -78,7 +80,7 @@ class Transaction(GrpcClient):
 
             return TransactionMessagesResponse(next(self.inner_stream))
         except Exception as e:
-            logging.exception("Exception in receive: '%s'" % e)
+            logger.exception("Exception in receive: '%s'" % e)
             raise
 
     def ack_message(self, msg_sequence):
@@ -92,7 +94,7 @@ class Transaction(GrpcClient):
 
             return TransactionMessagesResponse(next(self.inner_stream))
         except Exception as e:
-            logging.exception("Exception in ack:'%s'" % e)
+            logger.exception("Exception in ack:'%s'" % e)
             raise
 
     def rejected_message(self, msg_sequence):
@@ -106,7 +108,7 @@ class Transaction(GrpcClient):
 
                 return TransactionMessagesResponse(next(self.inner_stream))
             except Exception as e:
-                logging.exception("Exception in reject:'%s'" % e)
+                logger.exception("Exception in reject:'%s'" % e)
                 raise
 
     def extend_visibility(self, visibility_seconds):
@@ -121,7 +123,7 @@ class Transaction(GrpcClient):
 
                 return TransactionMessagesResponse(next(self.inner_stream))
             except Exception as e:
-                logging.exception("Exception in Extend:'%s'" % e)
+                logger.exception("Exception in Extend:'%s'" % e)
                 raise
 
     def resend(self, queue_name):
@@ -135,7 +137,7 @@ class Transaction(GrpcClient):
 
                 return TransactionMessagesResponse(next(self.inner_stream))
             except Exception as e:
-                logging.exception("Exception in resend:'%s'" % e)
+                logger.exception("Exception in resend:'%s'" % e)
                 raise
 
     def modify(self, msg):
@@ -156,7 +158,7 @@ class Transaction(GrpcClient):
 
                 return TransactionMessagesResponse(next(self.inner_stream))
             except Exception as e:
-                logging.exception("Exception in resend:'%s'" % e)
+                logger.exception("Exception in resend:'%s'" % e)
                 raise
 
     def open_stream(self):
@@ -196,7 +198,7 @@ class Transaction(GrpcClient):
                 self.inner_stream.cancel()
                 return True
             else:
-                logging.error("Stream is closed")
+                logger.error("Stream is closed")
                 return False
 
     def check_call_is_in_transaction(self):
