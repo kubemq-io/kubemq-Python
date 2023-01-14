@@ -25,6 +25,8 @@ from kubemq.basic.grpc_client import GrpcClient
 from kubemq.events.lowlevel.event import Event
 from kubemq.events.result import Result
 
+logger = logging.getLogger(__name__)
+
 
 class Sender(GrpcClient):
     """Represents the instance that is responsible to send events to the kubemq."""
@@ -48,7 +50,7 @@ class Sender(GrpcClient):
             if result:
                 return Result(inner_result=result)
         except Exception as e:
-            logging.exception(
+            logger.exception(
                 "Sender received 'Result': Error:'%s'" % (
                     e
                 ))
@@ -64,7 +66,7 @@ class Sender(GrpcClient):
             for response in responses:
                 if response_handler:
                     result = Result(response)
-                    logging.debug(
+                    logger.debug(
                         "Sender received 'Result': EventID:'%s', Sent:'%s', Error:'%s'" % (
                             result.event_id,
                             result.sent,
@@ -72,7 +74,7 @@ class Sender(GrpcClient):
                         ))
                     response_handler(result)
         except Exception as e:
-            logging.exception(
+            logger.exception(
                 "Sender received 'Result': Error:'%s'" % (
                     e
                 ))
@@ -81,5 +83,5 @@ class Sender(GrpcClient):
     def ping(self):
         """ping check connection to the kubemq"""
         ping_result = self.get_kubemq_client().Ping(Empty())
-        logging.debug("event sender KubeMQ address:%s ping result:%s'" % (self._kubemq_address, ping_result))
+        logger.debug("event sender KubeMQ address:%s ping result:%s'" % (self._kubemq_address, ping_result))
         return ping_result
