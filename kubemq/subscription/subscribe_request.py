@@ -21,7 +21,7 @@
 # SOFTWARE.
 from kubemq.grpc import Subscribe
 from kubemq.subscription.subscribe_type import SubscribeType
-
+from kubemq.subscription.events_store_type import EventsStoreType
 
 class SubscribeRequest:
     """Represents a set of parameters which the Subscriber uses to subscribe to the KubeMQ."""
@@ -58,9 +58,9 @@ class SubscribeRequest:
         request.SubscribeTypeData = self.subscribe_type.value
         request.ClientID = self.client_id
         request.Channel = self.channel
-        request.Group = self.group or ""
-        request.EventsStoreTypeData = self.events_store_type.value
-        request.EventsStoreTypeValue = self.events_store_type_value
+        request.Group = getattr(self, 'group', "")
+        request.EventsStoreTypeData = getattr(self.events_store_type, 'value',EventsStoreType(0))
+        request.EventsStoreTypeValue = getattr(self.events_store_type_value, 'value', 0)
         return request
 
     def is_valid_type(self, subscriber):
