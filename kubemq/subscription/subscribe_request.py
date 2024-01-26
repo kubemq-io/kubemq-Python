@@ -22,7 +22,7 @@
 from kubemq.grpc import Subscribe
 from kubemq.subscription.subscribe_type import SubscribeType
 from kubemq.subscription.events_store_type import EventsStoreType
-
+from kubemq.tools.id_generator import get_guid
 class SubscribeRequest:
     """Represents a set of parameters which the Subscriber uses to subscribe to the KubeMQ."""
 
@@ -31,7 +31,7 @@ class SubscribeRequest:
         self.subscribe_type = subscribe_type
         """Represents the type of Subscriber operation."""
 
-        self.client_id = client_id
+        self.client_id = client_id or get_guid()
         """Represents an identifier that will subscribe to kubeMQ under."""
 
         self.channel = channel
@@ -48,7 +48,7 @@ class SubscribeRequest:
 
     def from_inner_subscribe_request(self, inner):
         self.subscribe_type = SubscribeType(inner.SubscribeTypeData)
-        self.client_id = inner.ClientID
+        self.client_id = inner.ClientID or get_guid()
         self.channel = inner.Channel
         self.group = inner.Group or ""
         self.events_store_type_value = inner.EventsStoreTypeValue
@@ -56,11 +56,13 @@ class SubscribeRequest:
     def to_inner_subscribe_request(self):
         request = Subscribe()
         request.SubscribeTypeData = self.subscribe_type.value
-        request.ClientID = self.client_id
+        request.ClientID = self.client_id or get_guid()
         request.Channel = self.channel
         request.Group = getattr(self, 'group', "")
-        request.EventsStoreTypeData = getattr(self.events_store_type, 'value',EventsStoreType(0))
-        request.EventsStoreTypeValue = getattr(self.events_store_type_value, 'value', 0)
+        if self.events_store_type is not None:
+            request.EventsStoreTypeData = self.events_store_type.value
+        if self.events_store_type_value is not None:
+            request.EventsStoreTypeValue = self.events_store_type_value
         return request
 
     def is_valid_type(self, subscriber):

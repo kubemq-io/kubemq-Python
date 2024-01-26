@@ -20,7 +20,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-from kubemq.tools.id_generator import get_next_id
+from kubemq.tools.id_generator import get_next_id, get_guid
 from kubemq.grpc import Request as InnerRequest
 
 
@@ -80,9 +80,9 @@ class Request:
     def convert(self):
         """Convert a Request to an InnerRequest"""
         return InnerRequest(
-            RequestID=self.request_id or get_next_id(),
+            RequestID=self.request_id or get_guid(),
             RequestTypeData=self.request_type.value,
-            ClientID=self.client_id or "",
+            ClientID=self.client_id or get_guid(),
             Channel=self.channel,
             Metadata=self.metadata or "",
             Body=self.body,
