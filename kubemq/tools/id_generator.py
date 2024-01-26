@@ -20,6 +20,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 import threading
+import uuid
 
 _lock = threading.Lock()
 _counter = 0
@@ -35,3 +36,9 @@ def get_next_id():
             _counter += 1
 
         return str(_counter)
+
+
+# Generate guid
+
+def get_guid():
+    return str(uuid.uuid4())

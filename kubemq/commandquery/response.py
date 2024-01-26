@@ -1,3 +1,10 @@
+import datetime
+
+from kubemq.commandquery.request_receive import RequestReceive
+from kubemq.tools.id_generator import get_guid
+from kubemq.grpc.kubemq_pb2 import Response as InnerResponse
+
+
 
 class Response:
     """The response that receiving from KubeMQ after sending a request."""
@@ -9,7 +16,7 @@ class Response:
         self.metadata = ""
         self.body = None
         self.cache_hit = False
-        self.timestamp = datetime.now()
+        self.timestamp = datetime.datetime.now()
         self.executed = False
         self.error = ""
         self.tags = {}
@@ -39,7 +46,7 @@ class Response:
             self.cache_hit = request.CacheHit
             """Represents if the response was received from Cache."""
 
-            self.timestamp = datetime.fromtimestamp(request.Timestamp)
+            self.timestamp = datetime.datetime.now()
             """Represents if the response Time."""
 
             self.executed = request.Executed
@@ -56,13 +63,13 @@ class Response:
 
     def convert(self):
         return InnerResponse(
-            ClientID=self.client_id or "",
+            ClientID=self.client_id or get_guid(),
             RequestID=self.request_id,
             ReplyChannel=self.reply_channel,
             Metadata=self.metadata or "",
             Body=self.body,
             CacheHit=self.cache_hit,
-            Timestamp=int((self.timestamp - epoch).total_seconds()),
+            Timestamp= int(self.timestamp.timestamp()*1e9),
             Executed=self.executed,
             Error=self.error
         )
