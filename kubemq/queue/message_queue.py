@@ -34,7 +34,7 @@ from kubemq.queue.send_batch_message_result import \
     convert_from_queue_messages_batch_response as convert_from_queue_messages_batch_response
 from kubemq.tools.id_generator import get_next_id as get_next_id
 from kubemq.queue.transaction import Transaction
-
+from kubemq.tools.id_generator import get_guid
 logger = logging.getLogger(__name__)
 
 class MessageQueue(GrpcClient):
@@ -57,6 +57,8 @@ class MessageQueue(GrpcClient):
             self._kubemq_address = kubemq_address
         if client_id:
             self.client_id = client_id
+        else:
+            get_guid()
 
         self.max_number_of_messages = max_number_of_messages
 

@@ -22,24 +22,7 @@
 import threading
 
 from kubemq.grpc import Event as kubeEvent
-
-_lock = threading.Lock()
-_counter = 0
-
-
-def get_next_id():
-    """Get an unique thread safety ID between 1 to 65535"""
-    global _lock, _counter
-
-    with _lock:
-        if _counter == 65535:
-            _counter = 1
-        else:
-            _counter += 1
-
-        return str(_counter)
-
-
+from kubemq.tools.id_generator import get_guid, get_next_id
 class Event:
 
     def __init__(self, channel=None, client_id=None, store=None, event_id=None, body=None, metadata=None, tags=None):
@@ -68,8 +51,8 @@ class Event:
         self.channel = inner_event.Channel
         self.metadata = inner_event.Metadata
         self.body = inner_event.Body
-        self.event_id = inner_event.EventID or get_next_id()
-        self.client_id = inner_event.ClientID
+        self.event_id = inner_event.EventID or get_guid()
+        self.client_id = inner_event.ClientID or get_guid()
         self.store = inner_event.Store
         self.tags = inner_event.Tags
 
@@ -78,8 +61,8 @@ class Event:
             Channel=self.channel,
             Metadata=self.metadata or "",
             Body=self.body,
-            EventID=self.event_id or get_next_id(),
-            ClientID=self.client_id,
+            EventID=self.event_id or get_guid(),
+            ClientID=self.client_id or get_guid(),
             Store=self.store,
             Tags=self.tags or ""
         )
