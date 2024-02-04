@@ -1,5 +1,5 @@
-from datetime import datetime, timedelta
-from kubemq.commands_queries.commands.command_received import CommandReceived
+from datetime import datetime
+from kubemq.entities.command_received import CommandReceived
 from kubemq.grpc import Response as pbResponse
 
 
@@ -14,7 +14,7 @@ class CommandResponse:
         self._client_id: str = ""
         self._request_id: str = ""
         self._is_executed: bool = is_executed
-        self._timestamp: datetime = timestamp
+        self._timestamp: datetime = timestamp if timestamp else datetime.now()
         self._error: str = error
 
     @property
@@ -41,22 +41,6 @@ class CommandResponse:
     def timestamp(self) -> datetime:
         return self._timestamp
 
-    def set_command_received(self, command_received: CommandReceived) -> 'CommandResponse':
-        self._command_received = command_received
-        return self
-
-    def set_is_executed(self, is_executed: bool) -> 'CommandResponse':
-        self._is_executed = is_executed
-        return self
-
-    def set_error(self, error: str) -> 'CommandResponse':
-        self._error = error
-        return self
-
-    def set_timestamp(self, timestamp: datetime) -> 'CommandResponse':
-        self._timestamp = timestamp
-        return self
-
     def validate(self) -> 'CommandResponse':
         if not self._command_received:
             raise ValueError("Command response must have a command request.")
@@ -69,17 +53,15 @@ class CommandResponse:
         self._request_id = pb_response.RequestID
         self._is_executed = pb_response.Executed
         self._error = pb_response.Error
-        epoch_s, ns = divmod(self._timestamp.Timestamp, 1_000_000_000)
-        ts = datetime.fromtimestamp(epoch_s)
-        ts += timedelta(microseconds=ns // 1_000)
-        self._timestamp = ts
+        self._timestamp = datetime.fromtimestamp(pb_response.Timestamp / 1e9)
         return self
 
     def to_kubemq_command_response(self, client_id: str) -> pbResponse:
         pb_response = pbResponse()
         pb_response.ClientID = client_id
         pb_response.RequestID = self._command_received.id
+        pb_response.ReplyChannel = self._command_received._reply_channel
         pb_response.Executed = self._is_executed
         pb_response.Error = self._error
-        pb_response.Timestamp = self._timestamp.timestamp()
+        pb_response.Timestamp = int(self._timestamp.timestamp() * 1e9)
         return pb_response

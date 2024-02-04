@@ -5,8 +5,10 @@ from kubemq.grpc import Event as pbEvent
 
 class EventStore:
 
-    def __init__(self, id: str = None, channel: str = None,
-                 metadata: str = None, body: bytes = None,
+    def __init__(self, id: str = None,
+                 channel: str = None,
+                 metadata: str = None,
+                 body: bytes = None,
                  tags: Dict[str, str] = None):
         self._id: str = id
         self._channel: str = channel
@@ -33,26 +35,6 @@ class EventStore:
     @property
     def tags(self) -> Dict[str, str]:
         return self._tags
-
-    def set_id(self, id: str) -> 'EventStore':
-        self._id = id
-        return self
-
-    def set_channel(self, channel: str) -> 'EventStore':
-        self._channel = channel
-        return self
-
-    def set_metadata(self, metadata: str) -> 'EventStore':
-        self._metadata = metadata
-        return self
-
-    def set_body(self, body: bytes) -> 'EventStore':
-        self._body = body
-        return self
-
-    def set_tags(self, tags: Dict[str, str]) -> 'EventStore':
-        self._tags = tags or {}
-        return self
 
     def validate(self) -> 'EventStore':
         if not self._channel:

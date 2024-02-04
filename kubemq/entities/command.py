@@ -38,29 +38,9 @@ class Command:
     def tags(self) -> Dict[str, str]:
         return self._tags
 
-    def set_id(self, id: str) -> 'Command':
-        self._id = id
-        return self
-
-    def set_channel(self, channel: str) -> 'Command':
-        self._channel = channel
-        return self
-
-    def set_metadata(self, metadata: str) -> 'Command':
-        self._metadata = metadata
-        return self
-
-    def set_body(self, body: bytes) -> 'Command':
-        self._body = body
-        return self
-
-    def set_tags(self, tags: Dict[str, str]) -> 'Command':
-        self._tags = tags or {}
-        return self
-
-    def set_timeout(self, timeout: int) -> 'Command':
-        self._timeout = timeout
-        return self
+    @property
+    def timeout_in_seconds(self) -> int:
+        return self._timeout_in_seconds
 
     def validate(self) -> 'Command':
         if not self._channel:
@@ -83,7 +63,8 @@ class Command:
         pb_command.Channel = self._channel
         pb_command.Metadata = self._metadata or ""
         pb_command.Body = self._body
-        pb_command.Timeout = self._timeout_in_seconds
+        pb_command.Timeout = self._timeout_in_seconds * 1000
+        pb_command.RequestTypeData = pbCommand.RequestType.Command
         for key, value in self._tags.items():
             pb_command.Tags[key] = value
         return pb_command

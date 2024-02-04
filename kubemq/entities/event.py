@@ -8,8 +8,10 @@ class Event:
     Represents an event message to be sent or received in the KubeMQ SDK.
     """
 
-    def __init__(self, id: str = None, channel: str = None,
-                 metadata: str = None, body: bytes = None,
+    def __init__(self, id: str = None,
+                 channel: str = None,
+                 metadata: str = None,
+                 body: bytes = None,
                  tags: Dict[str, str] = None):
         self._id: str = id
         self._channel: str = channel
@@ -37,25 +39,6 @@ class Event:
     def tags(self) -> Dict[str, str]:
         return self._tags
 
-    def set_id(self, id: str) -> 'Event':
-        self._id = id
-        return self
-
-    def set_channel(self, channel: str) -> 'Event':
-        self._channel = channel
-        return self
-
-    def set_metadata(self, metadata: str) -> 'Event':
-        self._metadata = metadata
-        return self
-
-    def set_body(self, body: bytes) -> 'Event':
-        self._body = body
-        return self
-
-    def set_tags(self, tags: Dict[str, str]) -> 'Event':
-        self._tags = tags or {}
-        return self
 
     def validate(self) -> 'Event':
         if not self._channel:
