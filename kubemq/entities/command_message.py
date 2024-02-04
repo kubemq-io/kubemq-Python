@@ -1,5 +1,5 @@
 import uuid
-from typing import Dict, Optional
+from typing import Dict
 from kubemq.grpc import Request as pbCommand
 
 
@@ -42,7 +42,7 @@ class CommandMessage:
     def timeout_in_seconds(self) -> int:
         return self._timeout_in_seconds
 
-    def validate(self) -> 'CommandMessage':
+    def _validate(self) -> 'CommandMessage':
         if not self._channel:
             raise ValueError("Command message must have a channel.")
 
@@ -53,7 +53,7 @@ class CommandMessage:
             raise ValueError("Command message timeout must be a positive integer.")
         return self
 
-    def to_kubemq_command(self, client_id: str) -> pbCommand:
+    def _to_kubemq_command(self, client_id: str) -> pbCommand:
         if not self._id:
             self._id = str(uuid.uuid4())
         self._tags["x-kubemq-client-id"] = client_id

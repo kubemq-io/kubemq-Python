@@ -1,6 +1,6 @@
 from datetime import datetime
-from typing import Dict, ByteString
-from kubemq.grpc import Event as pbEventReceive
+from typing import Dict
+from kubemq.grpc import EventReceive as pbEventReceive
 
 
 class EventMessageReceived:
@@ -48,10 +48,9 @@ class EventMessageReceived:
         return self._tags
 
     @staticmethod
-    def from_event(event_receive: pbEventReceive) -> 'EventMessageReceived':
+    def _from_event(event_receive: pbEventReceive) -> 'EventMessageReceived':
         from_client_id = event_receive.Tags.get("x-kubemq-client-id", "") if event_receive.Tags else ""
         tags = event_receive.Tags if event_receive.Tags else {}
-
         return EventMessageReceived(
             id=event_receive.EventID,
             from_client_id=from_client_id,

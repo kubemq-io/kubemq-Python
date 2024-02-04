@@ -40,7 +40,7 @@ class EventMessage:
         return self._tags
 
 
-    def validate(self) -> 'EventMessage':
+    def _validate(self) -> 'EventMessage':
         if not self._channel:
             raise ValueError("Event message must have a channel.")
 
@@ -49,7 +49,7 @@ class EventMessage:
 
         return self
 
-    def to_kubemq_event(self, client_id: str) -> pbEvent:
+    def _to_kubemq_event(self, client_id: str) -> pbEvent:
         if not self._id:
             self._id = str(uuid.uuid4())
 
