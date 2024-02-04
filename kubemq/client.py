@@ -114,8 +114,8 @@ class Client:
 
     def _send_event(self, event_to_send: [EventMessage, EventStoreMessage]):
         try:
-            event_to_send.validate()
-            self._transport.kubemq_client().SendEvent(event_to_send.to_kubemq_event(self._connection.client_id))
+            event_to_send._validate()
+            self._transport.kubemq_client().SendEvent(event_to_send._to_kubemq_event(self._connection.client_id))
         except ValueError as e:
             ex = ValidationError(str(e))
             self._logger.error(str(ex))
@@ -127,13 +127,13 @@ class Client:
 
     def _send_response(self, response_to_send: [CommandResponseMessage, QueryResponseMessage]):
         try:
-            response_to_send.validate()
+            response_to_send._validate()
             if isinstance(response_to_send, CommandResponseMessage):
                 self._transport.kubemq_client().SendResponse(
-                    response_to_send.to_kubemq_command_response(self._connection.client_id))
+                    response_to_send._to_kubemq_command_response(self._connection.client_id))
             if isinstance(response_to_send, QueryResponseMessage):
                 self._transport.kubemq_client().SendResponse(
-                    response_to_send.to_kubemq_query_response(self._connection.client_id))
+                    response_to_send._to_kubemq_query_response(self._connection.client_id))
         except ValueError as e:
             ex = ValidationError(str(e))
             self._logger.error(str(ex))
@@ -145,15 +145,15 @@ class Client:
 
     def _send_request(self, request_to_send: [CommandMessage, QueryMessage]) -> [CommandResponseMessage, QueryResponseMessage]:
         try:
-            request_to_send.validate()
+            request_to_send._validate()
             if isinstance(request_to_send, CommandMessage):
                 response = self._transport.kubemq_client().SendRequest(
-                    request_to_send.to_kubemq_command(self._connection.client_id))
-                return CommandResponseMessage().from_kubemq_command_response(response)
+                    request_to_send._to_kubemq_command(self._connection.client_id))
+                return CommandResponseMessage()._from_kubemq_command_response(response)
             if isinstance(request_to_send, QueryMessage):
                 response = self._transport.kubemq_client().SendRequest(
-                    request_to_send.to_kubemq_query(self._connection.client_id))
-                return QueryResponseMessage().from_kubemq_query_response(response)
+                    request_to_send._to_kubemq_query(self._connection.client_id))
+                return QueryResponseMessage()._from_kubemq_query_response(response)
 
         except ValueError as e:
             ex = ValidationError(str(e))
@@ -173,7 +173,7 @@ class Client:
                                         QueriesSubscription],
                    cancellation_token: CancellationToken):
         try:
-            subscription.validate()
+            subscription._validate()
             if cancellation_token is None:
                 self._logger.error("A CancellationToken must be provided to subscribe to events store.")
                 raise ValueError("A CancellationToken must be provided to subscribe to events store.")
@@ -184,29 +184,29 @@ class Client:
                         try:
                             if isinstance(subscription, EventsStoreSubscription):
                                 response_stream = self._transport.kubemq_client().SubscribeToEvents(
-                                    subscription.to_subscribe_request(self._connection.client_id))
+                                    subscription._to_subscribe_request(self._connection.client_id))
                             if isinstance(subscription, EventsSubscription):
                                 response_stream = self._transport.kubemq_client().SubscribeToEvents(
-                                    subscription.to_subscribe_request(self._connection.client_id))
+                                    subscription._to_subscribe_request(self._connection.client_id))
                             if isinstance(subscription, CommandsSubscription):
                                 response_stream = self._transport.kubemq_client().SubscribeToRequests(
-                                    subscription.to_subscribe_request(self._connection.client_id))
+                                    subscription._to_subscribe_request(self._connection.client_id))
                             if isinstance(subscription, QueriesSubscription):
                                 response_stream = self._transport.kubemq_client().SubscribeToRequests(
-                                    subscription.to_subscribe_request(self._connection.client_id))
+                                    subscription._to_subscribe_request(self._connection.client_id))
                             self._logger.debug(f"Subscribed to {subscription.channel}")
                             while not cancellation_token.is_cancelled:
                                 message_receive = response_stream.next()
                                 if isinstance(subscription, EventsStoreSubscription):
                                     subscription.raise_on_receive_message(
-                                        EventStoreMessageMessage().from_event(message_receive))
+                                        EventStoreMessageMessage()._from_event(message_receive))
                                 if isinstance(subscription, EventsSubscription):
-                                    subscription.raise_on_receive_message(EventMessageReceived().from_event(message_receive))
+                                    subscription.raise_on_receive_message(EventMessageReceived()._from_event(message_receive))
                                 if isinstance(subscription, CommandsSubscription):
                                     subscription.raise_on_receive_message(
-                                        CommandMessageReceived().from_request(message_receive))
+                                        CommandMessageReceived()._from_request(message_receive))
                                 if isinstance(subscription, QueriesSubscription):
-                                    subscription.raise_on_receive_message(QueryMessageReceived().from_request(message_receive))
+                                    subscription.raise_on_receive_message(QueryMessageReceived()._from_request(message_receive))
                             if cancellation_token.is_cancelled:
                                 self._logger.debug(f"Unsubscribed from {subscription.channel}")
                                 break

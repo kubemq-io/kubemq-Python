@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 from typing import Dict, ByteString
-from kubemq.grpc import Event as pbEventReceive
+from kubemq.grpc import EventReceive as pbEventReceive
 
 
 class EventStoreMessageMessage:
@@ -54,7 +54,7 @@ class EventStoreMessageMessage:
         return self._sequence
 
     @staticmethod
-    def from_event(event_receive: pbEventReceive) -> 'EventStoreMessageMessage':
+    def _from_event(event_receive: pbEventReceive) -> 'EventStoreMessageMessage':
         from_client_id = event_receive.Tags.get("x-kubemq-client-id", "") if event_receive.Tags else ""
         tags = event_receive.Tags if event_receive.Tags else {}
         epoch_s, ns = divmod(event_receive.Timestamp, 1_000_000_000)

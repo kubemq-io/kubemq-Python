@@ -55,8 +55,7 @@ class QueryMessage:
     def cache_ttl_int_seconds(self) -> int:
         return self._cache_ttl_int_seconds
 
-
-    def validate(self) -> 'QueryMessage':
+    def _validate(self) -> 'QueryMessage':
         if not self._channel:
             raise ValueError("Query message must have a channel.")
 
@@ -67,7 +66,7 @@ class QueryMessage:
             raise ValueError("Query message timeout must be a positive integer.")
         return self
 
-    def to_kubemq_query(self, client_id: str) -> pbQuery:
+    def _to_kubemq_query(self, client_id: str) -> pbQuery:
         if not self._id:
             self._id = str(uuid.uuid4())
         pb_query = pbQuery()  # Assuming pb is an imported module

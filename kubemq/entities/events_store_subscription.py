@@ -42,31 +42,35 @@ class EventsStoreSubscription:
     def group(self) -> str:
         return self._group
 
-    def set_channel(self, value: str) -> 'EventsStoreSubscription':
-        self._channel = value
-        return self
+    @property
+    def events_store_type(self) -> EventsStoreType:
+        return self._events_store_type
 
-    def set_group(self, value: str) -> 'EventsStoreSubscription':
-        self._group = value
-        return self
+    @property
+    def events_store_sequence_value(self) -> int:
+        return self._events_store_sequence_value
 
-    def add_on_receive_event_callback(self, callback: Callable[[EventStoreMessageMessage], None]) -> 'EventsStoreSubscription':
-        self._on_receive_event_callback = callback
-        return self
+    @property
+    def events_store_start_time(self) -> datetime:
+        return self._events_store_start_time
 
-    def add_on_error_callback(self, callback: Callable[[str], None]) -> 'EventsStoreSubscription':
-        self._on_error_callback = callback
-        return self
+    @property
+    def on_receive_event_callback(self) -> Callable[[EventStoreMessageMessage], None]:
+        return self._on_receive_event_callback
+
+    @property
+    def on_error_callback(self) -> Callable[[str], None]:
+        return self._on_error_callback
 
     def raise_on_receive_message(self, received_event: EventStoreMessageMessage):
-        if self._on_receive_event_callback is not None:
+        if self._on_receive_event_callback:
             self._on_receive_event_callback(received_event)
 
     def raise_on_error(self, msg: str):
-        if self._on_error_callback is not None:
+        if self._on_error_callback:
             self._on_error_callback(msg)
 
-    def validate(self):
+    def _validate(self):
         if not self._channel:
             raise ValueError("Event Store subscription must have a channel.")
         if not self._on_receive_event_callback:
@@ -78,7 +82,7 @@ class EventsStoreSubscription:
         if self._events_store_type == EventsStoreType.StartAtTime and not self._events_store_start_time:
             raise ValueError("Event Store subscription with StartAtTime events store type must have a start time.")
 
-    def to_subscribe_request(self, client_id: str = "") -> Subscribe:
+    def _to_subscribe_request(self, client_id: str = "") -> Subscribe:
         request = Subscribe()
         request.Channel = self._channel
         request.Group = self._group

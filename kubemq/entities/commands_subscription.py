@@ -39,13 +39,13 @@ class CommandsSubscription:
         if self._on_error_callback:
             self._on_error_callback(msg)
 
-    def validate(self):
+    def _validate(self):
         if not self._channel:
             raise ValueError("command subscription must have a channel.")
         if not self._on_receive_command_callback:
             raise ValueError("command subscription must have a on_receive_command_callback function.")
 
-    def to_subscribe_request(self, client_id: str = "") -> Subscribe:
+    def _to_subscribe_request(self, client_id: str = "") -> Subscribe:
         request = Subscribe()
         request.Channel = self._channel
         request.Group = self._group

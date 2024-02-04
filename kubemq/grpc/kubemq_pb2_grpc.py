@@ -74,6 +74,21 @@ class kubemqStub(object):
                 request_serializer=kubemq_dot_grpc_dot_kubemq__pb2.Empty.SerializeToString,
                 response_deserializer=kubemq_dot_grpc_dot_kubemq__pb2.PingResult.FromString,
                 )
+        self.QueuesDownstream = channel.stream_stream(
+                '/kubemq.kubemq/QueuesDownstream',
+                request_serializer=kubemq_dot_grpc_dot_kubemq__pb2.QueuesDownstreamRequest.SerializeToString,
+                response_deserializer=kubemq_dot_grpc_dot_kubemq__pb2.QueuesDownstreamResponse.FromString,
+                )
+        self.QueuesUpstream = channel.stream_stream(
+                '/kubemq.kubemq/QueuesUpstream',
+                request_serializer=kubemq_dot_grpc_dot_kubemq__pb2.QueuesUpstreamRequest.SerializeToString,
+                response_deserializer=kubemq_dot_grpc_dot_kubemq__pb2.QueuesUpstreamResponse.FromString,
+                )
+        self.QueuesInfo = channel.unary_unary(
+                '/kubemq.kubemq/QueuesInfo',
+                request_serializer=kubemq_dot_grpc_dot_kubemq__pb2.QueuesInfoRequest.SerializeToString,
+                response_deserializer=kubemq_dot_grpc_dot_kubemq__pb2.QueuesInfoResponse.FromString,
+                )
 
 
 class kubemqServicer(object):
@@ -151,6 +166,24 @@ class kubemqServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def QueuesDownstream(self, request_iterator, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def QueuesUpstream(self, request_iterator, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def QueuesInfo(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_kubemqServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -213,6 +246,21 @@ def add_kubemqServicer_to_server(servicer, server):
                     servicer.Ping,
                     request_deserializer=kubemq_dot_grpc_dot_kubemq__pb2.Empty.FromString,
                     response_serializer=kubemq_dot_grpc_dot_kubemq__pb2.PingResult.SerializeToString,
+            ),
+            'QueuesDownstream': grpc.stream_stream_rpc_method_handler(
+                    servicer.QueuesDownstream,
+                    request_deserializer=kubemq_dot_grpc_dot_kubemq__pb2.QueuesDownstreamRequest.FromString,
+                    response_serializer=kubemq_dot_grpc_dot_kubemq__pb2.QueuesDownstreamResponse.SerializeToString,
+            ),
+            'QueuesUpstream': grpc.stream_stream_rpc_method_handler(
+                    servicer.QueuesUpstream,
+                    request_deserializer=kubemq_dot_grpc_dot_kubemq__pb2.QueuesUpstreamRequest.FromString,
+                    response_serializer=kubemq_dot_grpc_dot_kubemq__pb2.QueuesUpstreamResponse.SerializeToString,
+            ),
+            'QueuesInfo': grpc.unary_unary_rpc_method_handler(
+                    servicer.QueuesInfo,
+                    request_deserializer=kubemq_dot_grpc_dot_kubemq__pb2.QueuesInfoRequest.FromString,
+                    response_serializer=kubemq_dot_grpc_dot_kubemq__pb2.QueuesInfoResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -425,5 +473,56 @@ class kubemq(object):
         return grpc.experimental.unary_unary(request, target, '/kubemq.kubemq/Ping',
             kubemq_dot_grpc_dot_kubemq__pb2.Empty.SerializeToString,
             kubemq_dot_grpc_dot_kubemq__pb2.PingResult.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def QueuesDownstream(request_iterator,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.stream_stream(request_iterator, target, '/kubemq.kubemq/QueuesDownstream',
+            kubemq_dot_grpc_dot_kubemq__pb2.QueuesDownstreamRequest.SerializeToString,
+            kubemq_dot_grpc_dot_kubemq__pb2.QueuesDownstreamResponse.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def QueuesUpstream(request_iterator,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.stream_stream(request_iterator, target, '/kubemq.kubemq/QueuesUpstream',
+            kubemq_dot_grpc_dot_kubemq__pb2.QueuesUpstreamRequest.SerializeToString,
+            kubemq_dot_grpc_dot_kubemq__pb2.QueuesUpstreamResponse.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def QueuesInfo(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/kubemq.kubemq/QueuesInfo',
+            kubemq_dot_grpc_dot_kubemq__pb2.QueuesInfoRequest.SerializeToString,
+            kubemq_dot_grpc_dot_kubemq__pb2.QueuesInfoResponse.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)

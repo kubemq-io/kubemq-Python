@@ -41,14 +41,14 @@ class CommandResponseMessage:
     def timestamp(self) -> datetime:
         return self._timestamp
 
-    def validate(self) -> 'CommandResponseMessage':
+    def _validate(self) -> 'CommandResponseMessage':
         if not self._command_received:
             raise ValueError("Command response must have a command request.")
         elif self._command_received._reply_channel == "":
             raise ValueError("Command response must have a reply channel.")
         return self
 
-    def from_kubemq_command_response(self, pb_response: pbResponse) -> 'CommandResponseMessage':
+    def _from_kubemq_command_response(self, pb_response: pbResponse) -> 'CommandResponseMessage':
         self._client_id = pb_response.ClientID
         self._request_id = pb_response.RequestID
         self._is_executed = pb_response.Executed
@@ -56,7 +56,7 @@ class CommandResponseMessage:
         self._timestamp = datetime.fromtimestamp(pb_response.Timestamp / 1e9)
         return self
 
-    def to_kubemq_command_response(self, client_id: str) -> pbResponse:
+    def _to_kubemq_command_response(self, client_id: str) -> pbResponse:
         pb_response = pbResponse()
         pb_response.ClientID = client_id
         pb_response.RequestID = self._command_received.id

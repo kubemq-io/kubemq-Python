@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Dict
 from kubemq.grpc import Request as pbRequest
 
@@ -54,7 +54,7 @@ class CommandMessageReceived:
         return self._reply_channel
 
     @staticmethod
-    def from_request(command_receive: pbRequest) -> 'CommandMessageReceived':
+    def _from_request(command_receive: pbRequest) -> 'CommandMessageReceived':
         tags = command_receive.Tags if command_receive.Tags else {}
         return CommandMessageReceived(
             id=command_receive.RequestID,
