@@ -50,7 +50,7 @@ class QueryMessageReceived:
         return self._tags
 
     @staticmethod
-    def from_request(query_receive: pbRequest) -> 'QueryMessageReceived':
+    def _from_request(query_receive: pbRequest) -> 'QueryMessageReceived':
         tags = query_receive.Tags if query_receive.Tags else {}
         return QueryMessageReceived(
             id=query_receive.RequestID,

@@ -60,14 +60,14 @@ class QueryResponseMessage:
     def tags(self) -> Dict[str, str]:
         return self._tags
 
-    def validate(self) -> 'QueryResponseMessage':
+    def _validate(self) -> 'QueryResponseMessage':
         if not self._query_received:
             raise ValueError("Query response must have a query request.")
         elif self._query_received._reply_channel == "":
             raise ValueError("Query response must have a reply channel.")
         return self
 
-    def from_kubemq_query_response(self, pb_response: pbResponse) -> 'QueryResponseMessage':
+    def _from_kubemq_query_response(self, pb_response: pbResponse) -> 'QueryResponseMessage':
         self._client_id = pb_response.ClientID
         self._request_id = pb_response.RequestID
         self._is_executed = pb_response.Executed
@@ -78,7 +78,7 @@ class QueryResponseMessage:
         self._tags = pb_response.Tags
         return self
 
-    def to_kubemq_query_response(self, client_id: str) -> pbResponse:
+    def _to_kubemq_query_response(self, client_id: str) -> pbResponse:
         pb_response = pbResponse()
         pb_response.ClientID = client_id
         pb_response.RequestID = self._query_received.id

@@ -36,7 +36,7 @@ class EventStoreMessage:
     def tags(self) -> Dict[str, str]:
         return self._tags
 
-    def validate(self) -> 'EventStoreMessage':
+    def _validate(self) -> 'EventStoreMessage':
         if not self._channel:
             raise ValueError("Event Store message must have a channel.")
 
@@ -45,7 +45,7 @@ class EventStoreMessage:
 
         return self
 
-    def to_kubemq_event(self, client_id: str) -> pbEvent:
+    def _to_kubemq_event(self, client_id: str) -> pbEvent:
         if not self._id:
             self._id = str(uuid.uuid4())
 
