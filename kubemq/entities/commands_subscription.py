@@ -1,14 +1,14 @@
 from typing import Callable
 from kubemq.grpc import Subscribe
 from kubemq.entities.subscribe_type import SubscribeType
-from kubemq.entities.command_received_message import CommandReceivedMessage
+from kubemq.entities.command_message_received import CommandMessageReceived
 
 
 class CommandsSubscription:
 
     def __init__(self, channel: str = None,
                  group: str = None,
-                 on_receive_command_callback: Callable[[CommandReceivedMessage], None] = None,
+                 on_receive_command_callback: Callable[[CommandMessageReceived], None] = None,
                  on_error_callback: Callable[[str], None] = None):
         self._channel: str = channel
         self._group: str = group
@@ -24,14 +24,14 @@ class CommandsSubscription:
         return self._group
 
     @property
-    def on_receive_command_callback(self) -> Callable[[CommandReceivedMessage], None]:
+    def on_receive_command_callback(self) -> Callable[[CommandMessageReceived], None]:
         return self._on_receive_command_callback
 
     @property
     def on_error_callback(self) -> Callable[[str], None]:
         return self._on_error_callback
 
-    def raise_on_receive_message(self, received_command: CommandReceivedMessage):
+    def raise_on_receive_message(self, received_command: CommandMessageReceived):
         if self._on_receive_command_callback:
             self._on_receive_command_callback(received_command)
 
