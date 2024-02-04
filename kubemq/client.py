@@ -2,9 +2,8 @@ import logging
 import threading
 import asyncio
 import grpc
-from kubemq.config import Connection, TlsConfig, KeepAliveConfig
 from kubemq.entities import *
-from kubemq.transport import ServerInfo, Transport
+from kubemq.transport import ServerInfo, Transport, Connection, KeepAliveConfig, TlsConfig
 
 
 class Client:
@@ -96,24 +95,24 @@ class Client:
             self._logger.error(str(ex))
             raise ex
 
-    def send(self, message: [Event, EventStore, Command, Query, CommandResponse, QueryResponse]) -> [CommandResponse,
-                                                                                                     QueryResponse,
-                                                                                                     None]:
-        if isinstance(message, Event):
+    def send(self, message: [EventMessage, EventStoreMessage, CommandMessage, QueryMessage, CommandResponseMessage, QueryResponseMessage]) -> [CommandResponseMessage,
+                                                                                                                                        QueryResponseMessage,
+                                                                                                                                        None]:
+        if isinstance(message, EventMessage):
             return self._send_event(message)
-        if isinstance(message, EventStore):
+        if isinstance(message, EventStoreMessage):
             return self._send_event(message)
-        if isinstance(message, Command):
+        if isinstance(message, CommandMessage):
             return self._send_request(message)
-        if isinstance(message, CommandResponse):
+        if isinstance(message, CommandResponseMessage):
             return self._send_response(message)
-        if isinstance(message, Query):
+        if isinstance(message, QueryMessage):
             return self._send_request(message)
-        if isinstance(message, QueryResponse):
+        if isinstance(message, QueryResponseMessage):
             return self._send_response(message)
         return None
 
-    def _send_event(self, event_to_send: [Event, EventStore]):
+    def _send_event(self, event_to_send: [EventMessage, EventStoreMessage]):
         try:
             event_to_send.validate()
             self._transport.kubemq_client().SendEvent(event_to_send.to_kubemq_event(self._connection.client_id))
@@ -126,13 +125,13 @@ class Client:
             self._logger.error(str(ex))
             raise ex
 
-    def _send_response(self, response_to_send: [CommandResponse, QueryResponse]):
+    def _send_response(self, response_to_send: [CommandResponseMessage, QueryResponseMessage]):
         try:
             response_to_send.validate()
-            if isinstance(response_to_send, CommandResponse):
+            if isinstance(response_to_send, CommandResponseMessage):
                 self._transport.kubemq_client().SendResponse(
                     response_to_send.to_kubemq_command_response(self._connection.client_id))
-            if isinstance(response_to_send, QueryResponse):
+            if isinstance(response_to_send, QueryResponseMessage):
                 self._transport.kubemq_client().SendResponse(
                     response_to_send.to_kubemq_query_response(self._connection.client_id))
         except ValueError as e:
@@ -144,17 +143,17 @@ class Client:
             self._logger.error(str(ex))
             raise ex
 
-    def _send_request(self, request_to_send: [Command, Query]) -> [CommandResponse, QueryResponse]:
+    def _send_request(self, request_to_send: [CommandMessage, QueryMessage]) -> [CommandResponseMessage, QueryResponseMessage]:
         try:
             request_to_send.validate()
-            if isinstance(request_to_send, Command):
+            if isinstance(request_to_send, CommandMessage):
                 response = self._transport.kubemq_client().SendRequest(
                     request_to_send.to_kubemq_command(self._connection.client_id))
-                return CommandResponse().from_kubemq_command_response(response)
-            if isinstance(request_to_send, Query):
+                return CommandResponseMessage().from_kubemq_command_response(response)
+            if isinstance(request_to_send, QueryMessage):
                 response = self._transport.kubemq_client().SendRequest(
                     request_to_send.to_kubemq_query(self._connection.client_id))
-                return QueryResponse().from_kubemq_query_response(response)
+                return QueryResponseMessage().from_kubemq_query_response(response)
 
         except ValueError as e:
             ex = ValidationError(str(e))
@@ -200,14 +199,14 @@ class Client:
                                 message_receive = response_stream.next()
                                 if isinstance(subscription, EventsStoreSubscription):
                                     subscription.raise_on_receive_message(
-                                        EventStoreReceived().from_event(message_receive))
+                                        EventStoreReceivedMessage().from_event(message_receive))
                                 if isinstance(subscription, EventsSubscription):
-                                    subscription.raise_on_receive_message(EventReceived().from_event(message_receive))
+                                    subscription.raise_on_receive_message(EventReceivedMessage().from_event(message_receive))
                                 if isinstance(subscription, CommandsSubscription):
                                     subscription.raise_on_receive_message(
-                                        CommandReceived().from_request(message_receive))
+                                        CommandReceivedMessage().from_request(message_receive))
                                 if isinstance(subscription, QueriesSubscription):
-                                    subscription.raise_on_receive_message(QueryReceived().from_request(message_receive))
+                                    subscription.raise_on_receive_message(QueryReceivedMessage().from_request(message_receive))
                             if cancellation_token.is_cancelled:
                                 self._logger.debug(f"Unsubscribed from {subscription.channel}")
                                 break

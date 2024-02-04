@@ -7,10 +7,10 @@ from kubemq.entities import *
 
 def main():
     try:
-        def on_receive_query(request: QueryReceived):
+        def on_receive_query(request: QueryReceivedMessage):
             try:
                 print(f"Id:{request.id}, Body:{request.body.decode('utf-8')}")
-                response = QueryResponse(
+                response = QueryResponseMessage(
                     query_received=request,
                     is_executed=True,
                     body=b"hello kubemq, I'm replying to you!",
@@ -32,7 +32,7 @@ def main():
             )
             , cancellation_token=CancellationToken())
         time.sleep(1)
-        response:QueryResponse = client.send(Query(
+        response:QueryResponseMessage = client.send(QueryMessage(
             channel="q1",
             body=b"hello kubemq, please reply to me!",
             timeout_in_seconds=10,

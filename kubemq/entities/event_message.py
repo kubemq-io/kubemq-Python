@@ -3,7 +3,10 @@ from typing import Dict, Optional
 from kubemq.grpc import Event as pbEvent
 
 
-class EventStore:
+class EventMessage:
+    """
+    Represents an event message to be sent or received in the KubeMQ SDK.
+    """
 
     def __init__(self, id: str = None,
                  channel: str = None,
@@ -36,12 +39,13 @@ class EventStore:
     def tags(self) -> Dict[str, str]:
         return self._tags
 
-    def validate(self) -> 'EventStore':
+
+    def validate(self) -> 'EventMessage':
         if not self._channel:
-            raise ValueError("Event Store message must have a channel.")
+            raise ValueError("Event message must have a channel.")
 
         if not self._metadata and not self._body and not self._tags:
-            raise ValueError("Event Store message must have at least one of the following: metadata, body, or tags.")
+            raise ValueError("Event message must have at least one of the following: metadata, body, or tags.")
 
         return self
 
@@ -56,7 +60,7 @@ class EventStore:
         pb_event.Channel = self._channel
         pb_event.Metadata = self._metadata or ""
         pb_event.Body = self._body
-        pb_event.Store = True
+        pb_event.Store = False
         for key, value in self._tags.items():
             pb_event.Tags[key] = value
 
