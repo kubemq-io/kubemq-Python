@@ -1,16 +1,16 @@
 from datetime import datetime
-from kubemq.entities.command_received_message import CommandReceivedMessage
+from kubemq.entities.command_message_received import CommandMessageReceived
 from kubemq.grpc import Response as pbResponse
 
 
 class CommandResponseMessage:
 
-    def __init__(self, command_received: CommandReceivedMessage = None,
+    def __init__(self, command_received: CommandMessageReceived = None,
                  is_executed: bool = False,
                  error: str = "",
                  timestamp: datetime = None,
                  ):
-        self._command_received: CommandReceivedMessage = command_received
+        self._command_received: CommandMessageReceived = command_received
         self._client_id: str = ""
         self._request_id: str = ""
         self._is_executed: bool = is_executed
@@ -18,7 +18,7 @@ class CommandResponseMessage:
         self._error: str = error
 
     @property
-    def command_received(self) -> CommandReceivedMessage:
+    def command_received(self) -> CommandMessageReceived:
         return self._command_received
 
     @property

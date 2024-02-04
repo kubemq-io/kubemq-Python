@@ -199,14 +199,14 @@ class Client:
                                 message_receive = response_stream.next()
                                 if isinstance(subscription, EventsStoreSubscription):
                                     subscription.raise_on_receive_message(
-                                        EventStoreReceivedMessage().from_event(message_receive))
+                                        EventStoreMessageMessage().from_event(message_receive))
                                 if isinstance(subscription, EventsSubscription):
-                                    subscription.raise_on_receive_message(EventReceivedMessage().from_event(message_receive))
+                                    subscription.raise_on_receive_message(EventMessageReceived().from_event(message_receive))
                                 if isinstance(subscription, CommandsSubscription):
                                     subscription.raise_on_receive_message(
-                                        CommandReceivedMessage().from_request(message_receive))
+                                        CommandMessageReceived().from_request(message_receive))
                                 if isinstance(subscription, QueriesSubscription):
-                                    subscription.raise_on_receive_message(QueryReceivedMessage().from_request(message_receive))
+                                    subscription.raise_on_receive_message(QueryMessageReceived().from_request(message_receive))
                             if cancellation_token.is_cancelled:
                                 self._logger.debug(f"Unsubscribed from {subscription.channel}")
                                 break

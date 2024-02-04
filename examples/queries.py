@@ -7,7 +7,7 @@ from kubemq.entities import *
 
 def main():
     try:
-        def on_receive_query(request: QueryReceivedMessage):
+        def on_receive_query(request: QueryMessageReceived):
             try:
                 print(f"Id:{request.id}, Body:{request.body.decode('utf-8')}")
                 response = QueryResponseMessage(

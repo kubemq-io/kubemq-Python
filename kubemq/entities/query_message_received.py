@@ -3,7 +3,7 @@ from typing import Dict
 from kubemq.grpc import Request as pbRequest
 
 
-class CommandReceivedMessage:
+class QueryMessageReceived:
     def __init__(self, id: str = None,
                  from_client_id: str = None,
                  timestamp: datetime = None,
@@ -49,20 +49,16 @@ class CommandReceivedMessage:
     def tags(self) -> Dict[str, str]:
         return self._tags
 
-    @property
-    def reply_channel(self) -> str:
-        return self._reply_channel
-
     @staticmethod
-    def from_request(command_receive: pbRequest) -> 'CommandReceivedMessage':
-        tags = command_receive.Tags if command_receive.Tags else {}
-        return CommandReceivedMessage(
-            id=command_receive.RequestID,
-            from_client_id=command_receive.ClientID,
+    def from_request(query_receive: pbRequest) -> 'QueryMessageReceived':
+        tags = query_receive.Tags if query_receive.Tags else {}
+        return QueryMessageReceived(
+            id=query_receive.RequestID,
+            from_client_id=query_receive.ClientID,
             timestamp=datetime.now(),
-            channel=command_receive.Channel,
-            metadata=command_receive.Metadata,
-            body=command_receive.Body,
-            reply_channel=command_receive.ReplyChannel,
+            channel=query_receive.Channel,
+            metadata=query_receive.Metadata,
+            body=query_receive.Body,
+            reply_channel=query_receive.ReplyChannel,
             tags=tags
         )

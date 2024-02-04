@@ -1,16 +1,15 @@
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Dict, ByteString
-from kubemq.grpc import EventReceive as pbEventReceive
+from kubemq.grpc import Event as pbEventReceive
 
 
-class EventStoreReceivedMessage:
+class EventMessageReceived:
     def __init__(self, id: str = None,
                  from_client_id: str = None,
                  timestamp: datetime = None,
                  channel: str = None,
                  metadata: str = None,
                  body: bytes = None,
-                 sequence: int = 0,
                  tags: Dict[str, str] = None):
         self._id: str = id
         self._from_client_id: str = from_client_id
@@ -18,7 +17,6 @@ class EventStoreReceivedMessage:
         self._channel: str = channel
         self._metadata: str = metadata
         self._body: bytes = body
-        self._sequence: int = sequence
         self._tags: Dict[str, str] = tags if tags else {}
 
     @property
@@ -49,24 +47,17 @@ class EventStoreReceivedMessage:
     def tags(self) -> Dict[str, str]:
         return self._tags
 
-    @property
-    def sequence(self) -> int:
-        return self._sequence
-
     @staticmethod
-    def from_event(event_receive: pbEventReceive) -> 'EventStoreReceivedMessage':
+    def from_event(event_receive: pbEventReceive) -> 'EventMessageReceived':
         from_client_id = event_receive.Tags.get("x-kubemq-client-id", "") if event_receive.Tags else ""
         tags = event_receive.Tags if event_receive.Tags else {}
-        epoch_s, ns = divmod(event_receive.Timestamp, 1_000_000_000)
-        ts = datetime.fromtimestamp(epoch_s)
-        ts += timedelta(microseconds=ns // 1_000)
-        return EventStoreReceivedMessage(
+
+        return EventMessageReceived(
             id=event_receive.EventID,
             from_client_id=from_client_id,
-            timestamp=ts,
+            timestamp=datetime.now(),
             channel=event_receive.Channel,
             metadata=event_receive.Metadata,
             body=event_receive.Body,
-            sequence=event_receive.Sequence,
             tags=tags
         )

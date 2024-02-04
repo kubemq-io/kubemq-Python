@@ -1,16 +1,16 @@
 from datetime import datetime, timedelta
-from typing import Dict
-from kubemq.grpc import Request as pbRequest
+from typing import Dict, ByteString
+from kubemq.grpc import Event as pbEventReceive
 
 
-class QueryReceivedMessage:
+class EventStoreMessageMessage:
     def __init__(self, id: str = None,
                  from_client_id: str = None,
                  timestamp: datetime = None,
                  channel: str = None,
                  metadata: str = None,
                  body: bytes = None,
-                 reply_channel: str = None,
+                 sequence: int = 0,
                  tags: Dict[str, str] = None):
         self._id: str = id
         self._from_client_id: str = from_client_id
@@ -18,7 +18,7 @@ class QueryReceivedMessage:
         self._channel: str = channel
         self._metadata: str = metadata
         self._body: bytes = body
-        self._reply_channel: str = reply_channel
+        self._sequence: int = sequence
         self._tags: Dict[str, str] = tags if tags else {}
 
     @property
@@ -49,16 +49,24 @@ class QueryReceivedMessage:
     def tags(self) -> Dict[str, str]:
         return self._tags
 
+    @property
+    def sequence(self) -> int:
+        return self._sequence
+
     @staticmethod
-    def from_request(query_receive: pbRequest) -> 'QueryReceivedMessage':
-        tags = query_receive.Tags if query_receive.Tags else {}
-        return QueryReceivedMessage(
-            id=query_receive.RequestID,
-            from_client_id=query_receive.ClientID,
-            timestamp=datetime.now(),
-            channel=query_receive.Channel,
-            metadata=query_receive.Metadata,
-            body=query_receive.Body,
-            reply_channel=query_receive.ReplyChannel,
+    def from_event(event_receive: pbEventReceive) -> 'EventStoreMessageMessage':
+        from_client_id = event_receive.Tags.get("x-kubemq-client-id", "") if event_receive.Tags else ""
+        tags = event_receive.Tags if event_receive.Tags else {}
+        epoch_s, ns = divmod(event_receive.Timestamp, 1_000_000_000)
+        ts = datetime.fromtimestamp(epoch_s)
+        ts += timedelta(microseconds=ns // 1_000)
+        return EventStoreMessageMessage(
+            id=event_receive.EventID,
+            from_client_id=from_client_id,
+            timestamp=ts,
+            channel=event_receive.Channel,
+            metadata=event_receive.Metadata,
+            body=event_receive.Body,
+            sequence=event_receive.Sequence,
             tags=tags
         )
