@@ -1,12 +1,12 @@
 from datetime import datetime
 from typing import Dict
-from kubemq.entities.query_received_message import QueryReceivedMessage
+from kubemq.entities.query_message_received import QueryMessageReceived
 from kubemq.grpc import Response as pbResponse
 
 
 class QueryResponseMessage:
 
-    def __init__(self, query_received: QueryReceivedMessage = None,
+    def __init__(self, query_received: QueryMessageReceived = None,
                  metadata: str = None,
                  body: bytes = None,
                  tags: Dict[str, str] = None,
@@ -14,7 +14,7 @@ class QueryResponseMessage:
                  error: str = "",
                  timestamp: datetime = None,
                  ):
-        self._query_received: QueryReceivedMessage = query_received
+        self._query_received: QueryMessageReceived = query_received
         self._client_id: str = ""
         self._request_id: str = ""
         self._is_executed: bool = is_executed
@@ -25,7 +25,7 @@ class QueryResponseMessage:
         self._tags: Dict[str, str] = tags if tags else {}
 
     @property
-    def query_received(self) -> QueryReceivedMessage:
+    def query_received(self) -> QueryMessageReceived:
         return self._query_received
 
     @property

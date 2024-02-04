@@ -1,14 +1,14 @@
 import logging
 import time
 from kubemq.client import Client
-from kubemq.entities import EventMessage, EventReceivedMessage, EventsSubscription,CancellationToken
+from kubemq.entities import EventMessage, EventMessageReceived, EventsSubscription,CancellationToken
 
 def main():
 
     try:
         client = Client(address="localhost:50000", client_id="events_example", log_level=logging.DEBUG)
 
-        def on_receive_event(event: EventReceivedMessage):
+        def on_receive_event(event: EventMessageReceived):
             print(
                 f"Id:{event.id}, Timestamp:{event.timestamp} From: {event.from_client_id},  Body:{event.body.decode('utf-8')}")
 

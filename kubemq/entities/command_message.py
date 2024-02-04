@@ -64,7 +64,7 @@ class CommandMessage:
         pb_command.Metadata = self._metadata or ""
         pb_command.Body = self._body
         pb_command.Timeout = self._timeout_in_seconds * 1000
-        pb_command.RequestTypeData = pbCommand.RequestType.CommandMessage
+        pb_command.RequestTypeData = pbCommand.RequestType.Command
         for key, value in self._tags.items():
             pb_command.Tags[key] = value
         return pb_command
