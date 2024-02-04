@@ -3,7 +3,7 @@ from typing import Dict, Optional
 from kubemq.grpc import Request as pbCommand
 
 
-class Command:
+class CommandMessage:
 
     def __init__(self, id: str = None,
                  channel: str = None,
@@ -42,7 +42,7 @@ class Command:
     def timeout_in_seconds(self) -> int:
         return self._timeout_in_seconds
 
-    def validate(self) -> 'Command':
+    def validate(self) -> 'CommandMessage':
         if not self._channel:
             raise ValueError("Command message must have a channel.")
 
@@ -64,7 +64,7 @@ class Command:
         pb_command.Metadata = self._metadata or ""
         pb_command.Body = self._body
         pb_command.Timeout = self._timeout_in_seconds * 1000
-        pb_command.RequestTypeData = pbCommand.RequestType.Command
+        pb_command.RequestTypeData = pbCommand.RequestType.CommandMessage
         for key, value in self._tags.items():
             pb_command.Tags[key] = value
         return pb_command

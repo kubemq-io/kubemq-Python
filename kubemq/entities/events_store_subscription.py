@@ -2,7 +2,7 @@ import datetime
 from typing import Callable
 from kubemq.grpc import Subscribe
 from kubemq.subscription.subscribe_type import SubscribeType
-from kubemq.entities.event_store_received import EventStoreReceived
+from kubemq.entities.event_store_received_message import EventStoreReceivedMessage
 
 from enum import Enum
 
@@ -24,7 +24,7 @@ class EventsStoreSubscription:
                  events_store_type: EventsStoreType = EventsStoreType.Undefined,
                  events_store_sequence_value: int = 0,
                  events_store_start_time: datetime = None,
-                 on_receive_event_callback: Callable[[EventStoreReceived], None] = None,
+                 on_receive_event_callback: Callable[[EventStoreReceivedMessage], None] = None,
                  on_error_callback: Callable[[str], None] = None):
         self._channel: str = channel
         self._group: str = group
@@ -50,7 +50,7 @@ class EventsStoreSubscription:
         self._group = value
         return self
 
-    def add_on_receive_event_callback(self, callback: Callable[[EventStoreReceived], None]) -> 'EventsStoreSubscription':
+    def add_on_receive_event_callback(self, callback: Callable[[EventStoreReceivedMessage], None]) -> 'EventsStoreSubscription':
         self._on_receive_event_callback = callback
         return self
 
@@ -58,7 +58,7 @@ class EventsStoreSubscription:
         self._on_error_callback = callback
         return self
 
-    def raise_on_receive_message(self, received_event: EventStoreReceived):
+    def raise_on_receive_message(self, received_event: EventStoreReceivedMessage):
         if self._on_receive_event_callback is not None:
             self._on_receive_event_callback(received_event)
 

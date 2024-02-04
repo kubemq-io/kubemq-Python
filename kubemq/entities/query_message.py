@@ -3,7 +3,7 @@ from typing import Dict, Optional
 from kubemq.grpc import Request as pbQuery
 
 
-class Query:
+class QueryMessage:
 
     def __init__(self, id: str = None,
                  channel: str = None,
@@ -56,7 +56,7 @@ class Query:
         return self._cache_ttl_int_seconds
 
 
-    def validate(self) -> 'Query':
+    def validate(self) -> 'QueryMessage':
         if not self._channel:
             raise ValueError("Query message must have a channel.")
 

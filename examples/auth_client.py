@@ -1,5 +1,5 @@
 from kubemq.client import Client
-from kubemq.entities import Event
+from kubemq.entities import EventMessage
 
 def main():
     try:
@@ -10,7 +10,7 @@ def main():
                         tls_ca_file="ca.pem",
                         tls_cert_file="cert.pem",
                         tls_key_file="key.pem")
-        client.send_event(Event(
+        client.send_event(EventMessage(
             channel="e1",
             body=b"hello kubemq"
         ))

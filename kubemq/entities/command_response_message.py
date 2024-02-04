@@ -1,16 +1,16 @@
 from datetime import datetime
-from kubemq.entities.command_received import CommandReceived
+from kubemq.entities.command_received_message import CommandReceivedMessage
 from kubemq.grpc import Response as pbResponse
 
 
-class CommandResponse:
+class CommandResponseMessage:
 
-    def __init__(self, command_received: CommandReceived = None,
+    def __init__(self, command_received: CommandReceivedMessage = None,
                  is_executed: bool = False,
                  error: str = "",
                  timestamp: datetime = None,
                  ):
-        self._command_received: CommandReceived = command_received
+        self._command_received: CommandReceivedMessage = command_received
         self._client_id: str = ""
         self._request_id: str = ""
         self._is_executed: bool = is_executed
@@ -18,7 +18,7 @@ class CommandResponse:
         self._error: str = error
 
     @property
-    def command_received(self) -> CommandReceived:
+    def command_received(self) -> CommandReceivedMessage:
         return self._command_received
 
     @property
@@ -41,14 +41,14 @@ class CommandResponse:
     def timestamp(self) -> datetime:
         return self._timestamp
 
-    def validate(self) -> 'CommandResponse':
+    def validate(self) -> 'CommandResponseMessage':
         if not self._command_received:
             raise ValueError("Command response must have a command request.")
         elif self._command_received._reply_channel == "":
             raise ValueError("Command response must have a reply channel.")
         return self
 
-    def from_kubemq_command_response(self, pb_response: pbResponse) -> 'CommandResponse':
+    def from_kubemq_command_response(self, pb_response: pbResponse) -> 'CommandResponseMessage':
         self._client_id = pb_response.ClientID
         self._request_id = pb_response.RequestID
         self._is_executed = pb_response.Executed

@@ -1,12 +1,12 @@
 from datetime import datetime
 from typing import Dict
-from kubemq.entities.query_received import QueryReceived
+from kubemq.entities.query_received_message import QueryReceivedMessage
 from kubemq.grpc import Response as pbResponse
 
 
-class QueryResponse:
+class QueryResponseMessage:
 
-    def __init__(self, query_received: QueryReceived = None,
+    def __init__(self, query_received: QueryReceivedMessage = None,
                  metadata: str = None,
                  body: bytes = None,
                  tags: Dict[str, str] = None,
@@ -14,7 +14,7 @@ class QueryResponse:
                  error: str = "",
                  timestamp: datetime = None,
                  ):
-        self._query_received: QueryReceived = query_received
+        self._query_received: QueryReceivedMessage = query_received
         self._client_id: str = ""
         self._request_id: str = ""
         self._is_executed: bool = is_executed
@@ -25,7 +25,7 @@ class QueryResponse:
         self._tags: Dict[str, str] = tags if tags else {}
 
     @property
-    def query_received(self) -> QueryReceived:
+    def query_received(self) -> QueryReceivedMessage:
         return self._query_received
 
     @property
@@ -60,14 +60,14 @@ class QueryResponse:
     def tags(self) -> Dict[str, str]:
         return self._tags
 
-    def validate(self) -> 'QueryResponse':
+    def validate(self) -> 'QueryResponseMessage':
         if not self._query_received:
             raise ValueError("Query response must have a query request.")
         elif self._query_received._reply_channel == "":
             raise ValueError("Query response must have a reply channel.")
         return self
 
-    def from_kubemq_query_response(self, pb_response: pbResponse) -> 'QueryResponse':
+    def from_kubemq_query_response(self, pb_response: pbResponse) -> 'QueryResponseMessage':
         self._client_id = pb_response.ClientID
         self._request_id = pb_response.RequestID
         self._is_executed = pb_response.Executed

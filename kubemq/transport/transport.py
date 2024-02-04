@@ -1,11 +1,11 @@
 import grpc
-from grpc import aio, Channel
+from grpc import Channel
 from grpc._cython.cygrpc import ChannelCredentials
 import kubemq.grpc.kubemq_pb2_grpc as kubemq_pb2_grpc
 from typing import Sequence
-from kubemq.config.connection import Connection
-from kubemq.config.tls_config import TlsConfig
-from kubemq.config.keep_alive import KeepAliveConfig
+from kubemq.transport.connection import Connection
+from kubemq.transport.tls_config import TlsConfig
+from kubemq.transport.keep_alive import KeepAliveConfig
 from kubemq.transport._interceptors import _AuthInterceptors, _AuthInterceptorsAsync
 from kubemq.transport.server_info import ServerInfo
 from kubemq.grpc import Empty

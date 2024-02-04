@@ -1,14 +1,14 @@
 from typing import Callable
 from kubemq.grpc import Subscribe
-from kubemq.subscription.subscribe_type import SubscribeType
-from kubemq.entities.query_received import QueryReceived
+from kubemq.entities.subscribe_type import SubscribeType
+from kubemq.entities.query_received_message import QueryReceivedMessage
 
 
 class QueriesSubscription:
 
     def __init__(self, channel: str = None,
                  group: str = None,
-                 on_receive_query_callback: Callable[[QueryReceived], None] = None,
+                 on_receive_query_callback: Callable[[QueryReceivedMessage], None] = None,
                  on_error_callback: Callable[[str], None] = None):
         self._channel: str = channel
         self._group: str = group
@@ -31,7 +31,7 @@ class QueriesSubscription:
         self._group = value
         return self
 
-    def add_on_receive_query_callback(self, callback: Callable[[QueryReceived], None]) -> 'QueriesSubscription':
+    def add_on_receive_query_callback(self, callback: Callable[[QueryReceivedMessage], None]) -> 'QueriesSubscription':
         self._on_receive_query_callback = callback
         return self
 
@@ -39,7 +39,7 @@ class QueriesSubscription:
         self._on_error_callback = callback
         return self
 
-    def raise_on_receive_message(self, received_query: QueryReceived):
+    def raise_on_receive_message(self, received_query: QueryReceivedMessage):
         if self._on_receive_query_callback:
             self._on_receive_query_callback(received_query)
 

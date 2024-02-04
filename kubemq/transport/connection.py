@@ -1,7 +1,5 @@
-import logging
-
-from kubemq.config.keep_alive import KeepAliveConfig
-from kubemq.config.tls_config import TlsConfig
+from kubemq.transport.keep_alive import KeepAliveConfig
+from kubemq.transport.tls_config import TlsConfig
 
 
 class Connection:
