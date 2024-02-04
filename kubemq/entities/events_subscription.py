@@ -1,14 +1,14 @@
 from typing import Callable
 from kubemq.grpc import Subscribe
-from kubemq.subscription.subscribe_type import SubscribeType
-from kubemq.entities.event_received import EventReceived
+from kubemq.entities.subscribe_type import SubscribeType
+from kubemq.entities.event_received_message import EventReceivedMessage
 
 
 class EventsSubscription:
 
     def __init__(self, channel: str = None,
                  group: str = None,
-                 on_receive_event_callback: Callable[[EventReceived], None] = None,
+                 on_receive_event_callback: Callable[[EventReceivedMessage], None] = None,
                  on_error_callback: Callable[[str], None] = None):
         self._channel: str = channel
         self._group: str = group
@@ -24,14 +24,14 @@ class EventsSubscription:
         return self._group
 
     @property
-    def on_receive_event_callback(self) -> Callable[[EventReceived], None]:
+    def on_receive_event_callback(self) -> Callable[[EventReceivedMessage], None]:
         return self._on_receive_event_callback
 
     @property
     def on_error_callback(self) -> Callable[[str], None]:
         return self._on_error_callback
 
-    def raise_on_receive_message(self, received_event: EventReceived):
+    def raise_on_receive_message(self, received_event: EventReceivedMessage):
         if self._on_receive_event_callback:
             self._on_receive_event_callback(received_event)
 

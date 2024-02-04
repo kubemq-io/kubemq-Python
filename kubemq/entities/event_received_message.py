@@ -1,16 +1,15 @@
-from datetime import datetime, timedelta
-from typing import Dict
-from kubemq.grpc import Request as pbRequest
+from datetime import datetime
+from typing import Dict, ByteString
+from kubemq.grpc import EventReceive as pbEventReceive
 
 
-class CommandReceived:
+class EventReceivedMessage:
     def __init__(self, id: str = None,
                  from_client_id: str = None,
                  timestamp: datetime = None,
                  channel: str = None,
                  metadata: str = None,
                  body: bytes = None,
-                 reply_channel: str = None,
                  tags: Dict[str, str] = None):
         self._id: str = id
         self._from_client_id: str = from_client_id
@@ -18,7 +17,6 @@ class CommandReceived:
         self._channel: str = channel
         self._metadata: str = metadata
         self._body: bytes = body
-        self._reply_channel: str = reply_channel
         self._tags: Dict[str, str] = tags if tags else {}
 
     @property
@@ -49,20 +47,17 @@ class CommandReceived:
     def tags(self) -> Dict[str, str]:
         return self._tags
 
-    @property
-    def reply_channel(self) -> str:
-        return self._reply_channel
-
     @staticmethod
-    def from_request(command_receive: pbRequest) -> 'CommandReceived':
-        tags = command_receive.Tags if command_receive.Tags else {}
-        return CommandReceived(
-            id=command_receive.RequestID,
-            from_client_id=command_receive.ClientID,
+    def from_event(event_receive: pbEventReceive) -> 'EventReceivedMessage':
+        from_client_id = event_receive.Tags.get("x-kubemq-client-id", "") if event_receive.Tags else ""
+        tags = event_receive.Tags if event_receive.Tags else {}
+
+        return EventReceivedMessage(
+            id=event_receive.EventID,
+            from_client_id=from_client_id,
             timestamp=datetime.now(),
-            channel=command_receive.Channel,
-            metadata=command_receive.Metadata,
-            body=command_receive.Body,
-            reply_channel=command_receive.ReplyChannel,
+            channel=event_receive.Channel,
+            metadata=event_receive.Metadata,
+            body=event_receive.Body,
             tags=tags
         )
