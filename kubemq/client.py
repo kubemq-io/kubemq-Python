@@ -2,21 +2,9 @@ import logging
 import threading
 import asyncio
 import grpc
-
-import kubemq
 from kubemq.config import Connection, TlsConfig, KeepAliveConfig
-from kubemq.exceptions import ValidationError, GRPCError
-from kubemq.pubsub.events import *
-from kubemq.pubsub.events_store import *
+from kubemq.entities import *
 from kubemq.transport import ServerInfo, Transport
-
-
-class CancellationToken:
-    def __init__(self):
-        self.is_cancelled = False
-
-    def cancel(self):
-        self.is_cancelled = True
 
 
 class Client:
@@ -108,6 +96,23 @@ class Client:
             self._logger.error(str(ex))
             raise ex
 
+    def send(self, message: [Event, EventStore, Command, Query, CommandResponse, QueryResponse]) -> [CommandResponse,
+                                                                                                     QueryResponse,
+                                                                                                     None]:
+        if isinstance(message, Event):
+            return self._send_event(message)
+        if isinstance(message, EventStore):
+            return self._send_event(message)
+        if isinstance(message, Command):
+            return self._send_request(message)
+        if isinstance(message, CommandResponse):
+            return self._send_response(message)
+        if isinstance(message, Query):
+            return self._send_request(message)
+        if isinstance(message, QueryResponse):
+            return self._send_response(message)
+        return None
+
     def _send_event(self, event_to_send: [Event, EventStore]):
         try:
             event_to_send.validate()
@@ -121,21 +126,53 @@ class Client:
             self._logger.error(str(ex))
             raise ex
 
-    def send_event(self, event_to_send: Event) -> None:
-        return self._send_event(event_to_send)
+    def _send_response(self, response_to_send: [CommandResponse, QueryResponse]):
+        try:
+            response_to_send.validate()
+            if isinstance(response_to_send, CommandResponse):
+                self._transport.kubemq_client().SendResponse(
+                    response_to_send.to_kubemq_command_response(self._connection.client_id))
+            if isinstance(response_to_send, QueryResponse):
+                self._transport.kubemq_client().SendResponse(
+                    response_to_send.to_kubemq_query_response(self._connection.client_id))
+        except ValueError as e:
+            ex = ValidationError(str(e))
+            self._logger.error(str(ex))
+            raise ex
+        except Exception as e:
+            ex = GRPCError(e)
+            self._logger.error(str(ex))
+            raise ex
 
-    def subscribe_to_events(self, subscription: EventsSubscription, cancellation_token: CancellationToken):
-        return self._subscribe_to_events(subscription, cancellation_token)
+    def _send_request(self, request_to_send: [Command, Query]) -> [CommandResponse, QueryResponse]:
+        try:
+            request_to_send.validate()
+            if isinstance(request_to_send, Command):
+                response = self._transport.kubemq_client().SendRequest(
+                    request_to_send.to_kubemq_command(self._connection.client_id))
+                return CommandResponse().from_kubemq_command_response(response)
+            if isinstance(request_to_send, Query):
+                response = self._transport.kubemq_client().SendRequest(
+                    request_to_send.to_kubemq_query(self._connection.client_id))
+                return QueryResponse().from_kubemq_query_response(response)
 
-    def send_event_store(self, event_to_send: EventStore):
-        return self._send_event(event_to_send)
+        except ValueError as e:
+            ex = ValidationError(str(e))
+            self._logger.error(str(ex))
+            raise ex
+        except Exception as e:
+            ex = GRPCError(e)
+            self._logger.error(str(ex))
+            raise ex
 
-    def subscribe_to_events_store(self, subscription: EventsStoreSubscription,
-                                  cancellation_token: CancellationToken):
-        return self._subscribe_to_events(subscription, cancellation_token)
+    def subscribe(self, subscription: [EventsSubscription, EventsStoreSubscription, CommandsSubscription,
+                                       QueriesSubscription],
+                  cancellation_token: CancellationToken):
+        return self._subscribe(subscription, cancellation_token)
 
-    def _subscribe_to_events(self, subscription: [EventsStoreSubscription, EventsSubscription],
-                             cancellation_token: CancellationToken):
+    def _subscribe(self, subscription: [EventsStoreSubscription, EventsSubscription, CommandsSubscription,
+                                        QueriesSubscription],
+                   cancellation_token: CancellationToken):
         try:
             subscription.validate()
             if cancellation_token is None:
@@ -146,12 +183,31 @@ class Client:
                 try:
                     while not cancellation_token.is_cancelled:
                         try:
-                            response_stream = self._transport.kubemq_client().SubscribeToEvents(
-                                subscription.to_subscribe_request(self._connection.client_id))
+                            if isinstance(subscription, EventsStoreSubscription):
+                                response_stream = self._transport.kubemq_client().SubscribeToEvents(
+                                    subscription.to_subscribe_request(self._connection.client_id))
+                            if isinstance(subscription, EventsSubscription):
+                                response_stream = self._transport.kubemq_client().SubscribeToEvents(
+                                    subscription.to_subscribe_request(self._connection.client_id))
+                            if isinstance(subscription, CommandsSubscription):
+                                response_stream = self._transport.kubemq_client().SubscribeToRequests(
+                                    subscription.to_subscribe_request(self._connection.client_id))
+                            if isinstance(subscription, QueriesSubscription):
+                                response_stream = self._transport.kubemq_client().SubscribeToRequests(
+                                    subscription.to_subscribe_request(self._connection.client_id))
                             self._logger.debug(f"Subscribed to {subscription.channel}")
                             while not cancellation_token.is_cancelled:
-                                event_receive = response_stream.next()
-                                subscription.raise_on_receive_event(EventStoreReceived().from_event(event_receive))
+                                message_receive = response_stream.next()
+                                if isinstance(subscription, EventsStoreSubscription):
+                                    subscription.raise_on_receive_message(
+                                        EventStoreReceived().from_event(message_receive))
+                                if isinstance(subscription, EventsSubscription):
+                                    subscription.raise_on_receive_message(EventReceived().from_event(message_receive))
+                                if isinstance(subscription, CommandsSubscription):
+                                    subscription.raise_on_receive_message(
+                                        CommandReceived().from_request(message_receive))
+                                if isinstance(subscription, QueriesSubscription):
+                                    subscription.raise_on_receive_message(QueryReceived().from_request(message_receive))
                             if cancellation_token.is_cancelled:
                                 self._logger.debug(f"Unsubscribed from {subscription.channel}")
                                 break
@@ -193,66 +249,3 @@ class Client:
             ex = GRPCError(e)
             self._logger.error(str(ex))
             raise ex
-#
-# class AsyncClient:
-#     def __init__(self, address: str = "",
-#                  client_id: str = "",
-#                  auth_token: str = "",
-#                  tls: bool = False,
-#                  tls_cert_file: str = "",
-#                  tls_key_file: str = "",
-#                  tls_ca_file: str = "",
-#                  max_send_size: int = 0,
-#                  max_receive_size: int = 0,
-#                  disable_auto_reconnect: bool = False,
-#                  reconnect_interval_seconds: int = 0,
-#                  keep_alive: bool = False,
-#                  ping_interval_in_seconds: int = 0,
-#                  ping_timeout_in_seconds: int = 0) -> None:
-#         self._connection: Connection = Connection(
-#             address=address,
-#             client_id=client_id,
-#             auth_token=auth_token,
-#             tls=TlsConfig(
-#                 ca_file=tls_ca_file,
-#                 cert_file=tls_cert_file,
-#                 key_file=tls_key_file,
-#                 enabled=tls,
-#             ),
-#             max_send_size=max_send_size,
-#             max_receive_size=max_receive_size,
-#             disable_auto_reconnect=disable_auto_reconnect,
-#             reconnect_interval_seconds=reconnect_interval_seconds,
-#             keep_alive=KeepAliveConfig(
-#                 enabled=keep_alive,
-#                 ping_interval_in_seconds=ping_interval_in_seconds,
-#                 ping_timeout_in_seconds=ping_timeout_in_seconds
-#             ))
-#         try:
-#             self._connection.validate()
-#         except Exception as e:
-#             raise ValidationError(e)
-#         self._transport = AsyncTransport(self._connection)
-#         self._transport.initialize()
-#
-#     async def connect(self) -> 'AsyncClient':
-#         try:
-#             await self._transport.initialize()
-#         except Exception as e:
-#             raise ConnectionError(e)
-#         return self
-#
-#     async def close(self):
-#         await self._transport.close()
-#
-#     async def ping(self) -> ServerInfo:
-#         if not self._transport.is_connected():
-#             raise ConnectionError("Not connected")
-#         return await self._transport.ping()
-#
-#     async def __aenter__(self):
-#         await self.connect()
-#         return self
-#
-#     async def __aexit__(self, exc_type, exc_value, traceback):
-#         await self.close()

@@ -2,7 +2,7 @@ import datetime
 from typing import Callable
 from kubemq.grpc import Subscribe
 from kubemq.subscription.subscribe_type import SubscribeType
-from kubemq.pubsub.events_store.event_store_received import EventStoreReceived
+from kubemq.entities.event_store_received import EventStoreReceived
 
 from enum import Enum
 
@@ -58,7 +58,7 @@ class EventsStoreSubscription:
         self._on_error_callback = callback
         return self
 
-    def raise_on_receive_event(self, received_event: EventStoreReceived):
+    def raise_on_receive_message(self, received_event: EventStoreReceived):
         if self._on_receive_event_callback is not None:
             self._on_receive_event_callback(received_event)
 
@@ -68,15 +68,15 @@ class EventsStoreSubscription:
 
     def validate(self):
         if not self._channel:
-            raise ValueError("Event subscription must have a channel.")
+            raise ValueError("Event Store subscription must have a channel.")
         if not self._on_receive_event_callback:
-            raise ValueError("Event subscription must have an OnReceiveEvent callback function.")
+            raise ValueError("Event Store subscription must have a on_receive_event_callback function.")
         if self._events_store_type == EventsStoreType.Undefined:
-            raise ValueError("Event subscription must have an events store type.")
+            raise ValueError("Event Store subscription must have an events store type.")
         if self._events_store_type == EventsStoreType.StartAtSequence and self._events_store_sequence_value == 0:
-            raise ValueError("Event subscription with StartAtSequence events store type must have a sequence value.")
+            raise ValueError("Event Store subscription with StartAtSequence events store type must have a sequence value.")
         if self._events_store_type == EventsStoreType.StartAtTime and not self._events_store_start_time:
-            raise ValueError("Event subscription with StartAtTime events store type must have a start time.")
+            raise ValueError("Event Store subscription with StartAtTime events store type must have a start time.")
 
     def to_subscribe_request(self, client_id: str = "") -> Subscribe:
         request = Subscribe()
