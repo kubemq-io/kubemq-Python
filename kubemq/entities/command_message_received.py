@@ -66,3 +66,6 @@ class CommandMessageReceived:
             reply_channel=command_receive.ReplyChannel,
             tags=tags
         )
+
+    def __repr__(self):
+        return f"CommandMessageReceived: id={self._id}, from_client_id={self._from_client_id}, timestamp={self._timestamp}, channel={self._channel}, metadata={self._metadata}, body={self._body}, reply_channel={self._reply_channel}, tags={self._tags}"

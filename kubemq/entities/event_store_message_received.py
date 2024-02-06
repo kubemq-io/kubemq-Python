@@ -70,3 +70,6 @@ class EventStoreMessageMessage:
             sequence=event_receive.Sequence,
             tags=tags
         )
+
+    def __repr__(self):
+        return f"EventStoreMessageMessage(id={self._id}, from_client_id={self._from_client_id}, timestamp={self._timestamp}, channel={self._channel}, metadata={self._metadata}, body={self._body}, sequence={self._sequence}, tags={self._tags})"

@@ -52,3 +52,6 @@ class QueriesSubscription:
         request.ClientID = client_id
         request.SubscribeTypeData = SubscribeType.Queries.value
         return request
+
+    def __repr__(self):
+        return f"QueriesSubscription: channel={self._channel}, group={self._group}"

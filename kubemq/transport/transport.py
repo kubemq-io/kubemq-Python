@@ -43,6 +43,8 @@ class Transport:
         self._opts: Connection = connection.complete()
         self._channel: Channel = None
         self._client: kubemq_pb2_grpc.kubemqStub = None
+        self._async_channel: Channel = None
+        self._async_client: kubemq_pb2_grpc.kubemqStub = None
         self._is_connected: bool = False
 
     def initialize(self) -> 'Transport':
@@ -56,13 +58,29 @@ class Transport:
             self._channel = grpc.intercept_channel(self._channel, *interceptors)
             self._client = kubemq_pb2_grpc.kubemqStub(self._channel)
             self.ping()
+            self._initialize_async()
             self._is_connected = True
         except Exception as ex:
             self._is_connected = False
             raise ex
         return self
 
+    def _initialize_async(self) -> None:
+        auth_interceptor_async: _AuthInterceptorsAsync = _AuthInterceptorsAsync(self._opts.auth_token)
+        interceptors_async: Sequence[grpc.aio.ClientInterceptor] = [auth_interceptor_async]
+        if self._opts.tls.enabled:
+            try:
+                credentials: ChannelCredentials = _get_ssl_credentials(self._opts.tls)
+                self._async_channel = grpc.aio.secure_channel(self._opts.address, credentials,
+                                                              options=_get_call_options(self._opts),
+                                                              interceptors=interceptors_async)
+            except Exception as e:
+                raise e
+        else:
+            self._async_channel = grpc.aio.insecure_channel(self._opts.address, options=_get_call_options(self._opts),
+                                                            interceptors=interceptors_async)
 
+        self._async_client = kubemq_pb2_grpc.kubemqStub(self._channel)
 
     def ping(self) -> ServerInfo:
         response = self._client.Ping(Empty())
@@ -75,6 +93,9 @@ class Transport:
 
     def kubemq_client(self) -> kubemq_pb2_grpc.kubemqStub:
         return self._client
+
+    def kubemq_async_client(self) -> kubemq_pb2_grpc.kubemqStub:
+        return self._async_client
 
     def is_connected(self) -> bool:
         return self._is_connected

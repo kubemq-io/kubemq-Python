@@ -68,3 +68,6 @@ class CommandMessage:
         for key, value in self._tags.items():
             pb_command.Tags[key] = value
         return pb_command
+
+    def __repr__(self):
+        return f"CommandMessage: id={self._id}, channel={self._channel}, metadata={self._metadata}, body={self._body}, tags={self._tags}, timeout_in_seconds={self._timeout_in_seconds}"

@@ -52,3 +52,6 @@ class EventsSubscription:
         request.ClientID = client_id
         request.SubscribeTypeData = SubscribeType.Events.value
         return request
+
+    def __repr__(self):
+        return f"EventsSubscription: channel={self._channel}, group={self._group}"
