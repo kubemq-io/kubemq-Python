@@ -26,11 +26,11 @@ def main():
             )
             , cancellation_token=CancellationToken())
         time.sleep(1)
-        client.send(EventStoreMessage(
+        result= client.send(EventStoreMessage(
             channel="es1",
             body=b"hello kubemq"
         ))
-        time.sleep(100)
+        print(f"send result:{result}")
     except Exception as e:
         print(e)
         return

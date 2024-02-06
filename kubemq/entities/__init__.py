@@ -8,6 +8,7 @@ from .query_response_message import QueryResponseMessage
 from .queries_subscription import QueriesSubscription
 from .event_message import EventMessage
 from .event_message_received import EventMessageReceived
+from .event_send_result import EventSendResult
 from .events_subscription import EventsSubscription
 from .event_store_message import EventStoreMessage
 from .event_store_message_received import EventStoreMessageMessage

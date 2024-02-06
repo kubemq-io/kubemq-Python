@@ -71,3 +71,7 @@ class QueuesSubscription:
         request.AutoAck = self._auto_ack_messages
         request.RequestTypeData = QueuesDownstreamRequestType.Get.value
         return request
+
+    def __repr__(self):
+        return f"QueuesSubscription: channel={self._channel}, poll_max_messages={self._poll_max_messages}, " \
+               f"poll_wait_timeout_in_seconds={self._poll_wait_timeout_in_seconds}, auto_ack_messages={self._auto_ack_messages}"
