@@ -82,3 +82,6 @@ class QueryMessage:
         pb_query.CacheKey = self._cache_key
         pb_query.CacheTTL = self._cache_ttl_int_seconds * 1000
         return pb_query
+
+    def __str__(self) -> str:
+        return f"ID: {self._id}, Channel: {self._channel}, Metadata: {self._metadata}, Body: {self._body}, Tags: {self._tags}, Timeout: {self._timeout_in_seconds}, CacheKey: {self._cache_key}, CacheTTL: {self._cache_ttl_int_seconds}"

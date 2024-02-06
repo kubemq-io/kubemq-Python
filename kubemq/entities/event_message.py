@@ -65,3 +65,6 @@ class EventMessage:
             pb_event.Tags[key] = value
 
         return pb_event
+
+    def __repr__(self):
+        return f"EventMessage: id={self._id}, channel={self._channel}, metadata={self._metadata}, body={self._body}, tags={self._tags}"

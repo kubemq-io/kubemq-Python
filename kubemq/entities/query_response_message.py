@@ -91,3 +91,7 @@ class QueryResponseMessage:
         for key, value in self._tags.items():
             pb_response.Tags[key] = value
         return pb_response
+
+
+    def __str__(self):
+        return f'QueryResponseMessage: client_id:{self._client_id}, request_id:{self._request_id}, is_executed:{self._is_executed}, error:{self._error}, timestamp:{self._timestamp}, metadata:{self._metadata}, body:{self._body}, tags:{self._tags}'

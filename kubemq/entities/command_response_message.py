@@ -65,3 +65,7 @@ class CommandResponseMessage:
         pb_response.Error = self._error
         pb_response.Timestamp = int(self._timestamp.timestamp() * 1e9)
         return pb_response
+
+    def __repr__(self):
+        return f"CommandResponseMessage: client_id={self._client_id}, request_id={self._request_id}, " \
+               f"is_executed={self._is_executed}, error={self._error}, timestamp={self._timestamp}"

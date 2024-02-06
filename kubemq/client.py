@@ -1,9 +1,13 @@
 import logging
 import threading
 import asyncio
+import queue
+import time
+
 import grpc
 from kubemq.entities import *
 from kubemq.transport import ServerInfo, Transport, Connection, KeepAliveConfig, TlsConfig
+from kubemq.grpc import Event, Result
 
 
 class Client:
@@ -51,6 +55,8 @@ class Client:
             self._connection.validate()
             self._transport: Transport = Transport(self._connection).initialize()
             self._logger.info(f"Client connected to {self._connection.address}")
+            self._shutdown_event: threading.Event = threading.Event()
+            self._event_sender = None
         except ValueError as e:
             ex = ValidationError(e)
             self._logger.error(str(ex))
@@ -81,6 +87,7 @@ class Client:
             self._logger.debug(f"Client disconnecting from {self._connection.address}")
             self._transport.close()
             self._logger.debug(f"Client disconnected from {self._connection.address}")
+            self._shutdown_event.set()
         except Exception as e:
             ex = GRPCError(e)
             self._logger.error(str(ex))
@@ -95,9 +102,11 @@ class Client:
             self._logger.error(str(ex))
             raise ex
 
-    def send(self, message: [EventMessage, EventStoreMessage, CommandMessage, QueryMessage, CommandResponseMessage, QueryResponseMessage]) -> [CommandResponseMessage,
-                                                                                                                                        QueryResponseMessage,
-                                                                                                                                        None]:
+    def send(self, message: [EventMessage, EventStoreMessage, CommandMessage, QueryMessage, CommandResponseMessage,
+                             QueryResponseMessage]) -> [CommandResponseMessage,
+                                                        QueryResponseMessage,
+                                                        EventSendResult,
+                                                        None]:
         if isinstance(message, EventMessage):
             return self._send_event(message)
         if isinstance(message, EventStoreMessage):
@@ -112,10 +121,15 @@ class Client:
             return self._send_response(message)
         return None
 
-    def _send_event(self, event_to_send: [EventMessage, EventStoreMessage]):
+    def _send_event(self, event_to_send: [EventMessage, EventStoreMessage]) -> [EventSendResult, None]:
         try:
+            if self._event_sender is None:
+                self._event_sender = _EventSender(self._transport, self._shutdown_event, self._logger, self._connection)
             event_to_send._validate()
-            self._transport.kubemq_client().SendEvent(event_to_send._to_kubemq_event(self._connection.client_id))
+            result = self._event_sender._send(event_to_send._to_kubemq_event(self._connection.client_id))
+            if result is not None:
+                return EventSendResult()._from_kubemq_result(result)
+            return None
         except ValueError as e:
             ex = ValidationError(str(e))
             self._logger.error(str(ex))
@@ -143,7 +157,8 @@ class Client:
             self._logger.error(str(ex))
             raise ex
 
-    def _send_request(self, request_to_send: [CommandMessage, QueryMessage]) -> [CommandResponseMessage, QueryResponseMessage]:
+    def _send_request(self, request_to_send: [CommandMessage, QueryMessage]) -> [CommandResponseMessage,
+                                                                                 QueryResponseMessage]:
         try:
             request_to_send._validate()
             if isinstance(request_to_send, CommandMessage):
@@ -201,12 +216,14 @@ class Client:
                                     subscription.raise_on_receive_message(
                                         EventStoreMessageMessage()._from_event(message_receive))
                                 if isinstance(subscription, EventsSubscription):
-                                    subscription.raise_on_receive_message(EventMessageReceived()._from_event(message_receive))
+                                    subscription.raise_on_receive_message(
+                                        EventMessageReceived()._from_event(message_receive))
                                 if isinstance(subscription, CommandsSubscription):
                                     subscription.raise_on_receive_message(
                                         CommandMessageReceived()._from_request(message_receive))
                                 if isinstance(subscription, QueriesSubscription):
-                                    subscription.raise_on_receive_message(QueryMessageReceived()._from_request(message_receive))
+                                    subscription.raise_on_receive_message(
+                                        QueryMessageReceived()._from_request(message_receive))
                             if cancellation_token.is_cancelled:
                                 self._logger.debug(f"Unsubscribed from {subscription.channel}")
                                 break
@@ -248,3 +265,106 @@ class Client:
             ex = GRPCError(e)
             self._logger.error(str(ex))
             raise ex
+
+
+class _EventSender:
+    def __init__(self, transport: Transport, shutdown_event: threading.Event, logger: logging.Logger, connection: Connection):
+        self._clientStub = transport.kubemq_client()
+        self._connection = connection
+        self._shutdown_event = shutdown_event
+        self._logger = logger
+        self._lock = threading.Lock()
+        self._response_tracking = {}
+        self._sending_queue = queue.Queue()
+        self._allow_new_messages = True
+        threading.Thread(target=self._send_events_stream, args=(), daemon=True).start()
+
+    def _send(self, event: Event) -> [Result, None]:
+        if not self._allow_new_messages:
+            raise ConnectionError("Client is not connected to the server and cannot send messages.")
+
+        if not event.Store:
+            self._sending_queue.put(event)
+            return None
+        response_event = threading.Event()
+        response_container = {}
+
+        with self._lock:
+            self._response_tracking[event.EventID] = (response_container, response_event)
+        self._sending_queue.put(event)
+        response_event.wait()
+        response = response_container.get('response')
+        with self._lock:
+            del self._response_tracking[event.EventID]
+        return response
+
+    def _handle_disconnection(self):
+        with self._lock:
+            self._allow_new_messages = False
+            while not self._sending_queue.empty():
+                try:
+                    self._sending_queue.get_nowait()  # Clear the queue
+                except queue.Empty:
+                    continue
+
+            # Set error on all response containers
+            for event_id, (response_container, response_event) in self._response_tracking.items():
+                response_container['response'] = Result(
+                    EventID=event_id,
+                    Sent=False,
+                    Error='Error: Disconnected from server'
+                )
+                response_event.set()  # Signal that the response has been processed
+            self._response_tracking.clear()
+
+    def _send_events_stream(self):
+        def send_requests():
+            while not self._shutdown_event.is_set():
+                try:
+                    msg = self._sending_queue.get(timeout=1)  # timeout to check for shutdown event periodically
+                    yield msg
+                except queue.Empty:
+                    continue
+
+        while not self._shutdown_event.is_set():
+            try:
+                with self._lock:
+                    self._allow_new_messages = True
+                responses = self._clientStub.SendEventsStream(send_requests())
+                for response in responses:
+                    if self._shutdown_event.is_set():
+                        break
+                    response_event_id = response.EventID
+                    with self._lock:
+                        if response_event_id in self._response_tracking:
+                            response_container, response_event = self._response_tracking[response_event_id]
+                            response_container['response'] = response
+                            response_event.set()
+            except grpc.RpcError as e:
+                self._logger.debug(_decode_grpc_error(e))
+                self._handle_disconnection()
+                time.sleep(self._connection.reconnect_interval_seconds)
+                continue
+            except Exception as e:
+                self._logger.debug(f"Error: {str(e)}")
+                self._handle_disconnection()
+                time.sleep(self._connection.reconnect_interval_seconds)
+                continue
+
+
+
+
+def _decode_grpc_error(exc) -> str:
+    # Initialize the base exception message in case neither status nor details are found
+    message = str(exc)
+
+    # Check if the exception has 'code' (status) and 'details' methods
+    if hasattr(exc, 'code') and callable(exc.code) and hasattr(exc, 'details') and callable(exc.details):
+        status = exc.code()
+        details = exc.details()
+
+        # Ensure that status and details are not None
+        if status is not None and details is not None:
+            message = f"KubeMQ Connection Error - Status: {status} Details: {details}"
+
+    return message

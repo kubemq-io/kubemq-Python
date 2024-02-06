@@ -84,3 +84,6 @@ class QueueMessageReceived:
             self._expired_at = datetime.fromtimestamp(pb_queue.Attributes.ExpirationAt/1e9)
             self._delayed_to = datetime.fromtimestamp(pb_queue.Attributes.DelayedTo/1e9)
         return self
+
+    def __repr__(self):
+        return f"QueueMessageReceived: id={self._id}, channel={self._channel}, metadata={self._metadata}, body={self._body}, tags={self._tags}, timestamp={self._timestamp}, sequence={self._sequence}, receive_count={self._receive_count}, is_re_routed={self._is_re_routed}, re_route_from_queue={self._re_route_from_queue}, expired_at={self._expired_at}, delayed_to={self._delayed_to}"

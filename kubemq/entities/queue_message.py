@@ -104,3 +104,7 @@ class QueueMessage:
             MaxReceiveQueue=self._dead_letter_queue
         )
         return pb_queue
+
+
+    def __repr__(self):
+        return f"QueueMessage: id={self._id}, channel={self._channel}, metadata={self._metadata}, body={self._body}, tags={self._tags}, delay_in_seconds={self._delay_in_seconds}, expiration_in_seconds={self._expiration_in_seconds}, attempts_before_dead_letter_queue={self._attempts_before_dead_letter_queue}, dead_letter_queue={self._dead_letter_queue}"
