@@ -21,7 +21,7 @@ def main():
         def on_error_handler(err: str):
             print(f"Error: {err}")
 
-        client = Client(address="localhost:50000", client_id="events_example", log_level=logging.DEBUG)
+        client = Client(address="localhost:50000", client_id="command_example", log_level=logging.DEBUG)
         client.subscribe(
             subscription=CommandsSubscription(
                 channel="c1",

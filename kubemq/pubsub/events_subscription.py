@@ -1,7 +1,7 @@
 from typing import Callable
 from kubemq.grpc import Subscribe
-from kubemq.entities.subscribe_type import SubscribeType
-from kubemq.entities.event_message_received import EventMessageReceived
+from kubemq.common.subscribe_type import SubscribeType
+from kubemq.pubsub import EventMessageReceived
 
 
 class EventsSubscription:
@@ -39,13 +39,13 @@ class EventsSubscription:
         if self._on_error_callback:
             self._on_error_callback(msg)
 
-    def _validate(self):
+    def validate(self):
         if not self._channel:
             raise ValueError("Event subscription must have a channel.")
         if not self._on_receive_event_callback:
             raise ValueError("Event subscription must have a on_receive_event_callback function.")
 
-    def _to_subscribe_request(self, client_id: str = "") -> Subscribe:
+    def encode(self, client_id: str = "") -> Subscribe:
         request = Subscribe()
         request.Channel = self._channel
         request.Group = self._group
