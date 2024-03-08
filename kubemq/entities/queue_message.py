@@ -10,101 +10,61 @@ class QueueMessage:
     def __init__(self, id: str = None,
                  channel: str = None,
                  metadata: str = None,
-                 body: bytes = None,
+                 body: bytes = b"",
                  tags: Dict[str, str] = None,
                  delay_in_seconds: int = 0,
                  expiration_in_seconds: int = 0,
                  attempts_before_dead_letter_queue: int = 0,
                  dead_letter_queue: str = "",
                  ):
-        self._id: str = id
-        self._channel: str = channel
-        self._metadata: str = metadata
-        self._body: bytes = body
-        self._tags: Dict[str, str] = tags if tags else {}
-        self._delay_in_seconds: int = delay_in_seconds
-        self._expiration_in_seconds: int = expiration_in_seconds
-        self._attempts_before_dead_letter_queue: int = attempts_before_dead_letter_queue
-        self._dead_letter_queue: str = dead_letter_queue
+        self.id: str = id
+        self.channel: str = channel
+        self.metadata: str = metadata
+        self.body: bytes = body
+        self.tags: Dict[str, str] = tags if tags else {}
+        self.delay_in_seconds: int = delay_in_seconds
+        self.expiration_in_seconds: int = expiration_in_seconds
+        self.attempts_before_dead_letter_queue: int = attempts_before_dead_letter_queue
+        self.dead_letter_queue: str = dead_letter_queue
 
-    @property
-    def id(self) -> str:
-        return self._id
-
-    @property
-    def channel(self) -> str:
-        return self._channel
-
-    @property
-    def metadata(self) -> str:
-        return self._metadata
-
-    @property
-    def body(self) -> bytes:
-        return self._body
-
-    @property
-    def tags(self) -> Dict[str, str]:
-        return self._tags
-
-    @property
-    def delay_in_seconds(self) -> int:
-        return self._delay_in_seconds
-
-    @property
-    def expiration_in_seconds(self) -> int:
-        return self._expiration_in_seconds
-
-    @property
-    def attempts_before_dead_letter_queue(self) -> int:
-        return self._attempts_before_dead_letter_queue
-
-    @property
-    def dead_letter_queue(self) -> str:
-        return self._dead_letter_queue
-
-    def _validate(self) -> 'QueueMessage':
-        if not self._channel:
+    def validate(self) -> 'QueueMessage':
+        if not self.channel:
             raise ValueError("Queue message must have a channel.")
 
-        if not self._metadata and not self._body and not self._tags:
+        if not self.metadata and not self.body and not self.tags:
             raise ValueError("Queue message must have at least one of the following: metadata, body, or tags.")
 
-        if self._attempts_before_dead_letter_queue < 0:
+        if self.attempts_before_dead_letter_queue < 0:
             raise ValueError("Queue message attempts_before_dead_letter_queue must be a positive number.")
 
-        if self._delay_in_seconds < 0:
+        if self.delay_in_seconds < 0:
             raise ValueError("Queue message delay_in_seconds must be a positive number.")
 
-        if self._expiration_in_seconds < 0:
+        if self.expiration_in_seconds < 0:
             raise ValueError("Queue message expiration_in_seconds must be a positive number.")
 
         return self
 
-    def _to_kubemq_queue_stream(self, client_id: str) -> pbQueuesUpstreamRequest:
+    def encode(self, client_id: str) -> pbQueuesUpstreamRequest:
         pb_queue_stream = pbQueuesUpstreamRequest()
         pb_queue_stream.RequestID = str(uuid.uuid4())
-        pb_queue_stream.Messages.extend([self._to_kubemq_queue(client_id)])
+        pb_message = self.encode_message(client_id)
+        pb_queue_stream.Messages.append(pb_message)
         return pb_queue_stream
 
-    def _to_kubemq_queue(self, client_id: str) -> pbQueueMessage:
-        if not self._id:
-            self._id = str(uuid.uuid4())
+    def encode_message(self, client_id: str) -> pbQueueMessage:
         pb_queue = pbQueueMessage()  # Assuming pb is an imported module
-        pb_queue.MessageID = self._id
+        pb_queue.MessageID = self.id or str(uuid.uuid4())
         pb_queue.ClientID = client_id
-        pb_queue.Channel = self._channel
-        pb_queue.Metadata = self._metadata or ""
-        pb_queue.Body = self._body
-        pb_queue.Tags.update(self._tags)
-        pb_queue.Policy = pbQueueMessagePolicy(
-            DelaySeconds=self._delay_in_seconds * 1000,
-            ExpirationSeconds=self._expiration_in_seconds * 1000,
-            MaxReceiveCount=self._attempts_before_dead_letter_queue,
-            MaxReceiveQueue=self._dead_letter_queue
-        )
+        pb_queue.Channel = self.channel
+        pb_queue.Metadata = self.metadata or ""
+        pb_queue.Body = self.body
+        pb_queue.Tags.update(self.tags)
+        pb_queue.Policy.DelaySeconds = self.delay_in_seconds or 0
+        pb_queue.Policy.ExpirationSeconds = self.expiration_in_seconds or 0
+        pb_queue.Policy.MaxReceiveCount = self.attempts_before_dead_letter_queue or 0
+        pb_queue.Policy.MaxReceiveQueue = self.dead_letter_queue or ""
         return pb_queue
 
-
     def __repr__(self):
-        return f"QueueMessage: id={self._id}, channel={self._channel}, metadata={self._metadata}, body={self._body}, tags={self._tags}, delay_in_seconds={self._delay_in_seconds}, expiration_in_seconds={self._expiration_in_seconds}, attempts_before_dead_letter_queue={self._attempts_before_dead_letter_queue}, dead_letter_queue={self._dead_letter_queue}"
+        return f"QueueMessage: id={self.id}, channel={self.channel}, metadata={self.metadata}, body={self.body}, tags={self.tags}, delay_in_seconds={self.delay_in_seconds}, expiration_in_seconds={self.expiration_in_seconds}, attempts_before_dead_letter_queue={self.attempts_before_dead_letter_queue}, dead_letter_queue={self.dead_letter_queue}"

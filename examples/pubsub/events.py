@@ -1,18 +1,18 @@
 import logging
 import time
-from kubemq.client import Client
-from kubemq.entities import EventMessage, EventMessageReceived, EventsSubscription,CancellationToken
+from kubemq.pubsub import *
 
 def main():
 
     try:
-        client = Client(address="localhost:50000", client_id="events_example", log_level=logging.DEBUG)
+        client = Client(address="localhost:50000", client_id="events_example")
         def on_receive_event(event: EventMessageReceived):
             print(
                 f"Id:{event.id}, Timestamp:{event.timestamp} From: {event.from_client_id},  Body:{event.body.decode('utf-8')}")
 
         def on_error_handler(err: str):
-            print(f"Error: {err}")
+            print(f"{err}")
+
         client.subscribe(
             subscription=EventsSubscription(
                 channel="e1",
@@ -20,7 +20,7 @@ def main():
                 on_receive_event_callback=on_receive_event,
                 on_error_callback=on_error_handler,
             )
-            , cancellation_token=CancellationToken())
+            , cancel=CancellationToken())
         time.sleep(1)
         client.send(EventMessage(
             channel="e1",
