@@ -37,6 +37,10 @@ class SendEventError(BaseError):
         self.message = f"Send Event Error: {message}"
         super().__init__(self.message)
 
+class DeleteChannelError(BaseError):
+    def __init__(self, message: str) -> None:
+        self.message = f"Delete Channel Error: {message}"
+        super().__init__(self.message)
 
 class GRPCError(Exception):
     def __init__(self, exc):
