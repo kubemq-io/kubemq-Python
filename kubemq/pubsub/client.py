@@ -5,10 +5,11 @@ import time
 import uuid
 import grpc
 from kubemq.transport import *
-from kubemq.grpc import (Event,Result)
+from kubemq.grpc import (Event,Result,Request,Response,Request)
 from kubemq.pubsub import *
 from kubemq.common import *
 
+requests_channel="kubemq.cluster.internal.requests"
 class Client:
     def __init__(self, address: str = "",
                  client_id: str = "",
@@ -109,7 +110,35 @@ class Client:
         if result is not None:
             return EventSendResult().decode(result)
         return None
-
+    def delete_events_channel(self, channel: str):
+        return self._delete_channel(channel, "events")
+    def delete_events_store_channel(self, channel: str):
+        return self._delete_channel(channel, "events_store")
+    def _delete_channel(self, channel: str, channel_type: str):
+        if not channel:
+            raise ValueError("channel cannot be empty")
+        try:
+            self.logger.debug(f"Client deleting {channel_type} channel {channel}")
+            request = Request(
+                RequestID=str(uuid.uuid4()),
+                RequestTypeData=2,
+                Metadata="delete-channel",
+                Channel=requests_channel,
+                ClientID=self.connection.client_id,
+                Body=b'',
+                Tags={"channel": channel, "channel_type": channel_type},
+                Timeout=10 * 1000
+            )
+            response = self.transport.kubemq_client().SendRequest(request)
+            if response:
+                if response.Executed:
+                    self.logger.debug(f"Client deleted {channel_type} channel {channel}")
+                    return True
+                else:
+                    self.logger.error(f"Client failed to delete {channel_type} channel {channel}, error: {response.Error}")
+                    raise DeleteChannelError(response.Error)
+        except grpc.RpcError as e:
+            raise  GRPCError(_decode_grpc_error(e))
     def subscribe(self,
                   subscription: [EventsSubscription,EventsStoreSubscription],
                   cancel: [CancellationToken, None]):
