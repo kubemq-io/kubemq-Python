@@ -45,6 +45,10 @@ class CreateChannelError(BaseError):
     def __init__(self, message: str) -> None:
         self.message = f"Create Channel Error: {message}"
         super().__init__(self.message)
+class ListChannelsError(BaseError):
+    def __init__(self, message: str) -> None:
+        self.message = f"List Channels Error: {message}"
+        super().__init__(self.message)
 class GRPCError(Exception):
     def __init__(self, exc):
         # Initialize the base exception message in case neither status nor details are found

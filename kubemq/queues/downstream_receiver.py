@@ -5,9 +5,9 @@ import time
 import grpc
 from kubemq.transport import Transport, Connection
 from kubemq.grpc import QueuesDownstreamRequest, QueuesDownstreamResponse
+from kubemq.common import *
 
-
-class QueueDownstreamReceiver:
+class DownstreamReceiver:
     def __init__(self, transport: Transport, shutdown_event: threading.Event, logger: logging.Logger,
                  connection: Connection):
         self.clientStub = transport.kubemq_client()
@@ -93,7 +93,7 @@ class QueueDownstreamReceiver:
                             response_container['response'] = response
                             response_result.set()
             except grpc.RpcError as e:
-                self.logger.debug(_decode_grpc_error(e))
+                self.logger.debug(decode_grpc_error(e))
                 self._handle_disconnection()
                 time.sleep(self.connection.reconnect_interval_seconds)
                 continue
@@ -102,17 +102,3 @@ class QueueDownstreamReceiver:
                 self._handle_disconnection()
                 time.sleep(self.connection.reconnect_interval_seconds)
                 continue
-
-def _decode_grpc_error(exc) -> str:
-    message = str(exc)
-
-    # Check if the exception has 'code' (status) and 'details' methods
-    if hasattr(exc, 'code') and callable(exc.code) and hasattr(exc, 'details') and callable(exc.details):
-        status = exc.code()
-        details = exc.details()
-
-        # Ensure that status and details are not None
-        if status is not None and details is not None:
-            message = f"KubeMQ Connection Error - Status: {status} Details: {details}"
-
-    return message

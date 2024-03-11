@@ -1,7 +1,7 @@
 import uuid
 from typing import Callable
 from kubemq.grpc import QueuesDownstreamRequest, QueuesDownstreamRequestType
-from kubemq.entities.queue_message_received import QueueMessageReceived
+from kubemq.queues.queues_message_received import QueueMessageReceived
 
 
 class QueuesPollRequest:

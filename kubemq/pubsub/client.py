@@ -125,32 +125,11 @@ class Client:
         return delete_channel_request(self.transport, self.connection.client_id, channel, "events")
     def delete_events_store_channel(self, channel: str):
         return delete_channel_request(self.transport, self.connection.client_id, channel, "events_store")
-    def list_events_channels(self, channel_search: str = "") -> List[Channel]:
-        return self._list_channels("events", channel_search)
-    def list_events_store_channels(self, channel_search: str = "") -> List[Channel]:
-        return self._list_channels("events_store", channel_search)
-    def _list_channels(self, channel_type: str, channel_search)->List[Channel]:
-        try:
-            self.logger.debug(f"Client listing {channel_type} channels")
-            request = Request(
-                RequestID=str(uuid.uuid4()),
-                RequestTypeData=2,
-                Metadata="list-channels",
-                Channel=requests_channel,
-                ClientID=self.connection.client_id,
-                Tags={"channel_type": channel_type, "channel_search": channel_search},
-                Timeout=10 * 1000
-            )
-            response = self.transport.kubemq_client().SendRequest(request)
-            if response:
-                if response.Executed:
-                    self.logger.debug(f"Client listed {channel_type} channels")
-                    return decode_channel_list(response.Body)
-                else:
-                    self.logger.error(f"Client failed to list {channel_type} channels, error: {response.Error}")
-                    raise ListChannelsError(response.Error)
-        except grpc.RpcError as e:
-            raise GRPCError(decode_grpc_error(e))
+    def list_events_channels(self, channel_search: str = "") -> List[PubSubChannel]:
+        return list_pubsub_channels(self.transport, self.connection.client_id, "events", channel_search)
+    def list_events_store_channels(self, channel_search: str = "") -> List[PubSubChannel]:
+        return list_pubsub_channels(self.transport, self.connection.client_id, "events_store", channel_search)
+
     def subscribe_to_events(self, subscription: EventsSubscription, cancel: CancellationToken = None):
         self._subscribe(subscription, cancel)
 
