@@ -130,34 +130,12 @@ class Client:
     def delete_queries_channel(self, channel: str):
         return delete_channel_request(self.transport, self.connection.client_id, channel, "queries")
 
-    def list_commands_channels(self,channel_search: str = "") -> List[str]:
-        return self._list_channels("commands", channel_search)
+    def list_commands_channels(self,channel_search: str = "") -> List[CQChannel]:
+        return list_cq_channels(self.transport, self.connection.client_id, "commands", channel_search)
 
-    def list_queries_channels(self,channel_search: str = "") -> List[str]:
-        return self._list_channels("queries", channel_search)
+    def list_queries_channels(self,channel_search: str = "") -> List[CQChannel]:
+        return list_cq_channels( self.transport, self.connection.client_id,  "queries", channel_search)
 
-    def _list_channels(self, channel_type: str, channel_search) -> List[Channel]:
-        try:
-            self.logger.debug(f"Client listing {channel_type} channels")
-            request = Request(
-                RequestID=str(uuid.uuid4()),
-                RequestTypeData=2,
-                Metadata="list-channels",
-                Channel=requests_channel,
-                ClientID=self.connection.client_id,
-                Tags={"channel_type": channel_type, "channel_search": channel_search},
-                Timeout=10 * 1000
-            )
-            response = self.transport.kubemq_client().SendRequest(request)
-            if response:
-                if response.Executed:
-                    self.logger.debug(f"Client listed {channel_type} channels")
-                    return decode_channel_list(response.Body)
-                else:
-                    self.logger.error(f"Client failed to list {channel_type} channels, error: {response.Error}")
-                    raise ListChannelsError(response.Error)
-        except grpc.RpcError as e:
-            raise GRPCError(decode_grpc_error(e))
     def subscribe_to_commands(self, subscription: CommandsSubscription, cancel: CancellationToken = None):
         self._subscribe(subscription, cancel)
     def subscribe_to_queries(self, subscription: QueriesSubscription, cancel: CancellationToken = None):
