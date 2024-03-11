@@ -5,7 +5,22 @@ from kubemq.cq.command_message_received import CommandMessageReceived
 
 
 class CommandsSubscription:
+    """
+    Class representing a subscription to receive commands.
 
+    Attributes:
+        channel (str): The channel to subscribe to.
+        group (str): The group to subscribe to.
+        on_receive_command_callback (Callable[[CommandMessageReceived], None]): Callback function to handle received commands.
+        on_error_callback (Callable[[str], None]): Callback function to handle errors.
+
+    Methods:
+        raise_on_receive_message(received_command: CommandMessageReceived): Raises the on_receive_command_callback function with the received command.
+        raise_on_error(msg: str): Raises the on_error_callback function with the error message.
+        validate(): Validates the command subscription by checking if channel and on_receive_command_callback are set.
+        decode(client_id: str = "") -> Subscribe: Decodes the subscription into a Subscribe object.
+        __repr__(): Returns a string representation of the CommandsSubscription object.
+    """
     def __init__(self, channel: str = None,
                  group: str = None,
                  on_receive_command_callback: Callable[[CommandMessageReceived], None] = None,

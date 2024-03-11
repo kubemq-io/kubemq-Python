@@ -5,7 +5,33 @@ from kubemq.grpc import Response as pbResponse
 
 
 class QueryResponseMessage:
+    """
+    Class for representing a query response message.
 
+    Attributes:
+        query_received (QueryMessageReceived): The received query message.
+        client_id (str): The client ID.
+        request_id (str): The request ID.
+        is_executed (bool): Indicates if the query has been executed.
+        timestamp (datetime): The timestamp of the query response.
+        error (str): The error message, if any.
+        metadata (str): The metadata associated with the query response.
+        body (bytes): The body of the query response.
+        tags (Dict[str, str]): The tags associated with the query response.
+
+    Methods:
+        validate() -> QueryResponseMessage:
+            Validates the query response and raises an error if it is invalid.
+
+        decode(pb_response: pbResponse) -> QueryResponseMessage:
+            Decodes the protocol buffer response and updates the attributes of the query response message.
+
+        encode(client_id: str) -> pbResponse:
+            Encodes the query response message into a protocol buffer response.
+
+        __repr__() -> str:
+            Returns a string representation of the query response message.
+    """
     def __init__(self, query_received: QueryMessageReceived = None,
                  metadata: str = None,
                  body: bytes = b'',

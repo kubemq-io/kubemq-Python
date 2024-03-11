@@ -8,6 +8,42 @@ from kubemq.grpc import QueuesDownstreamRequest, QueuesDownstreamResponse
 from kubemq.common import *
 
 class DownstreamReceiver:
+    """
+    Class representing a downstream receiver for sending requests to a server.
+
+    Attributes:
+        clientStub (Transport): The transport client stub.
+        connection (Connection): The connection to the server.
+        shutdown_event (threading.Event): The event used to indicate shutdown.
+        logger (logging.Logger): The logger for logging messages.
+        lock (threading.Lock): The lock used for thread safety.
+        response_tracking (dict): A dictionary for tracking response containers and result events.
+        queue (queue.Queue): The queue used for storing requests.
+        allow_new_requests (bool): Flag indicating whether new requests are allowed.
+
+    Methods:
+        send(request: QueuesDownstreamRequest) -> [QueuesDownstreamResponse, None]:
+            Sends a request to the server and waits for a response.
+
+            Args:
+                request (QueuesDownstreamRequest): The request to send.
+
+            Returns:
+                [QueuesDownstreamResponse, None]: The response from the server, or None if an exception occurred.
+
+        send_without_response(request: QueuesDownstreamRequest):
+            Sends a request to the server without waiting for a response.
+
+            Args:
+                request (QueuesDownstreamRequest): The request to send.
+
+        _handle_disconnection():
+            Handles disconnection from the server by clearing the queue and setting error on response containers.
+
+        _send_queue_stream():
+            Continuously sends requests from the queue to the server and handles responses.
+
+    """
     def __init__(self, transport: Transport, shutdown_event: threading.Event, logger: logging.Logger,
                  connection: Connection):
         self.clientStub = transport.kubemq_client()

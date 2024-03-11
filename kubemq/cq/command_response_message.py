@@ -4,7 +4,35 @@ from kubemq.grpc import Response as pbResponse
 
 
 class CommandResponseMessage:
+    """
 
+    Class representing a command response message.
+
+    Attributes:
+        command_received (CommandMessageReceived): The received command message this response is associated with.
+        client_id (str): The client ID associated with this response.
+        request_id (str): The request ID associated with this response.
+        is_executed (bool): Indicates if the command associated with this response was executed successfully.
+        timestamp (datetime): The timestamp of this response.
+        error (str): The error message associated with this response.
+
+    Methods:
+        __init__(command_received=None, is_executed=False, error="", timestamp=None):
+            Initializes a new CommandResponseMessage object with the given parameters.
+
+        validate() -> CommandResponseMessage:
+            Validates the command response message. Throws a ValueError if the command response is invalid.
+
+        decode(pb_response) -> CommandResponseMessage:
+            Decodes the protocol buffer response and populates the CommandResponseMessage attributes.
+
+        encode(client_id) -> pbResponse:
+            Encodes the CommandResponseMessage into a protocol buffer response object.
+
+        __repr__() -> str:
+            Returns a string representation of the CommandResponseMessage.
+
+    """
     def __init__(self, command_received: CommandMessageReceived = None,
                  is_executed: bool = False,
                  error: str = "",

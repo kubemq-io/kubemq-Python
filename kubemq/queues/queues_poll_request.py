@@ -5,7 +5,20 @@ from kubemq.queues.queues_message_received import QueueMessageReceived
 
 
 class QueuesPollRequest:
+    """
+    Class representing a request to poll messages from a queue.
 
+    Attributes:
+        channel (str): The channel to subscribe to.
+        poll_max_messages (int): The maximum number of messages to poll in a single request.
+        poll_wait_timeout_in_seconds (int): The maximum time to wait for messages in seconds.
+        auto_ack_messages (bool): Whether to automatically acknowledge received messages.
+
+    Methods:
+        validate(): Validates the request parameters.
+        encode(client_id: str) -> QueuesDownstreamRequest: Encodes the request into a downstream request object.
+        __repr__(): Returns a string representation of the QueuesPollRequest object.
+    """
     def __init__(self, channel: str = None,
                  poll_max_messages: int = 1,
                  poll_wait_timeout_in_seconds: int = 60,
