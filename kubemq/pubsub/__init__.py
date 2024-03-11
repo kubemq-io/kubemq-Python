@@ -7,4 +7,6 @@ from .event_store_message_received import EventStoreMessageReceived
 from .events_store_subscription import EventsStoreSubscription, EventsStoreType
 from .event_sender import EventSender
 from kubemq.common import CancellationToken
+from .channel import Channel, Stats, decode_channel_list
 from .client import Client
+
