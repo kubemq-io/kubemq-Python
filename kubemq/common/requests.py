@@ -1,4 +1,5 @@
 import uuid
+import grpc
 from kubemq.transport import transport
 from kubemq.common.exceptions import *
 from kubemq.common.helpers import decode_grpc_error
