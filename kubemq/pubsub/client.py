@@ -59,7 +59,6 @@ class Client:
         try:
             self.connection.validate()
             self.transport: Transport = Transport(self.connection).initialize()
-            self.logger.info(f"Client connected to {self.connection.address}")
             self.shutdown_event: threading.Event = threading.Event()
             self.event_sender = None
         except ValueError as e:
@@ -117,15 +116,15 @@ class Client:
         result = self.event_sender.send(message.encode(self.connection.client_id))
         if result is not None:
             return EventSendResult().decode(result)
+    def create_events_channel(self, channel: str)->[bool,None]:
+        return create_channel_request(self.transport, self.connection.client_id, channel, "events")
+    def create_events_store_channel(self, channel: str):
+        return create_channel_request(self.transport, self.connection.client_id, channel, "events_store")
 
     def delete_events_channel(self, channel: str):
         return delete_channel_request(self.transport, self.connection.client_id, channel, "events")
     def delete_events_store_channel(self, channel: str):
         return delete_channel_request(self.transport, self.connection.client_id, channel, "events_store")
-    def create_events_channel(self, channel: str)->[bool,None]:
-        return create_channel_request(self.transport, self.connection.client_id, channel, "events")
-    def create_events_store_channel(self, channel: str):
-        return create_channel_request(self.transport, self.connection.client_id, channel, "events_store")
     def list_events_channels(self, channel_search: str = "") -> List[Channel]:
         return self._list_channels("events", channel_search)
     def list_events_store_channels(self, channel_search: str = "") -> List[Channel]:
