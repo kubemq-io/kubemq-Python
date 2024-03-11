@@ -8,7 +8,7 @@ class CommandMessage:
     def __init__(self, id: str = None,
                  channel: str = None,
                  metadata: str = None,
-                 body: bytes = None,
+                 body: bytes = b'',
                  tags: Dict[str, str] = None,
                  timeout_in_seconds: int = 0):
         self.id: str = id
@@ -22,7 +22,7 @@ class CommandMessage:
         if not self.channel:
             raise ValueError("Command message must have a channel.")
 
-        if not self.metadata and not self._body and not self._tags:
+        if not self.metadata and not self.body and not self.tags:
             raise ValueError("Command message must have at least one of the following: metadata, body, or tags.")
 
         if self.timeout_in_seconds <= 0:
@@ -31,7 +31,7 @@ class CommandMessage:
 
     def encode(self, client_id: str) -> pbCommand:
         pb_command = pbCommand()
-        pb_command.RequestID = self.id
+        pb_command.RequestID = self.id or str(uuid.uuid4())
         pb_command.ClientID = client_id
         pb_command.Channel = self.channel
         pb_command.Metadata = self.metadata or ""

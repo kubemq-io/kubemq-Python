@@ -8,7 +8,7 @@ class QueryResponseMessage:
 
     def __init__(self, query_received: QueryMessageReceived = None,
                  metadata: str = None,
-                 body: bytes = None,
+                 body: bytes = b'',
                  tags: Dict[str, str] = None,
                  is_executed: bool = False,
                  error: str = "",
