@@ -13,7 +13,7 @@ def main():
         def on_error_handler(err: str):
             print(f"{err}")
 
-        client.subscribe(
+        client.subscribe_to_events(
             subscription=EventsSubscription(
                 channel="e1",
                 group="",
@@ -22,7 +22,7 @@ def main():
             )
             , cancel=CancellationToken())
         time.sleep(1)
-        client.send(EventMessage(
+        client.send_events_message(EventMessage(
             channel="e1",
             body=b"hello kubemq"
         ))
