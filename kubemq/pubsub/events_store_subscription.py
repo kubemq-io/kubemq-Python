@@ -1,13 +1,25 @@
 import datetime
 from typing import Callable
 from kubemq.grpc import Subscribe
-from kubemq.subscription.subscribe_type import SubscribeType
+from kubemq.common.subscribe_type import SubscribeType
 from kubemq.pubsub import EventStoreMessageReceived
 
 from enum import Enum
 
 
 class EventsStoreType(Enum):
+    """
+    Represents the type of event store.
+
+    Enum Values:
+    - Undefined: 0
+    - StartNewOnly: 1
+    - StartFromFirst: 2
+    - StartFromLast: 3
+    - StartAtSequence: 4
+    - StartAtTime: 5
+    - StartAtTimeDelta: 6
+    """
     Undefined = 0
     StartNewOnly = 1
     StartFromFirst = 2
@@ -18,6 +30,26 @@ class EventsStoreType(Enum):
 
 
 class EventsStoreSubscription:
+    """
+    Class representing a subscription to an events store.
+
+    Parameters:
+    - channel (str): The channel to subscribe to.
+    - group (str): The group to subscribe to.
+    - events_store_type (EventsStoreType): The type of events store.
+    - events_store_sequence_value (int): The sequence value of the events store.
+    - events_store_start_time (datetime): The start time of the events store.
+    - on_receive_event_callback (Callable[[EventStoreMessageReceived], None]): Callback function to handle received events.
+    - on_error_callback (Callable[[str], None]): Callback function to handle errors.
+
+    Methods:
+    - raise_on_receive_message(received_event: EventStoreMessageReceived): Raises the on_receive_event_callback with the received event.
+    - raise_on_error(msg: str): Raises the on_error_callback with the given error message.
+    - validate(): Validates the subscription parameters.
+    - encode(client_id: str = "") -> Subscribe: Encodes the subscription into a Subscribe request.
+    - __repr__(): Returns a string representation of the subscription.
+
+    """
     def __init__(self,
                  channel: str = None,
                  group: str = None,

@@ -4,6 +4,35 @@ from kubemq.grpc import EventReceive as pbEventReceive
 
 
 class EventStoreMessageReceived:
+    """
+    Class EventStoreMessageReceived
+
+    Represents a received message in the EventStore.
+
+    Properties:
+    - id: str - The ID of the message.
+    - from_client_id: str - The ID of the client that sent the message.
+    - timestamp: datetime - The timestamp of when the message was received.
+    - channel: str - The channel to which the message was published.
+    - metadata: str - The metadata associated with the message.
+    - body: bytes - The body of the message.
+    - sequence: int - The sequence number of the message.
+    - tags: Dict[str, str] - The tags associated with the message.
+
+    Methods:
+    - decode(event_receive: pbEventReceive) -> 'EventStoreMessageReceived':
+      Static method that decodes a protobuf event_receive object and returns an instance
+      of EventStoreMessageReceived with the decoded values.
+
+    - __repr__() -> str:
+      Returns a string representation of the EventStoreMessageReceived object.
+
+    Example usage:
+    ```
+    message = EventStoreMessageReceived.decode(event_receive)
+    print(message)
+    ```
+    """
     def __init__(self):
         self.id: str = ""
         self.from_client_id: str = ""

@@ -3,6 +3,27 @@ from kubemq.grpc import SendQueueMessageResult
 
 
 class QueueSendResult:
+    """
+
+    QueueSendResult represents the result of sending a message to a queue.
+
+    Attributes:
+        id (str): The unique identifier of the message.
+        sent_at (datetime): The timestamp when the message was sent.
+        expired_at (datetime): The timestamp when the message will expire.
+        delayed_to (datetime): The timestamp when the message will be delivered.
+        is_error (bool): Indicates if there was an error while sending the message.
+        error (str): The error message if `is_error` is True.
+
+    Methods:
+        decode(result: SendQueueMessageResult) -> QueueSendResult:
+            Decodes the given SendQueueMessageResult and sets the attributes of the QueueSendResult instance accordingly.
+            Returns the updated QueueSendResult instance.
+
+        __repr__() -> str:
+            Returns a string representation of the QueueSendResult object.
+
+    """
     def __init__(self, id: str = None,
                  sent_at: datetime = None,
                  expired_at: datetime = None,

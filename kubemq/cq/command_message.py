@@ -4,7 +4,31 @@ from kubemq.grpc import Request as pbCommand
 
 
 class CommandMessage:
+    """
 
+    The `CommandMessage` class represents a command message that can be sent over a communication channel. It contains information such as the message ID, channel, metadata, body, tags,
+    * and timeout.
+
+    Attributes:
+    - `id` (str): The ID of the command message.
+    - `channel` (str): The channel through which the command message will be sent.
+    - `metadata` (str): Additional metadata associated with the command message.
+    - `body` (bytes): The body of the command message as bytes.
+    - `tags` (dict): A dictionary of key-value pairs representing tags associated with the command message.
+    - `timeout_in_seconds` (int): The maximum time in seconds for which the command message is valid.
+
+    Methods:
+    - `validate() -> CommandMessage`: Validates the command message. Raises a `ValueError` if the message is invalid.
+    - `encode(client_id: str) -> pbCommand`: Encodes the command message into a protocol buffer message. Returns the encoded message.
+    - `__repr__() -> str`: Returns a string representation of the command message.
+
+    Example usage:
+    command = CommandMessage(id='123', channel='commands', metadata='Execute command', body=b'command body', tags={'tag1': 'value1'}, timeout_in_seconds=10)
+    command.validate()
+    encoded_message = command.encode('client1')
+    print(encoded_message)
+
+    """
     def __init__(self, id: str = None,
                  channel: str = None,
                  metadata: str = None,

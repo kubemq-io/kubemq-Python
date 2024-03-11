@@ -15,6 +15,40 @@ from kubemq.common.requests import *
 from kubemq.common.cancellation_token import *
 
 class Client:
+    """
+
+
+    Client class represents a client that connects to the KubeMQ server.
+
+    Attributes:
+        connection (Connection): The connection configuration.
+        logger (logging.Logger): The logger for logging events.
+        transport (Transport): The transport layer used for communication.
+        shutdown_event (threading.Event): The event used for notifying the client to shutdown.
+        upstream_sender (UpstreamSender): The sender used for sending upstream messages.
+        downstream_receiver (DownstreamReceiver): The receiver used for receiving downstream messages.
+
+    Methods:
+        connect(): Connects the client to the KubeMQ server.
+        close(): Closes the connection to the KubeMQ server.
+        ping() -> ServerInfo: Pings the KubeMQ server.
+        send_queues_message(message: QueueMessage) -> QueueSendResult: Sends a message to the KubeMQ server queues.
+        create_queues_channel(channel: str) -> [bool, None]: Creates a queues channel.
+        delete_queues_channel(channel: str) -> [bool, None]: Deletes a queues channel.
+        list_queues_channels(channel_search) -> List[QueuesChannel]: Lists the queues channels.
+        receive_queues_messages(channel: str = None, max_messages: int = 1, wait_timeout_in_seconds: int = 60, auto_ack: bool = False) -> QueuesPollResponse: Receives messages from a queues
+    * channel.
+
+    Example usage:
+        client = Client(address='localhost:50000')
+        client.connect()
+        server_info = client.ping()
+        print(f"Server version: {server_info.server_version}")
+        client.close()
+
+    Note: Make sure to set the connection attributes correctly before connecting to the server.
+
+    """
     def __init__(self, address: str = "",
                  client_id: str = socket.gethostname(),
                  auth_token: str = "",
@@ -97,6 +131,16 @@ class Client:
             raise ex
 
     def ping(self) -> ServerInfo:
+        """
+        Ping the server and get the server information.
+
+        Returns:
+            ServerInfo: The server information.
+
+        Raises:
+            GRPCError: If an error occurs during the ping.
+
+        """
         try:
             self.logger.debug(f"Client pinging {self.connection.address}")
             return self.transport.ping()
@@ -106,25 +150,82 @@ class Client:
             raise ex
 
     def send_queues_message(self, message: QueueMessage) -> QueueSendResult:
+        """
+        Sends a message to the queues.
+
+        Args:
+            self: The current object instance.
+            message (QueueMessage): The message to be sent.
+
+        Returns:
+            QueueSendResult: The result of the message send operation.
+        """
         message.validate()
         if self.upstream_sender is None:
             self.upstream_sender = UpstreamSender(self.transport, self.shutdown_event, self.logger,self.connection)
 
         return self.upstream_sender.send(message)
     def create_queues_channel(self, channel: str)->[bool,None]:
+        """
+        Create a queues channel for the given channel.
+
+        Parameters:
+        - channel (str): The name of the channel to create.
+
+        Returns:
+        - bool or None: Returns True if the channel is created successfully, otherwise returns None.
+
+        """
         return create_channel_request(self.transport, self.connection.client_id, channel, "queues")
 
     def delete_queues_channel(self, channel: str)->[bool,None]:
+        """
+        Delete Queues Channel
+
+        Deletes a specific channel from the queues in the current connection.
+
+        Parameters:
+        - channel (str): The name of the channel to delete.
+
+        Returns:
+        - bool or None: Returns True if the channel was successfully deleted. Returns None if there was an error during deletion.
+        """
         return delete_channel_request(self.transport, self.connection.client_id, channel, "queues")
 
     def list_queues_channels(self, channel_search)->List[QueuesChannel]:
-       return list_queues_channels(self.transport, self.connection.client_id, channel_search)
+        """
+        Retrieve a list of QueuesChannel objects based on the provided channel_search.
+
+        Parameters:
+        :param channel_search: The search term used to filter the list of QueuesChannels.
+
+        Returns:
+        - A list of QueuesChannel objects that match the search term.
+        """
+        return list_queues_channels(self.transport, self.connection.client_id, channel_search)
 
     def receive_queues_messages(self, channel: str = None,
              max_messages: int = 1,
              wait_timeout_in_seconds: int = 60,
              auto_ack: bool = False,
              ) -> QueuesPollResponse:
+        """
+
+        Receive messages from a specific channel in the queues.
+
+        Parameters:
+        - channel (str): The name of the channel to receive messages from. Defaults to None.
+        - max_messages (int): The maximum number of messages to receive. Defaults to 1.
+        - wait_timeout_in_seconds (int): The maximum time in seconds to wait for new messages. Defaults to 60.
+        - auto_ack (bool): Whether to automatically acknowledge the received messages. Defaults to False.
+
+        Returns:
+        - QueuesPollResponse: The response object containing the received messages.
+
+        Raises:
+        - ValueError: If the channel is None, max_messages is less than 1, or wait_timeout_in_seconds is less than 1.
+
+        """
         if channel is None:
             raise ValueError("channel cannot be None.")
         if max_messages < 1:

@@ -6,7 +6,49 @@ from kubemq.grpc import QueuesDownstreamRequest, QueuesDownstreamRequestType, Qu
 
 
 class QueueMessageReceived:
+    """
+    Class representing a received queue message.
 
+    Attributes:
+        id (str): Unique identifier of the message.
+        channel (str): Name of the channel the message belongs to.
+        metadata (str): Additional metadata associated with the message.
+        body (bytes): The content of the message in bytes.
+        from_client_id (str): Identifier of the client who sent the message.
+        tags (Dict[str, str]): Dictionary of key-value pairs representing tags associated with the message.
+        timestamp (datetime): Timestamp indicating when the message was received.
+        sequence (int): Sequential number indicating the order in which the message was received.
+        receive_count (int): Number of times the message has been received.
+        is_re_routed (bool): Flag indicating whether the message has been re-routed from another queue.
+        re_route_from_queue (str): Name of the queue the message was re-routed from.
+        expired_at (datetime): Timestamp indicating when the message will expire.
+        delayed_to (datetime): Timestamp indicating when the message will be available for processing.
+        transaction_id (str): Identifier of the transaction the message belongs to.
+        is_transaction_completed (bool): Flag indicating whether the transaction is completed.
+        response_handler (Callable[[QueuesDownstreamRequest], QueuesDownstreamResponse]): Callback function for sending downstream requests.
+        receiver_client_id (str): Identifier of the client who received the message.
+
+    Methods:
+        ack():
+            Sends an acknowledgment for the message.
+            Raises a ValueError if the transaction is already completed.
+
+        reject():
+            Rejects the message.
+            Raises a ValueError if the transaction is already completed or if the rejection fails.
+
+        re_queue(channel: str):
+            Re-queues the message to the specified channel.
+            Raises a ValueError if the re-queue channel is empty or if the re-queue fails.
+
+        decode(message: pbQueueMessage, transaction_id: str, transaction_is_completed: bool,
+               receiver_client_id: str, response_handler: Callable[[QueuesDownstreamRequest], QueuesDownstreamResponse]) -> 'QueueMessageReceived':
+            Decodes the given `pbQueueMessage` protobuf message and initialize the instance attributes.
+            Returns the updated `QueueMessageReceived` object.
+
+        __repr__() -> str:
+            Returns a string representation of the `QueueMessageReceived` object.
+    """
     def __init__(self):
         self.id: str = ""
         self.channel: str = ""

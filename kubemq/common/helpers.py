@@ -1,5 +1,15 @@
 import grpc
 def decode_grpc_error(exc) -> str:
+    """
+    Decodes a gRPC error and returns a formatted error message.
+
+    Parameters:
+    - exc: The gRPC exception to decode.
+
+    Returns:
+    - str: The formatted error message.
+
+    """
     message = str(exc)
 
     # Check if the exception has 'code' (status) and 'details' methods

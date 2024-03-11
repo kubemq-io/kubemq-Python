@@ -2,6 +2,14 @@ from kubemq.grpc import Result
 
 
 class EventSendResult:
+    """
+    Initializes an EventSendResult instance.
+
+    Args:
+        id (str, optional): The ID of the event. Defaults to None.
+        sent (bool, optional): Indicates whether the event was sent successfully. Defaults to False.
+        error (str, optional): An error message related to the event send operation. Defaults to None.
+    """
     def __init__(self, id: str = None,
                  sent: bool = False,
                  error: str = None):

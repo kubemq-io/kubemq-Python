@@ -5,7 +5,27 @@ from kubemq.queues.queues_message_received import QueueMessageReceived
 
 
 class QueuesPollResponse:
+    """
+    This class represents the response received when polling a queue.
 
+    Attributes:
+        ref_request_id (str): The reference request ID.
+        transaction_id (str): The transaction ID.
+        messages (List[QueueMessageReceived]): The list of queue messages received.
+        error (str): The error message, if any.
+        is_error (bool): A flag indicating whether an error occurred.
+        is_transaction_completed (bool): A flag indicating whether the transaction is completed.
+        active_offsets (List[int]): The active offsets.
+        response_handler (Callable[[QueuesDownstreamRequest], None]): The response handler function.
+        receiver_client_id (str): The receiver client ID.
+
+    Methods:
+        ack_all: Sends an acknowledgement for all messages in the transaction.
+        reject_all: Rejects all messages in the transaction.
+        re_queue_all: Re-queues all messages in the transaction to a specified channel.
+        decode: Decodes the response received from the downstream and populates the response object.
+
+    """
     def __init__(self):
         self.ref_request_id: str = ""
         self.transaction_id: str = ""
