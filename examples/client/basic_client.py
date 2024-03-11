@@ -1,9 +1,9 @@
-from kubemq.client import Client
+from kubemq.pubsub import Client
 
 
 def main():
     try:
-        client = Client(address="localhost:50000", client_id="client-id")
+        client = Client(address="localhost:50000" )
         server_info = client.ping()
         print(server_info)
     except Exception as e:

@@ -1,4 +1,4 @@
-from kubemq.client import Client
+from kubemq.pubsub import Client
 
 
 def main():
