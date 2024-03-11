@@ -6,7 +6,24 @@ from kubemq.grpc import QueueMessagePolicy as pbQueueMessagePolicy
 
 
 class QueueMessage:
+    """A class representing a message in a queue.
 
+    Attributes:
+        id (str): The unique identifier for the message.
+        channel (str): The channel of the message.
+        metadata (str): The metadata associated with the message.
+        body (bytes): The body of the message.
+        tags (Dict[str, str]): The tags associated with the message.
+        delay_in_seconds (int): The delay in seconds before the message becomes available in the queue.
+        expiration_in_seconds (int): The expiration time in seconds for the message.
+        attempts_before_dead_letter_queue (int): The number of receive attempts allowed for the message before it is moved to the dead letter queue.
+        dead_letter_queue (str): The dead letter queue where the message will be moved after reaching the maximum receive attempts.
+
+    Methods:
+        validate(): Validates the message attributes and ensures that the required attributes are set.
+        encode(client_id: str) -> pbQueuesUpstreamRequest: Encodes the message into a protocol buffer format for sending to the queue server.
+        encode_message(client_id: str) -> pbQueueMessage: Encodes the message into a protocol buffer format.
+    """
     def __init__(self, id: str = None,
                  channel: str = None,
                  metadata: str = None,

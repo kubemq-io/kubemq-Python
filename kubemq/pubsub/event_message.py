@@ -4,7 +4,30 @@ from kubemq.grpc import Event as pbEvent
 
 
 class EventMessage:
+    """
 
+    Class EventMessage
+
+    Class representing an event message.
+
+    Attributes:
+        id (str): The ID of the event message.
+        channel (str): The channel of the event message.
+        metadata (str): The metadata of the event message.
+        body (bytes): The body of the event message.
+        tags (Dict[str, str]): The tags associated with the event message.
+
+    Methods:
+        validate() -> 'EventMessage':
+            Validates the event message. Raises a ValueError if the channel is not provided or if at least one of metadata, body, or tags is not provided.
+
+        encode(client_id: str) -> pbEvent:
+            Encodes the event message to a pbEvent object (assuming pb is an imported module). Adds the client ID to the tags.
+            Returns the pbEvent object.
+
+        __repr__() -> str:
+            Returns a string representation of the EventMessage object.
+    """
     def __init__(self, id: str = None,
                  channel: str = None,
                  metadata: str = None,

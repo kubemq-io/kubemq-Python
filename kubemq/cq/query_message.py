@@ -4,7 +4,24 @@ from kubemq.grpc import Request as pbQuery
 
 
 class QueryMessage:
+    """
+    Class representing a query message.
 
+    Attributes:
+        id (str): The ID of the query message.
+        channel (str): The channel of the query message.
+        metadata (str): The metadata of the query message.
+        body (bytes): The body of the query message.
+        tags (Dict[str, str]): The tags of the query message.
+        timeout_in_seconds (int): The timeout of the query message in seconds.
+        cache_key (str): The cache key of the query message.
+        cache_ttl_int_seconds (int): The cache TTL of the query message in seconds.
+
+    Methods:
+        validate(): Validates the query message.
+        encode(client_id: str) -> pbQuery: Encodes the query message into a protobuf query.
+        __repr__(): Returns a string representation of the query message.
+    """
     def __init__(self, id: str = None,
                  channel: str = None,
                  metadata: str = None,

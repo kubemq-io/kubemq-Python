@@ -8,6 +8,27 @@ from kubemq.grpc import Event, Result
 from kubemq.common import *
 
 class EventSender:
+    """
+    EventSender is a class that is responsible for sending events to a server using a transport, tracking the response of each event, and handling disconnections.
+
+    Attributes:
+    - clientStub: A client stub object for communicating with the server.
+    - connection: A Connection object containing connection information.
+    - shutdown_event: A threading.Event object to signal whether the sender should shutdown.
+    - logger: A logging.Logger object for logging messages.
+    - lock: A threading.Lock object for thread safety.
+    - response_tracking: A dictionary to track the response of each event.
+    - sending_queue: A queue.Queue object for storing events to be sent.
+    - allow_new_messages: A flag indicating whether new messages are allowed to be sent.
+
+    Methods:
+    - __init__(transport: Transport, shutdown_event: threading.Event, logger: logging.Logger,
+             connection: Connection): Initializes the EventSender object with the given transport, shutdown event, logger, and connection. Starts a new thread to send events.
+    - send(event: Event) -> Optional[Result]: Sends an event to the server. If the event is not set to be stored, it queues the event. If it is set to be stored, it waits for the response
+    * and returns it. Raises a ConnectionError if the client is not connected.
+    - handle_disconnection(): Handles the disconnection from the server. Clears the sending queue and sets an error on all response containers.
+    - send_events_stream(): Continuously sends events from the sending queue to the server. Handles disconnections and tracks responses.
+    """
     def __init__(self, transport: Transport, shutdown_event: threading.Event, logger: logging.Logger,
                  connection: Connection):
         self.clientStub = transport.kubemq_client()

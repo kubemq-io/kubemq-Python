@@ -8,6 +8,33 @@ from kubemq.grpc import QueuesUpstreamRequest, QueuesUpstreamResponse, SendQueue
 from kubemq.common import *
 from kubemq.queues import *
 class UpstreamSender:
+    """
+
+    UpstreamSender
+
+    Class representing an upstream sender for sending messages to a server.
+
+    Attributes:
+        clientStub (Transport): The transport object used for communication with the server.
+        connection (Connection): The connection object representing the client's connection to the server.
+        shutdown_event (threading.Event): The event object used to signal the shutdown of the sender.
+        logger (logging.Logger): The logger object used for logging.
+        lock (threading.Lock): The lock used to synchronize access to shared resources.
+        response_tracking (dict): A dictionary mapping request IDs to response containers, response result events, and message IDs.
+        sending_queue (queue.Queue): The queue used for storing messages to be sent.
+        allow_new_messages (bool): A flag indicating if new messages are allowed to be sent.
+
+    Methods:
+        send(message: QueueMessage) -> [QueueSendResult, None]:
+            Sends a message to the server.
+
+        _handle_disconnection():
+            Handles the disconnection from the server.
+
+        _send_queue_stream():
+            Sends messages from the sending queue to the server.
+
+    """
     def __init__(self, transport: Transport, shutdown_event: threading.Event, logger: logging.Logger,
                  connection: Connection):
         self.clientStub = transport.kubemq_client()
