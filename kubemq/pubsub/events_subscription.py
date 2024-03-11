@@ -12,8 +12,8 @@ class EventsSubscription:
                  on_error_callback: Callable[[str], None] = None):
         self._channel: str = channel
         self._group: str = group
-        self._on_receive_event_callback = on_receive_event_callback
-        self._on_error_callback = on_error_callback
+        self.on_receive_event_callback = on_receive_event_callback
+        self.on_error_callback = on_error_callback
 
     @property
     def channel(self) -> str:
@@ -25,24 +25,24 @@ class EventsSubscription:
 
     @property
     def on_receive_event_callback(self) -> Callable[[EventMessageReceived], None]:
-        return self._on_receive_event_callback
+        return self.on_receive_event_callback
 
     @property
     def on_error_callback(self) -> Callable[[str], None]:
-        return self._on_error_callback
+        return self.on_error_callback
 
     def raise_on_receive_message(self, received_event: EventMessageReceived):
-        if self._on_receive_event_callback:
-            self._on_receive_event_callback(received_event)
+        if self.on_receive_event_callback:
+            self.on_receive_event_callback(received_event)
 
     def raise_on_error(self, msg: str):
-        if self._on_error_callback:
-            self._on_error_callback(msg)
+        if self.on_error_callback:
+            self.on_error_callback(msg)
 
     def validate(self):
         if not self._channel:
             raise ValueError("Event subscription must have a channel.")
-        if not self._on_receive_event_callback:
+        if not self.on_receive_event_callback:
             raise ValueError("Event subscription must have a on_receive_event_callback function.")
 
     def encode(self, client_id: str = "") -> Subscribe:
