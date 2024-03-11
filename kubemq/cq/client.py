@@ -4,12 +4,20 @@ import asyncio
 import time
 import uuid
 import grpc
+import socket
+from typing import List
 from kubemq.transport import *
+from kubemq.grpc import (Request,Response)
 from kubemq.cq import *
+from kubemq.common.exceptions import *
+from kubemq.common.helpers import *
+from kubemq.common.requests import *
+from kubemq.common.subscribe_type import *
+from kubemq.common.cancellation_token import *
 
 class Client:
     def __init__(self, address: str = "",
-                 client_id: str = "",
+                 client_id: str = socket.gethostname(),
                  auth_token: str = "",
                  tls: bool = False,
                  tls_cert_file: str = "",
@@ -51,9 +59,7 @@ class Client:
         try:
             self.connection.validate()
             self.transport: Transport = Transport(self.connection).initialize()
-            self.logger.info(f"Client connected to {self.connection.address}")
             self.shutdown_event: threading.Event = threading.Event()
-            self.event_sender = None
         except ValueError as e:
             ex = ValidationError(e)
             self.logger.error(str(ex))
@@ -99,27 +105,64 @@ class Client:
             self.logger.error(str(ex))
             raise ex
 
-    def send(self, message: [CommandMessage,
-                             QueryMessage,
-                             CommandResponseMessage,
-                             QueryResponseMessage]) -> [CommandResponseMessage,
-                                                QueryResponseMessage,
-                                                None]:
+    def send_command_request(self, message: CommandMessage) -> CommandResponseMessage:
         message.validate()
-        if isinstance(message, CommandMessage):
-            response = self.transport.kubemq_client().SendRequest(
-                message.encode(self.connection.client_id))
-            return CommandResponseMessage().decode(response)
-        if isinstance(message, CommandResponseMessage) or isinstance(message, QueryResponseMessage):
-            self.transport.kubemq_client().SendResponse(
-                message.encode(self.connection.client_id))
-        if isinstance(message, QueryMessage):
-            response = self._transport.kubemq_client().SendRequest(
-                message.encode(self.connection.client_id))
-            return QueryResponseMessage().decode(response)
-        return None
+        response = self.transport.kubemq_client().SendRequest(
+            message.encode(self.connection.client_id))
+        return CommandResponseMessage().decode(response)
+    def send_query_request(self, message: QueryMessage) -> QueryResponseMessage:
+        message.validate()
+        response = self.transport.kubemq_client().SendRequest(
+            message.encode(self.connection.client_id))
+        return QueryResponseMessage().decode(response)
+    def send_response_message(self, message: [CommandResponseMessage, QueryResponseMessage]) -> None:
+        message.validate()
+        self.transport.kubemq_client().SendResponse(
+            message.encode(self.connection.client_id))
 
-    def subscribe(self,
+    def create_commands_channel(self, channel: str)->[bool,None]:
+        return create_channel_request(self.transport, self.connection.client_id, channel, "commands")
+    def create_queries_channel(self, channel: str):
+        return create_channel_request(self.transport, self.connection.client_id, channel, "queries")
+
+    def delete_commands_channel(self, channel: str):
+        return delete_channel_request(self.transport, self.connection.client_id, channel, "commands")
+    def delete_queries_channel(self, channel: str):
+        return delete_channel_request(self.transport, self.connection.client_id, channel, "queries")
+
+    def list_commands_channels(self,channel_search: str = "") -> List[str]:
+        return self._list_channels("commands", channel_search)
+
+    def list_queries_channels(self,channel_search: str = "") -> List[str]:
+        return self._list_channels("queries", channel_search)
+
+    def _list_channels(self, channel_type: str, channel_search) -> List[Channel]:
+        try:
+            self.logger.debug(f"Client listing {channel_type} channels")
+            request = Request(
+                RequestID=str(uuid.uuid4()),
+                RequestTypeData=2,
+                Metadata="list-channels",
+                Channel=requests_channel,
+                ClientID=self.connection.client_id,
+                Tags={"channel_type": channel_type, "channel_search": channel_search},
+                Timeout=10 * 1000
+            )
+            response = self.transport.kubemq_client().SendRequest(request)
+            if response:
+                if response.Executed:
+                    self.logger.debug(f"Client listed {channel_type} channels")
+                    return decode_channel_list(response.Body)
+                else:
+                    self.logger.error(f"Client failed to list {channel_type} channels, error: {response.Error}")
+                    raise ListChannelsError(response.Error)
+        except grpc.RpcError as e:
+            raise GRPCError(decode_grpc_error(e))
+    def subscribe_to_commands(self, subscription: CommandsSubscription, cancel: CancellationToken = None):
+        self._subscribe(subscription, cancel)
+    def subscribe_to_queries(self, subscription: QueriesSubscription, cancel: CancellationToken = None):
+        self._subscribe(subscription, cancel)
+    def _subscribe(self,
                   subscription: [CommandsSubscription,
                                  QueriesSubscription],
                   cancel: [CancellationToken, None]):
@@ -143,11 +186,11 @@ class Client:
                     lambda error: subscription.raise_on_error(error),
                     cancel_token_event)
         threading.Thread(
-            target=self.subscribe_task,
+            target=self._subscribe_task,
             args=args,
             daemon=True).start()
 
-    def subscribe_task(self, stream_callable, decode_callable, error_callable, cancel_token: threading.Event):
+    def _subscribe_task(self, stream_callable, decode_callable, error_callable, cancel_token: threading.Event):
         while not cancel_token.is_set() and not self.shutdown_event.is_set():
             try:
                 response = stream_callable()
@@ -156,10 +199,10 @@ class Client:
                         break
                     decode_callable(message)
             except grpc.RpcError as e:
-                error_callable(_decode_grpc_error(e))
+                error_callable(decode_grpc_error(e))
                 time.sleep(self.connection.reconnect_interval_seconds)
                 continue
             except Exception as e:
-                error_callable(_decode_grpc_error(e))
+                error_callable(decode_grpc_error(e))
                 time.sleep(self.connection.reconnect_interval_seconds)
                 continue

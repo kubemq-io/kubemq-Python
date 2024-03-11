@@ -8,7 +8,7 @@ class QueryMessage:
     def __init__(self, id: str = None,
                  channel: str = None,
                  metadata: str = None,
-                 body: bytes = None,
+                 body: bytes = b'',
                  tags: Dict[str, str] = None,
                  timeout_in_seconds: int = 0,
                  cache_key: str = "",

@@ -17,12 +17,12 @@ class QueriesSubscription:
 
 
     def raise_on_receive_message(self, received_query: QueryMessageReceived):
-        if self._on_receive_query_callback:
-            self._on_receive_query_callback(received_query)
+        if self.on_receive_query_callback:
+            self.on_receive_query_callback(received_query)
 
     def raise_on_error(self, msg: str):
-        if self._on_error_callback:
-            self._on_error_callback(msg)
+        if self.on_error_callback:
+            self.on_error_callback(msg)
 
     def validate(self):
         if not self.channel:
