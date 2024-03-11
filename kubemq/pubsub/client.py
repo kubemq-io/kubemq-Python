@@ -4,6 +4,7 @@ import asyncio
 import time
 import uuid
 import grpc
+from typing import List
 from kubemq.transport import *
 from kubemq.grpc import (Event,Result,Request,Response,Request)
 from kubemq.pubsub import *
@@ -139,6 +140,62 @@ class Client:
                     raise DeleteChannelError(response.Error)
         except grpc.RpcError as e:
             raise  GRPCError(_decode_grpc_error(e))
+
+    def create_events_channel(self, channel: str):
+        return self._create_channel(channel, "events")
+    def create_events_store_channel(self, channel: str):
+        return self._create_channel(channel, "events_store")
+    def _create_channel(self, channel: str, channel_type: str):
+        if not channel:
+            raise ValueError("channel cannot be empty")
+        try:
+            self.logger.debug(f"Client creating {channel_type} channel {channel}")
+            request = Request(
+                RequestID=str(uuid.uuid4()),
+                RequestTypeData=2,
+                Metadata="create-channel",
+                Channel=requests_channel,
+                ClientID=self.connection.client_id,
+                Body=b'',
+                Tags={"channel": channel, "channel_type": channel_type},
+                Timeout=10 * 1000
+            )
+            response = self.transport.kubemq_client().SendRequest(request)
+            if response:
+                if response.Executed:
+                    self.logger.debug(f"Client created {channel_type} channel {channel}")
+                    return True
+                else:
+                    self.logger.error(f"Client failed to create {channel_type} channel {channel}, error: {response.Error}")
+                    raise CreateChannelError(response.Error)
+        except grpc.RpcError as e:
+            raise GRPCError(_decode_grpc_error(e))
+    def list_events_channels(self, channel_search: str = "") -> List[Channel]:
+        return self._list_channels("events", channel_search)
+    def list_events_store_channels(self, channel_search: str = "") -> List[Channel]:
+        return self._list_channels("events_store", channel_search)
+    def _list_channels(self, channel_type: str, channel_search)->List[Channel]:
+        try:
+            self.logger.debug(f"Client listing {channel_type} channels")
+            request = Request(
+                RequestID=str(uuid.uuid4()),
+                RequestTypeData=2,
+                Metadata="list-channels",
+                Channel=requests_channel,
+                ClientID=self.connection.client_id,
+                Tags={"channel_type": channel_type, "channel_search": channel_search},
+                Timeout=10 * 1000
+            )
+            response = self.transport.kubemq_client().SendRequest(request)
+            if response:
+                if response.Executed:
+                    self.logger.debug(f"Client listed {channel_type} channels")
+                    return decode_channel_list(response.Body)
+                else:
+                    self.logger.error(f"Client failed to list {channel_type} channels, error: {response.Error}")
+                    raise ListChannelsError(response.Error)
+        except grpc.RpcError as e:
+            raise GRPCError(_decode_grpc_error(e))
     def subscribe(self,
                   subscription: [EventsSubscription,EventsStoreSubscription],
                   cancel: [CancellationToken, None]):
