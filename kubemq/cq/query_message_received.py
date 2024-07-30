@@ -1,9 +1,10 @@
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Dict
+from pydantic import BaseModel, Field
 from kubemq.grpc import Request as pbRequest
 
 
-class QueryMessageReceived:
+class QueryMessageReceived(BaseModel):
     """
     Class representing a query message received.
 
@@ -15,37 +16,43 @@ class QueryMessageReceived:
         metadata (str): Additional metadata associated with the query message.
         body (bytes): The body of the query message.
         reply_channel (str): The channel through which the reply for the query message should be sent.
-        tags (dict): A dictionary containing tags associated with the query message.
-
-    Methods:
-        decode(query_receive: pbRequest) -> QueryMessageReceived:
-            Decodes a protobuf request object and returns a QueryMessageReceived instance.
-
-        __repr__() -> str:
-            Returns a string representation of the QueryMessageReceived object.
+        tags (Dict[str, str]): A dictionary containing tags associated with the query message.
     """
-    def __init__(self):
-        self.id: str = ""
-        self.from_client_id: str = ""
-        self.timestamp: datetime = datetime.fromtimestamp(0)
-        self.channel: str = ""
-        self.metadata: str = ""
-        self.body: bytes = b""
-        self.reply_channel: str = ""
-        self.tags: Dict[str, str] = {}
 
-    @staticmethod
-    def decode(query_receive: pbRequest) -> 'QueryMessageReceived':
-        message = QueryMessageReceived()
-        message.id = query_receive.RequestID
-        message.from_client_id = query_receive.ClientID
-        message.timestamp = datetime.now()
-        message.channel = query_receive.Channel
-        message.metadata = query_receive.Metadata
-        message.body = query_receive.Body
-        message.reply_channel = query_receive.ReplyChannel
-        message.tags = query_receive.Tags
-        return message
+    id: str = Field(default="")
+    from_client_id: str = Field(default="")
+    timestamp: datetime = Field(default_factory=datetime.now)
+    channel: str = Field(default="")
+    metadata: str = Field(default="")
+    body: bytes = Field(default=b"")
+    reply_channel: str = Field(default="")
+    tags: Dict[str, str] = Field(default_factory=dict)
 
-    def __repr__(self):
-        return f"QueryMessageReceived: id={self.id}, channel={self.channel}, metadata={self.metadata}, body={self.body}, from_client_id={self.from_client_id}, timestamp={self.timestamp}, reply_channel={self.reply_channel}, tags={self.tags}"
+    model_config = {"arbitrary_types_allowed": True}
+
+    @classmethod
+    def decode(cls, query_receive: pbRequest) -> "QueryMessageReceived":
+        """
+        Decodes a protobuf request object and returns a QueryMessageReceived instance.
+        """
+        return cls(
+            id=query_receive.RequestID,
+            from_client_id=query_receive.ClientID,
+            timestamp=datetime.now(),
+            channel=query_receive.Channel,
+            metadata=query_receive.Metadata,
+            body=query_receive.Body,
+            reply_channel=query_receive.ReplyChannel,
+            tags=dict(query_receive.Tags),
+        )
+
+    def __repr__(self) -> str:
+        """
+        Returns a string representation of the QueryMessageReceived object.
+        """
+        return (
+            f"QueryMessageReceived: id={self.id}, channel={self.channel}, "
+            f"metadata={self.metadata}, body={self.body}, "
+            f"from_client_id={self.from_client_id}, timestamp={self.timestamp}, "
+            f"reply_channel={self.reply_channel}, tags={self.tags}"
+        )
