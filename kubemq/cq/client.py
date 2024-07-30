@@ -7,13 +7,14 @@ import grpc
 import socket
 from typing import List
 from kubemq.transport import *
-from kubemq.grpc import (Request,Response)
+from kubemq.grpc import Request, Response
 from kubemq.cq import *
 from kubemq.common.exceptions import *
 from kubemq.common.helpers import *
 from kubemq.common.requests import *
 from kubemq.common.subscribe_type import *
 from kubemq.common.cancellation_token import *
+
 
 class Client:
     """
@@ -166,21 +167,25 @@ class Client:
                 subscription (QueriesSubscription): The queries subscription.
                 cancel (CancellationToken): The cancellation token for canceling the subscription.
     """
-    def __init__(self, address: str = "",
-                 client_id: str = socket.gethostname(),
-                 auth_token: str = "",
-                 tls: bool = False,
-                 tls_cert_file: str = "",
-                 tls_key_file: str = "",
-                 tls_ca_file: str = "",
-                 max_send_size: int = 0,
-                 max_receive_size: int = 0,
-                 disable_auto_reconnect: bool = False,
-                 reconnect_interval_seconds: int = 0,
-                 keep_alive: bool = False,
-                 ping_interval_in_seconds: int = 0,
-                 ping_timeout_in_seconds: int = 0,
-                 log_level: int = None) -> None:
+
+    def __init__(
+        self,
+        address: str = "",
+        client_id: str = socket.gethostname(),
+        auth_token: str = "",
+        tls: bool = False,
+        tls_cert_file: str = "",
+        tls_key_file: str = "",
+        tls_ca_file: str = "",
+        max_send_size: int = 0,
+        max_receive_size: int = 0,
+        disable_auto_reconnect: bool = False,
+        reconnect_interval_seconds: int = 0,
+        keep_alive: bool = False,
+        ping_interval_in_seconds: int = 0,
+        ping_timeout_in_seconds: int = 0,
+        log_level: int = None,
+    ) -> None:
         self.connection: Connection = Connection(
             address=address,
             client_id=client_id,
@@ -198,9 +203,10 @@ class Client:
             keep_alive=KeepAliveConfig(
                 enabled=keep_alive,
                 ping_interval_in_seconds=ping_interval_in_seconds,
-                ping_timeout_in_seconds=ping_timeout_in_seconds
+                ping_timeout_in_seconds=ping_timeout_in_seconds,
             ),
-            log_level=log_level)
+            log_level=log_level,
+        )
         self.logger = logging.getLogger("KubeMQ")
         if log_level is not None:
             self.logger.setLevel(log_level)
@@ -274,10 +280,11 @@ class Client:
         Returns:
             CommandResponseMessage: The response message received from the server.
         """
-        message.validate()
         response = self.transport.kubemq_client().SendRequest(
-            message.encode(self.connection.client_id))
+            message.encode(self.connection.client_id)
+        )
         return CommandResponseMessage().decode(response)
+
     def send_query_request(self, message: QueryMessage) -> QueryResponseMessage:
         """
 
@@ -295,11 +302,14 @@ class Client:
         - The response received from the Kubemq server is decoded into an instance of the QueryResponseMessage class.
 
         """
-        message.validate()
         response = self.transport.kubemq_client().SendRequest(
-            message.encode(self.connection.client_id))
+            message.encode(self.connection.client_id)
+        )
         return QueryResponseMessage().decode(response)
-    def send_response_message(self, message: [CommandResponseMessage, QueryResponseMessage]) -> None:
+
+    def send_response_message(
+        self, message: [CommandResponseMessage, QueryResponseMessage]
+    ) -> None:
         """
 
         Sends a response message using the Kubemq client.
@@ -311,11 +321,11 @@ class Client:
         None
 
         """
-        message.validate()
         self.transport.kubemq_client().SendResponse(
-            message.encode(self.connection.client_id))
+            message.encode(self.connection.client_id)
+        )
 
-    def create_commands_channel(self, channel: str)->[bool,None]:
+    def create_commands_channel(self, channel: str) -> [bool, None]:
         """Create a commands channel for the given channel.
 
         Args:
@@ -324,7 +334,10 @@ class Client:
         Returns:
             [bool, None]: Returns either True if the commands channel was created successfully, or None if there was an error.
         """
-        return create_channel_request(self.transport, self.connection.client_id, channel, "commands")
+        return create_channel_request(
+            self.transport, self.connection.client_id, channel, "commands"
+        )
+
     def create_queries_channel(self, channel: str):
         """
         Create a queries channel for the given channel.
@@ -335,7 +348,9 @@ class Client:
         Returns:
             None
         """
-        return create_channel_request(self.transport, self.connection.client_id, channel, "queries")
+        return create_channel_request(
+            self.transport, self.connection.client_id, channel, "queries"
+        )
 
     def delete_commands_channel(self, channel: str):
         """
@@ -344,16 +359,21 @@ class Client:
         :param channel: The name of the channel to delete.
         :type channel: str
         """
-        return delete_channel_request(self.transport, self.connection.client_id, channel, "commands")
+        return delete_channel_request(
+            self.transport, self.connection.client_id, channel, "commands"
+        )
+
     def delete_queries_channel(self, channel: str):
         """
         Delete a queries channel.
 
         :param channel: The name of the channel to delete.
         """
-        return delete_channel_request(self.transport, self.connection.client_id, channel, "queries")
+        return delete_channel_request(
+            self.transport, self.connection.client_id, channel, "queries"
+        )
 
-    def list_commands_channels(self,channel_search: str = "") -> List[CQChannel]:
+    def list_commands_channels(self, channel_search: str = "") -> List[CQChannel]:
         """
         Lists the CQChannels that have the "commands" capability and match the provided search string.
 
@@ -363,9 +383,11 @@ class Client:
         Returns:
             List[CQChannel]: A list of CQChannel objects that have the "commands" capability and match the search criteria.
         """
-        return list_cq_channels(self.transport, self.connection.client_id, "commands", channel_search)
+        return list_cq_channels(
+            self.transport, self.connection.client_id, "commands", channel_search
+        )
 
-    def list_queries_channels(self,channel_search: str = "") -> List[CQChannel]:
+    def list_queries_channels(self, channel_search: str = "") -> List[CQChannel]:
         """
         Retrieves a list of CQChannels representing the available query channels.
 
@@ -377,9 +399,13 @@ class Client:
             List[CQChannel]: A list of CQChannel objects representing the available query channels.
 
         """
-        return list_cq_channels( self.transport, self.connection.client_id,  "queries", channel_search)
+        return list_cq_channels(
+            self.transport, self.connection.client_id, "queries", channel_search
+        )
 
-    def subscribe_to_commands(self, subscription: CommandsSubscription, cancel: CancellationToken = None):
+    def subscribe_to_commands(
+        self, subscription: CommandsSubscription, cancel: CancellationToken = None
+    ):
         """
         Subscribes to commands using the specified subscription and cancellation token (optional).
 
@@ -387,7 +413,10 @@ class Client:
         :param cancel: The CancellationToken object used to cancel the subscription (optional).
         """
         self._subscribe(subscription, cancel)
-    def subscribe_to_queries(self, subscription: QueriesSubscription, cancel: CancellationToken = None):
+
+    def subscribe_to_queries(
+        self, subscription: QueriesSubscription, cancel: CancellationToken = None
+    ):
         """
         Subscribes to the given query subscription.
 
@@ -397,35 +426,47 @@ class Client:
         :type cancel: CancellationToken, defaults to None
         """
         self._subscribe(subscription, cancel)
-    def _subscribe(self,
-                  subscription: [CommandsSubscription,
-                                 QueriesSubscription],
-                  cancel: [CancellationToken, None]):
+
+    def _subscribe(
+        self,
+        subscription: [CommandsSubscription, QueriesSubscription],
+        cancel: [CancellationToken, None],
+    ):
         if cancel is None:
             cancel = CancellationToken()
         cancel_token_event = cancel.event
-        subscription.validate()
         args = ()
         if isinstance(subscription, CommandsSubscription):
-            args = (lambda: self.transport.kubemq_client().SubscribeToRequests(
-                subscription.decode(self.connection.client_id)),
-                    lambda message: subscription.raise_on_receive_message(
-                        CommandMessageReceived().decode(message)),
-                    lambda error: subscription.raise_on_error(error),
-                    cancel_token_event)
+            args = (
+                lambda: self.transport.kubemq_client().SubscribeToRequests(
+                    subscription.decode(self.connection.client_id)
+                ),
+                lambda message: subscription.raise_on_receive_message(
+                    CommandMessageReceived().decode(message)
+                ),
+                lambda error: subscription.raise_on_error(error),
+                cancel_token_event,
+            )
         if isinstance(subscription, QueriesSubscription):
-            args = (lambda: self.transport.kubemq_client().SubscribeToRequests(
-                subscription.encode(self.connection.client_id)),
-                    lambda message: subscription.raise_on_receive_message(
-                        QueryMessageReceived().decode(message)),
-                    lambda error: subscription.raise_on_error(error),
-                    cancel_token_event)
-        threading.Thread(
-            target=self._subscribe_task,
-            args=args,
-            daemon=True).start()
+            args = (
+                lambda: self.transport.kubemq_client().SubscribeToRequests(
+                    subscription.encode(self.connection.client_id)
+                ),
+                lambda message: subscription.raise_on_receive_message(
+                    QueryMessageReceived().decode(message)
+                ),
+                lambda error: subscription.raise_on_error(error),
+                cancel_token_event,
+            )
+        threading.Thread(target=self._subscribe_task, args=args, daemon=True).start()
 
-    def _subscribe_task(self, stream_callable, decode_callable, error_callable, cancel_token: threading.Event):
+    def _subscribe_task(
+        self,
+        stream_callable,
+        decode_callable,
+        error_callable,
+        cancel_token: threading.Event,
+    ):
         while not cancel_token.is_set() and not self.shutdown_event.is_set():
             try:
                 response = stream_callable()

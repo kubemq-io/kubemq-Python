@@ -14,6 +14,7 @@ from kubemq.common.helpers import *
 from kubemq.common.requests import *
 from kubemq.common.cancellation_token import *
 
+
 class Client:
     """
 
@@ -49,21 +50,25 @@ class Client:
     Note: Make sure to set the connection attributes correctly before connecting to the server.
 
     """
-    def __init__(self, address: str = "",
-                 client_id: str = socket.gethostname(),
-                 auth_token: str = "",
-                 tls: bool = False,
-                 tls_cert_file: str = "",
-                 tls_key_file: str = "",
-                 tls_ca_file: str = "",
-                 max_send_size: int = 0,
-                 max_receive_size: int = 0,
-                 disable_auto_reconnect: bool = False,
-                 reconnect_interval_seconds: int = 0,
-                 keep_alive: bool = False,
-                 ping_interval_in_seconds: int = 0,
-                 ping_timeout_in_seconds: int = 0,
-                 log_level: int = None) -> None:
+
+    def __init__(
+        self,
+        address: str = "",
+        client_id: str = socket.gethostname(),
+        auth_token: str = "",
+        tls: bool = False,
+        tls_cert_file: str = "",
+        tls_key_file: str = "",
+        tls_ca_file: str = "",
+        max_send_size: int = 0,
+        max_receive_size: int = 0,
+        disable_auto_reconnect: bool = False,
+        reconnect_interval_seconds: int = 0,
+        keep_alive: bool = False,
+        ping_interval_in_seconds: int = 0,
+        ping_timeout_in_seconds: int = 0,
+        log_level: int = None,
+    ) -> None:
         self.connection: Connection = Connection(
             address=address,
             client_id=client_id,
@@ -81,9 +86,10 @@ class Client:
             keep_alive=KeepAliveConfig(
                 enabled=keep_alive,
                 ping_interval_in_seconds=ping_interval_in_seconds,
-                ping_timeout_in_seconds=ping_timeout_in_seconds
+                ping_timeout_in_seconds=ping_timeout_in_seconds,
             ),
-            log_level=log_level)
+            log_level=log_level,
+        )
         self.logger = logging.getLogger("KubeMQ")
         if log_level is not None:
             self.logger.setLevel(log_level)
@@ -116,7 +122,7 @@ class Client:
             self.transport: Transport = Transport(self.connection).initialize()
             self.logger.debug(f"Client connected to {self.connection.address}")
         except Exception as e:
-            ex =GRPCError(e)
+            ex = GRPCError(e)
             self.logger.error(str(ex))
             raise ex
 
@@ -160,12 +166,15 @@ class Client:
         Returns:
             QueueSendResult: The result of the message send operation.
         """
-        message.validate()
+        # message.validate()
         if self.upstream_sender is None:
-            self.upstream_sender = UpstreamSender(self.transport, self.shutdown_event, self.logger,self.connection)
+            self.upstream_sender = UpstreamSender(
+                self.transport, self.shutdown_event, self.logger, self.connection
+            )
 
         return self.upstream_sender.send(message)
-    def create_queues_channel(self, channel: str)->[bool,None]:
+
+    def create_queues_channel(self, channel: str) -> [bool, None]:
         """
         Create a queues channel for the given channel.
 
@@ -176,9 +185,11 @@ class Client:
         - bool or None: Returns True if the channel is created successfully, otherwise returns None.
 
         """
-        return create_channel_request(self.transport, self.connection.client_id, channel, "queues")
+        return create_channel_request(
+            self.transport, self.connection.client_id, channel, "queues"
+        )
 
-    def delete_queues_channel(self, channel: str)->[bool,None]:
+    def delete_queues_channel(self, channel: str) -> [bool, None]:
         """
         Delete Queues Channel
 
@@ -190,9 +201,11 @@ class Client:
         Returns:
         - bool or None: Returns True if the channel was successfully deleted. Returns None if there was an error during deletion.
         """
-        return delete_channel_request(self.transport, self.connection.client_id, channel, "queues")
+        return delete_channel_request(
+            self.transport, self.connection.client_id, channel, "queues"
+        )
 
-    def list_queues_channels(self, channel_search)->List[QueuesChannel]:
+    def list_queues_channels(self, channel_search) -> List[QueuesChannel]:
         """
         Retrieve a list of QueuesChannel objects based on the provided channel_search.
 
@@ -202,13 +215,17 @@ class Client:
         Returns:
         - A list of QueuesChannel objects that match the search term.
         """
-        return list_queues_channels(self.transport, self.connection.client_id, channel_search)
+        return list_queues_channels(
+            self.transport, self.connection.client_id, channel_search
+        )
 
-    def receive_queues_messages(self, channel: str = None,
-             max_messages: int = 1,
-             wait_timeout_in_seconds: int = 60,
-             auto_ack: bool = False,
-             ) -> QueuesPollResponse:
+    def receive_queues_messages(
+        self,
+        channel: str = None,
+        max_messages: int = 1,
+        wait_timeout_in_seconds: int = 60,
+        auto_ack: bool = False,
+    ) -> QueuesPollResponse:
         """
 
         Receive messages from a specific channel in the queues.
@@ -234,11 +251,9 @@ class Client:
             raise ValueError("poll_wait_timeout_in_seconds must be greater than 0.")
 
         if self.downstream_receiver is None:
-            self.downstream_receiver = (
-                DownstreamReceiver(self.transport,
-                                         self.shutdown_event,
-                                         self.logger,
-                                         self.connection))
+            self.downstream_receiver = DownstreamReceiver(
+                self.transport, self.shutdown_event, self.logger, self.connection
+            )
 
         request = QueuesDownstreamRequest()
         request.RequestID = str(uuid.uuid4())
@@ -248,10 +263,13 @@ class Client:
         request.WaitTimeout = wait_timeout_in_seconds * 1000
         request.AutoAck = auto_ack
         request.RequestTypeData = QueuesDownstreamRequestType.Get
-        kubemq_response: QueuesDownstreamResponse = self.downstream_receiver.send(request)
+        kubemq_response: QueuesDownstreamResponse = self.downstream_receiver.send(
+            request
+        )
         response = QueuesPollResponse().decode(
             response=kubemq_response,
             receiver_client_id=self.connection.client_id,
-            response_handler=self.downstream_receiver.send_without_response)
+            response_handler=self.downstream_receiver.send_without_response,
+        )
 
         return response

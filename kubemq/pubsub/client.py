@@ -7,13 +7,14 @@ import grpc
 import socket
 from typing import List
 from kubemq.transport import *
-from kubemq.grpc import (Event,Result,Request,Response)
+from kubemq.grpc import Event, Result, Request, Response
 from kubemq.pubsub import *
 from kubemq.common.exceptions import *
 from kubemq.common.helpers import *
 from kubemq.common.requests import *
 from kubemq.common.subscribe_type import *
 from kubemq.common.cancellation_token import *
+
 
 class Client:
     """
@@ -58,21 +59,25 @@ class Client:
     - `subscribe_to_events_store`: Subscribes to events store on the KubeMQ server.
 
     """
-    def __init__(self, address: str = "",
-                 client_id: str = socket.gethostname(),
-                 auth_token: str = "",
-                 tls: bool = False,
-                 tls_cert_file: str = "",
-                 tls_key_file: str = "",
-                 tls_ca_file: str = "",
-                 max_send_size: int = 0,
-                 max_receive_size: int = 0,
-                 disable_auto_reconnect: bool = False,
-                 reconnect_interval_seconds: int = 0,
-                 keep_alive: bool = False,
-                 ping_interval_in_seconds: int = 0,
-                 ping_timeout_in_seconds: int = 0,
-                 log_level: int = None) -> None:
+
+    def __init__(
+        self,
+        address: str = "",
+        client_id: str = socket.gethostname(),
+        auth_token: str = "",
+        tls: bool = False,
+        tls_cert_file: str = "",
+        tls_key_file: str = "",
+        tls_ca_file: str = "",
+        max_send_size: int = 0,
+        max_receive_size: int = 0,
+        disable_auto_reconnect: bool = False,
+        reconnect_interval_seconds: int = 0,
+        keep_alive: bool = False,
+        ping_interval_in_seconds: int = 0,
+        ping_timeout_in_seconds: int = 0,
+        log_level: int = None,
+    ) -> None:
         self.connection: Connection = Connection(
             address=address,
             client_id=client_id,
@@ -90,9 +95,10 @@ class Client:
             keep_alive=KeepAliveConfig(
                 enabled=keep_alive,
                 ping_interval_in_seconds=ping_interval_in_seconds,
-                ping_timeout_in_seconds=ping_timeout_in_seconds
+                ping_timeout_in_seconds=ping_timeout_in_seconds,
             ),
-            log_level=log_level)
+            log_level=log_level,
+        )
         self.logger = logging.getLogger("KubeMQ")
         if log_level is not None:
             self.logger.setLevel(log_level)
@@ -124,7 +130,7 @@ class Client:
             self.transport: Transport = Transport(self.connection).initialize()
             self.logger.debug(f"Client connected to {self.connection.address}")
         except Exception as e:
-            ex =GRPCError(e)
+            ex = GRPCError(e)
             self.logger.error(str(ex))
             raise ex
 
@@ -153,7 +159,8 @@ class Client:
             ex = GRPCError(e)
             self.logger.error(str(ex))
             raise ex
-    def send_events_message(self, message: EventMessage) :
+
+    def send_events_message(self, message: EventMessage):
         """
         Sends the given event message.
 
@@ -166,10 +173,13 @@ class Client:
         Raises:
             None
         """
-        message.validate()
+
         if self.event_sender is None:
-            self.event_sender = EventSender(self.transport, self.shutdown_event, self.logger, self.connection)
+            self.event_sender = EventSender(
+                self.transport, self.shutdown_event, self.logger, self.connection
+            )
         self.event_sender.send(message.encode(self.connection.client_id))
+
     def send_events_store_message(self, message: EventStoreMessage) -> EventSendResult:
         """
         Sends an event store message using the provided parameters.
@@ -188,13 +198,15 @@ class Client:
             result = send_events_store_message(message)
             print(result)
         """
-        message.validate()
         if self.event_sender is None:
-            self.event_sender = EventSender(self.transport, self.shutdown_event, self.logger, self.connection)
+            self.event_sender = EventSender(
+                self.transport, self.shutdown_event, self.logger, self.connection
+            )
         result = self.event_sender.send(message.encode(self.connection.client_id))
         if result is not None:
             return EventSendResult().decode(result)
-    def create_events_channel(self, channel: str)->[bool,None]:
+
+    def create_events_channel(self, channel: str) -> [bool, None]:
         """
         Create a new events channel.
 
@@ -204,7 +216,10 @@ class Client:
         Returns:
             bool or None: True if the channel is successfully created, None otherwise.
         """
-        return create_channel_request(self.transport, self.connection.client_id, channel, "events")
+        return create_channel_request(
+            self.transport, self.connection.client_id, channel, "events"
+        )
+
     def create_events_store_channel(self, channel: str):
         """
         Creates a channel for storing events.
@@ -216,7 +231,9 @@ class Client:
             None
 
         """
-        return create_channel_request(self.transport, self.connection.client_id, channel, "events_store")
+        return create_channel_request(
+            self.transport, self.connection.client_id, channel, "events_store"
+        )
 
     def delete_events_channel(self, channel: str):
         """
@@ -229,16 +246,22 @@ class Client:
         - None
 
         """
-        return delete_channel_request(self.transport, self.connection.client_id, channel, "events")
+        return delete_channel_request(
+            self.transport, self.connection.client_id, channel, "events"
+        )
+
     def delete_events_store_channel(self, channel: str):
         """
         Deletes the specified channel from the events store.
 
         :param channel: The name of the channel to be deleted.
         """
-        return delete_channel_request(self.transport, self.connection.client_id, channel, "events_store")
+        return delete_channel_request(
+            self.transport, self.connection.client_id, channel, "events_store"
+        )
+
     def list_events_channels(self, channel_search: str = "") -> List[PubSubChannel]:
-        """ Lists the events channels.
+        """Lists the events channels.
 
         Args:
             channel_search (str, optional): The search string used to filter the channel names. Defaults to "".
@@ -247,8 +270,13 @@ class Client:
             List[PubSubChannel]: A list of PubSubChannel objects representing the events channels.
 
         """
-        return list_pubsub_channels(self.transport, self.connection.client_id, "events", channel_search)
-    def list_events_store_channels(self, channel_search: str = "") -> List[PubSubChannel]:
+        return list_pubsub_channels(
+            self.transport, self.connection.client_id, "events", channel_search
+        )
+
+    def list_events_store_channels(
+        self, channel_search: str = ""
+    ) -> List[PubSubChannel]:
         """
         Returns a list of PubSubChannel objects representing the channels in the events_store.
 
@@ -261,9 +289,13 @@ class Client:
                 in the events_store.
 
         """
-        return list_pubsub_channels(self.transport, self.connection.client_id, "events_store", channel_search)
+        return list_pubsub_channels(
+            self.transport, self.connection.client_id, "events_store", channel_search
+        )
 
-    def subscribe_to_events(self, subscription: EventsSubscription, cancel: CancellationToken = None):
+    def subscribe_to_events(
+        self, subscription: EventsSubscription, cancel: CancellationToken = None
+    ):
         """
         Subscribes to events using the given subscription.
 
@@ -277,7 +309,9 @@ class Client:
         """
         self._subscribe(subscription, cancel)
 
-    def subscribe_to_events_store(self, subscription: EventsStoreSubscription, cancel: CancellationToken = None):
+    def subscribe_to_events_store(
+        self, subscription: EventsStoreSubscription, cancel: CancellationToken = None
+    ):
         """
         Subscribes to events in the events store.
 
@@ -290,34 +324,47 @@ class Client:
 
         """
         self._subscribe(subscription, cancel)
-    def _subscribe(self,
-                  subscription: [EventsSubscription,EventsStoreSubscription],
-                  cancel: [CancellationToken, None]):
+
+    def _subscribe(
+        self,
+        subscription: [EventsSubscription, EventsStoreSubscription],
+        cancel: [CancellationToken, None],
+    ):
         if cancel is None:
             cancel = CancellationToken()
         cancel_token_event = cancel.event
-        subscription.validate()
         args = ()
         if isinstance(subscription, EventsStoreSubscription):
-            args = (lambda: self.transport.kubemq_client().SubscribeToEvents(
-                subscription.encode(self.connection.client_id)),
-                    lambda message: subscription.raise_on_receive_message(
-                        EventStoreMessageReceived().decode(message)),
-                    lambda error: subscription.raise_on_error(error),
-                    cancel_token_event)
+            args = (
+                lambda: self.transport.kubemq_client().SubscribeToEvents(
+                    subscription.encode(self.connection.client_id)
+                ),
+                lambda message: subscription.raise_on_receive_message(
+                    EventStoreMessageReceived().decode(message)
+                ),
+                lambda error: subscription.raise_on_error(error),
+                cancel_token_event,
+            )
         if isinstance(subscription, EventsSubscription):
-            args = (lambda: self.transport.kubemq_client().SubscribeToEvents(
-                subscription.encode(self.connection.client_id)),
-                    lambda message: subscription.raise_on_receive_message(
-                        EventMessageReceived().decode(message)),
-                    lambda error: subscription.raise_on_error(error),
-                    cancel_token_event)
-        threading.Thread(
-            target=self._subscribe_task,
-            args=args,
-            daemon=True).start()
+            args = (
+                lambda: self.transport.kubemq_client().SubscribeToEvents(
+                    subscription.encode(self.connection.client_id)
+                ),
+                lambda message: subscription.raise_on_receive_message(
+                    EventMessageReceived().decode(message)
+                ),
+                lambda error: subscription.raise_on_error(error),
+                cancel_token_event,
+            )
+        threading.Thread(target=self._subscribe_task, args=args, daemon=True).start()
 
-    def _subscribe_task(self, stream_callable, decode_callable, error_callable, cancel_token: threading.Event):
+    def _subscribe_task(
+        self,
+        stream_callable,
+        decode_callable,
+        error_callable,
+        cancel_token: threading.Event,
+    ):
         while not cancel_token.is_set() and not self.shutdown_event.is_set():
             try:
                 response = stream_callable()
