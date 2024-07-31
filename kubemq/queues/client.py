@@ -96,7 +96,6 @@ class Client:
         else:
             self.logger.setLevel(logging.CRITICAL + 1)
         try:
-            self.connection.validate()
             self.transport: Transport = Transport(self.connection).initialize()
             self.shutdown_event: threading.Event = threading.Event()
             self.upstream_sender = None
