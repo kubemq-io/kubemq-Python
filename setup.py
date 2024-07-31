@@ -8,21 +8,22 @@ HERE = pathlib.Path(__file__).parent
 README = (HERE / "README.md").read_text()
 
 setup(
-    name='kubemq',
-    version='3.0.1',
-    description='KubeMQ SDK for Python',
+    name="kubemq",
+    version="3.2.0",
+    description="KubeMQ SDK for Python",
     long_description=README,
     long_description_content_type="text/markdown",
-    url='https://github.com/kubemq-io/kubemq-Python',
-    author='KubeMQ',
-    author_email='info@kubemq.io',
-    license='MIT',
+    url="https://github.com/kubemq-io/kubemq-Python",
+    author="KubeMQ",
+    author_email="info@kubemq.io",
+    license="MIT",
     packages=find_packages(),  # Corrected function call
     install_requires=[
-        'grpcio>=1.51.1',
-        'protobuf>=4.21.0',
-        'setuptools>=40.8.0',
-        'PyJWT>=2.6.0',
+        "grpcio==1.64.1",
+        "protobuf>=4.21.0",
+        "setuptools>=40.8.0",
+        "PyJWT>=2.6.0",
+        "pydantic",
     ],
-    zip_safe=False
+    zip_safe=False,
 )
