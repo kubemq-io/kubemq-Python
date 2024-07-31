@@ -1,63 +1,38 @@
-class ServerInfo:
-    """
+from pydantic import BaseModel, Field, field_validator
+from typing import Optional
 
-    The ServerInfo class represents information about a server.
+
+class ServerInfo(BaseModel):
+    """
+    Represents information about a server.
 
     Attributes:
-        _host (str): The host of the server.
-        _version (str): The version of the server.
-        _server_start_time (int): The start time of the server (in seconds).
-        _server_up_time_seconds (int): The uptime of the server (in seconds).
-
-    Methods:
-        host (property): Getter and setter for the _host attribute.
-        version (property): Getter and setter for the _version attribute.
-        server_start_time (property): Getter and setter for the _server_start_time attribute.
-        server_up_time_seconds (property): Getter and setter for the _server_up_time_seconds attribute.
-        __str__(): Returns a string representation of the ServerInfo object.
-
+        host (str): The host of the server.
+        version (str): The version of the server.
+        server_start_time (int): The start time of the server (in seconds).
+        server_up_time_seconds (int): The uptime of the server (in seconds).
     """
-    def __init__(self, host: str, version: str, server_start_time: int, server_up_time_seconds: int):
-        self._host = host
-        self._version = version
-        self._server_start_time = server_start_time
-        self._server_up_time_seconds = server_up_time_seconds
 
-    @property
-    def host(self) -> str:
-        return self._host
+    host: str = Field(..., description="The host of the server")
+    version: str = Field(..., description="The version of the server")
+    server_start_time: int = Field(
+        ..., description="The start time of the server (in seconds)"
+    )
+    server_up_time_seconds: int = Field(
+        ..., description="The uptime of the server (in seconds)"
+    )
 
-    @host.setter
-    def host(self, value: str) -> None:
-        self._host = value
+    @field_validator("server_start_time", "server_up_time_seconds")
+    def validate_positive_time(cls, v: int) -> int:
+        if v < 0:
+            raise ValueError("Time values must be non-negative")
+        return v
 
-    @property
-    def version(self) -> str:
-        return self._version
+    def __str__(self) -> str:
+        return (
+            f"ServerInfo(host={self.host}, version={self.version}, "
+            f"server_start_time={self.server_start_time}, server_up_time_seconds={self.server_up_time_seconds})"
+        )
 
-    @version.setter
-    def version(self, value: str) -> None:
-        self._version = value
-
-    @property
-    def server_start_time(self) -> int:
-        return self._server_start_time
-
-    @server_start_time.setter
-    def server_start_time(self, value: int) -> None:
-        """
-
-        """
-        self._server_start_time = value
-
-    @property
-    def server_up_time_seconds(self) -> int:
-        return self._server_up_time_seconds
-
-    @server_up_time_seconds.setter
-    def server_up_time_seconds(self, value: int) -> None:
-        self._server_up_time_seconds = value
-
-    def __str__(self):
-        return (f"ServerInfo(host={self._host}, version={self._version}, "
-                f"server_start_time={self._server_start_time}, server_up_time_seconds={self._server_up_time_seconds})")
+    class Config:
+        frozen = True  # This makes the model immutable
