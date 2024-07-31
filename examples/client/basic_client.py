@@ -3,7 +3,7 @@ from kubemq.pubsub import Client
 
 def main():
     try:
-        client = Client(address="localhost:50000" )
+        client = Client(address="localhost:50000")
         server_info = client.ping()
         print(server_info)
     except Exception as e:

@@ -1,4 +1,3 @@
-import logging
 from kubemq.queues import *
 
 
@@ -19,13 +18,12 @@ def main():
             wait_timeout_in_seconds=10,
             auto_ack=False,
         )
-        result.ack_all()
-        # if result.is_error:
-        #     print(f"{result.error}")
-        #     return
-        # for message in result.messages:
-        #     print(f"Id:{message.id}, Body:{message.body.decode('utf-8')}")
-        #     message.ack()
+        if result.is_error:
+            print(f"{result.error}")
+            return
+        for message in result.messages:
+            print(f"Id:{message.id}, Body:{message.body.decode('utf-8')}")
+            message.ack()
 
 
 if __name__ == "__main__":
