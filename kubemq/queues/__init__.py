@@ -6,4 +6,5 @@ from .queues_poll_response import *
 from .downstream_receiver import *
 from .queues_send_result import *
 from .upstream_sender import *
+from .queues_messages_waiting_pulled import *
 from .client import *

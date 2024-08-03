@@ -13,6 +13,7 @@ from kubemq.common.exceptions import *
 from kubemq.common.helpers import *
 from kubemq.common.requests import *
 from kubemq.common.cancellation_token import *
+from kubemq.grpc import ReceiveQueueMessagesRequest
 
 
 class Client:
@@ -272,3 +273,103 @@ class Client:
         )
 
         return response
+
+    def waiting(
+        self, channel: str, max_messages: int, wait_timeout_in_seconds: int
+    ) -> QueueMessagesWaiting:
+        """
+        Get waiting messages from a queue.
+
+        Args:
+            channel (str): The name of the queue channel.
+            max_messages (int): The maximum number of messages to retrieve.
+            wait_timeout_in_seconds (int): The maximum amount of time to wait for messages in seconds.
+
+        Returns:
+            QueueMessagesWaiting: An object containing the waiting messages.
+
+        Raises:
+            ValueError: If channel is None, max_messages is less than 1, or wait_timeout_in_seconds is less than 1.
+        """
+        self.logger.debug(f"Get waiting messages from queue: {channel}")
+        if channel is None:
+            raise ValueError("channel cannot be None.")
+        if max_messages < 1:
+            raise ValueError("max_messages must be greater than 0.")
+        if wait_timeout_in_seconds < 1:
+            raise ValueError("wait_timeout_in_seconds must be greater than 0.")
+
+        request = ReceiveQueueMessagesRequest(
+            RequestID=str(uuid.uuid4()),
+            ClientID=self.connection.client_id,
+            Channel=channel,
+            MaxNumberOfMessages=max_messages,
+            WaitTimeSeconds=wait_timeout_in_seconds,
+            IsPeak=True,
+        )
+
+        response = self.transport.kubemq_client().ReceiveQueueMessages(request)
+        waiting_messages = QueueMessagesWaiting(
+            is_error=response.IsError, error=response.Error
+        )
+
+        if not response.Messages:
+            return waiting_messages
+
+        self.logger.debug(f"Waiting messages count: {len(response.Messages)}")
+        for message in response.Messages:
+            waiting_messages.messages.append(
+                QueueMessageWaitingPulled.decode(message, self.connection.client_id)
+            )
+
+        return waiting_messages
+
+    def pull(
+        self, channel: str, max_messages: int, wait_timeout_in_seconds: int
+    ) -> QueueMessagesPulled:
+        """
+        Pulls messages from a queue.
+
+        Args:
+            channel (str): The name of the queue channel.
+            max_messages (int): The maximum number of messages to pull.
+            wait_timeout_in_seconds (int): The maximum amount of time to wait for messages in seconds.
+
+        Returns:
+            QueueMessagesPulled: An object containing the pulled messages.
+
+        Raises:
+            ValueError: If channel is None, max_messages is less than 1, or wait_timeout_in_seconds is less than 1.
+        """
+        self.logger.debug(f"Pulling messages from queue: {channel}")
+        if channel is None:
+            raise ValueError("channel cannot be None.")
+        if max_messages < 1:
+            raise ValueError("max_messages must be greater than 0.")
+        if wait_timeout_in_seconds < 1:
+            raise ValueError("wait_timeout_in_seconds must be greater than 0.")
+
+        request = ReceiveQueueMessagesRequest(
+            RequestID=str(uuid.uuid4()),
+            ClientID=self.connection.client_id,
+            Channel=channel,
+            MaxNumberOfMessages=max_messages,
+            WaitTimeSeconds=wait_timeout_in_seconds,
+            IsPeak=False,
+        )
+
+        response = self.transport.kubemq_client().ReceiveQueueMessages(request)
+        pulled_messages = QueueMessagesPulled(
+            is_error=response.IsError, error=response.Error
+        )
+
+        if not response.Messages:
+            return pulled_messages
+
+        self.logger.debug(f"Pulled messages count: {len(response.Messages)}")
+        for message in response.Messages:
+            pulled_messages.messages.append(
+                QueueMessageWaitingPulled.decode(message, self.connection.client_id)
+            )
+
+        return pulled_messages
