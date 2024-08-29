@@ -19,7 +19,7 @@ setup(
     license="MIT",
     packages=find_packages(),  # Corrected function call
     install_requires=[
-        "grpcio==1.64.1",
+        "grpcio==1.66.1",
         "protobuf>=4.21.0",
         "setuptools>=40.8.0",
         "PyJWT>=2.6.0",
