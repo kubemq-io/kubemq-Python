@@ -30,12 +30,18 @@ class QueuesPollRequest(BaseModel):
         default=False,
         description="Whether to automatically acknowledge received messages",
     )
+    visibility_seconds: int = Field(
+        default=0,
+        ge=0,
+        description="The visibility time in seconds for the messages",
+    )
 
     @field_validator("channel")
     def channel_must_not_be_empty(cls, v: Optional[str]) -> str:
         if not v:
             raise ValueError("queue subscription must have a channel.")
         return v
+
 
     def encode(self, client_id: str = "") -> QueuesDownstreamRequest:
         request = QueuesDownstreamRequest()
