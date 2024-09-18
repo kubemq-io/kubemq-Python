@@ -6,6 +6,7 @@ from kubemq.grpc import (
     QueuesDownstreamResponse,
     QueuesDownstreamRequestType,
 )
+import threading
 from kubemq.queues.queues_message_received import QueueMessageReceived
 
 
@@ -21,53 +22,41 @@ class QueuesPollResponse(BaseModel):
     response_handler: Optional[
         Callable[[QueuesDownstreamRequest], QueuesDownstreamResponse]
     ] = Field(default=None)
+    visibility_seconds: int = Field(default=0)
+    is_auto_acked: bool = Field(default=False)
+
+    def __init__(self, **data):
+        super().__init__(**data)
+        self._lock = threading.Lock()
 
     def ack_all(self):
-        if self.is_transaction_completed:
-            raise ValueError("transaction is already completed")
-        request = QueuesDownstreamRequest()
-        request.RequestID = str(uuid.uuid4())
-        request.ClientID = self.receiver_client_id
-        request.RequestTypeData = QueuesDownstreamRequestType.AckAll
-        request.RefTransactionId = self.transaction_id
-        request.SequenceRange.extend(self.active_offsets)
-        if self.response_handler:
-            self.response_handler(request)
-        else:
-            raise ValueError("response_handler is not set")
+        self._do_operation(QueuesDownstreamRequestType.AckAll)
 
     def reject_all(self):
-        if self.is_transaction_completed:
-            raise ValueError("transaction is already completed")
-        request = QueuesDownstreamRequest()
-        request.RequestID = str(uuid.uuid4())
-        request.ClientID = self.receiver_client_id
-        request.RequestTypeData = QueuesDownstreamRequestType.NAckAll
-        request.RefTransactionId = self.transaction_id
-        request.SequenceRange.extend(self.active_offsets)
-        if self.response_handler:
-            result = self.response_handler(request)
-            if result.IsError:
-                raise ValueError(result.Error)
-        else:
-            raise ValueError("response_handler is not set")
+        self._do_operation(QueuesDownstreamRequestType.NAckAll)
 
     def re_queue_all(self, channel: str):
-        if not channel:
-            raise ValueError("re-queue channel cannot be empty")
-        request = QueuesDownstreamRequest()
-        request.RequestID = str(uuid.uuid4())
-        request.ClientID = self.receiver_client_id
-        request.RequestTypeData = QueuesDownstreamRequestType.ReQueueAll
-        request.RefTransactionId = self.transaction_id
-        request.SequenceRange.extend(self.active_offsets)
-        request.ReQueueChannel = channel
-        if self.response_handler:
-            result = self.response_handler(request)
-            if result.IsError:
-                raise ValueError(result.Error)
-        else:
+        self._do_operation(QueuesDownstreamRequestType.ReQueueAll, channel)
+
+    def _do_operation(self, request_type: QueuesDownstreamRequestType, re_queue_channel: str = ""):
+        if self.is_auto_acked:
+            raise ValueError("transaction was set with auto ack, transaction operations are not allowed")
+        if self.is_transaction_completed:
+            raise ValueError("transaction is already completed")
+        if not self.response_handler:
             raise ValueError("response_handler is not set")
+        with self._lock:
+            request = QueuesDownstreamRequest()
+            request.RequestID = str(uuid.uuid4())
+            request.ClientID = self.receiver_client_id
+            request.RequestTypeData = request_type
+            request.ReQueueChannel = re_queue_channel
+            request.RefTransactionId = self.transaction_id
+            request.SequenceRange.extend(self.active_offsets)
+            self.response_handler(request)
+            self.is_transaction_completed=True
+            for message in self.messages:
+                message._mark_transaction_completed()
 
     @classmethod
     def decode(
@@ -75,6 +64,8 @@ class QueuesPollResponse(BaseModel):
         response: QueuesDownstreamResponse,
         receiver_client_id: str,
         response_handler: Callable[[QueuesDownstreamRequest], QueuesDownstreamResponse],
+        request_visibility_seconds: int = 0,
+        request_auto_ack: bool = False,
     ) -> "QueuesPollResponse":
         messages = [
             QueueMessageReceived.decode(
@@ -83,6 +74,8 @@ class QueuesPollResponse(BaseModel):
                 response.TransactionComplete,
                 receiver_client_id,
                 response_handler,
+                visibility_seconds=request_visibility_seconds,
+                is_auto_acked=request_auto_ack
             )
             for message in response.Messages
         ]
@@ -97,6 +90,8 @@ class QueuesPollResponse(BaseModel):
             active_offsets=list(response.ActiveOffsets),
             receiver_client_id=receiver_client_id,
             response_handler=response_handler,
+            visibility_seconds=request_visibility_seconds,
+            is_auto_acked=request_auto_ack,
         )
 
     class Config:
