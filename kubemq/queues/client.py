@@ -225,6 +225,7 @@ class Client:
         max_messages: int = 1,
         wait_timeout_in_seconds: int = 60,
         auto_ack: bool = False,
+        visibility_seconds: int = 0,
     ) -> QueuesPollResponse:
         """
 
@@ -249,7 +250,10 @@ class Client:
             raise ValueError("poll_max_messages must be greater than 0.")
         if wait_timeout_in_seconds < 1:
             raise ValueError("poll_wait_timeout_in_seconds must be greater than 0.")
-
+        if auto_ack and visibility_seconds > 0:
+            raise ValueError(
+                "auto_ack and visibility_seconds cannot be set together"
+            )
         if self.downstream_receiver is None:
             self.downstream_receiver = DownstreamReceiver(
                 self.transport, self.shutdown_event, self.logger, self.connection
@@ -270,6 +274,7 @@ class Client:
             response=kubemq_response,
             receiver_client_id=self.connection.client_id,
             response_handler=self.downstream_receiver.send_without_response,
+            request_visibility_seconds=visibility_seconds,
         )
 
         return response
