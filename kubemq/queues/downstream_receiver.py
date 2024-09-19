@@ -2,6 +2,8 @@ import logging
 import threading
 import queue
 import time
+from time import sleep
+
 import grpc
 from kubemq.transport import Transport, Connection
 from kubemq.grpc import QueuesDownstreamRequest, QueuesDownstreamResponse
@@ -44,11 +46,11 @@ class DownstreamReceiver:
             Continuously sends requests from the queue to the server and handles responses.
 
     """
-    def __init__(self, transport: Transport, shutdown_event: threading.Event, logger: logging.Logger,
+    def __init__(self, transport: Transport, logger: logging.Logger,
                  connection: Connection):
         self.clientStub = transport.kubemq_client()
         self.connection = connection
-        self.shutdown_event = shutdown_event
+        self.shutdown_event = threading.Event()
         self.logger = logger
         self.lock = threading.Lock()
         self.response_tracking = {}
@@ -138,3 +140,8 @@ class DownstreamReceiver:
                 self._handle_disconnection()
                 time.sleep(self.connection.reconnect_interval_seconds)
                 continue
+    def close(self):
+        self.allow_new_requests = False
+        self.shutdown_event.set()
+        self.queue.put(None)
+        self.logger.debug("Downstream receiver shutdown")
