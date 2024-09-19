@@ -128,7 +128,12 @@ class Client:
 
     def close(self):
         try:
+            time.sleep(1)
             self.shutdown_event.set()
+            if self.upstream_sender is not None:
+                self.upstream_sender.close()
+            if self.downstream_receiver is not None:
+                self.downstream_receiver.close()
             self.logger.debug(f"Client disconnecting from {self.connection.address}")
             self.transport.close()
         except Exception as e:
@@ -169,7 +174,7 @@ class Client:
         # message.validate()
         if self.upstream_sender is None:
             self.upstream_sender = UpstreamSender(
-                self.transport, self.shutdown_event, self.logger, self.connection
+                self.transport,  self.logger, self.connection
             )
 
         return self.upstream_sender.send(message)
@@ -256,7 +261,7 @@ class Client:
             )
         if self.downstream_receiver is None:
             self.downstream_receiver = DownstreamReceiver(
-                self.transport, self.shutdown_event, self.logger, self.connection
+                self.transport,  self.logger, self.connection
             )
 
         request = QueuesDownstreamRequest()
