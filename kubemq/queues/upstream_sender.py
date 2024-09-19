@@ -35,11 +35,11 @@ class UpstreamSender:
             Sends messages from the sending queue to the server.
 
     """
-    def __init__(self, transport: Transport, shutdown_event: threading.Event, logger: logging.Logger,
+    def __init__(self, transport: Transport, logger: logging.Logger,
                  connection: Connection):
         self.clientStub = transport.kubemq_client()
         self.connection = connection
-        self.shutdown_event = shutdown_event
+        self.shutdown_event = threading.Event()
         self.logger = logger
         self.lock = threading.Lock()
         self.response_tracking = {}
@@ -124,3 +124,7 @@ class UpstreamSender:
                 self._handle_disconnection()
                 time.sleep(self.connection.reconnect_interval_seconds)
                 continue
+    def close(self):
+        self.allow_new_messages = False
+        self.shutdown_event.set()
+        self.sending_queue.put(None)
