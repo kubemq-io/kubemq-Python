@@ -49,7 +49,7 @@ class QueueMessageReceived(BaseModel):
 
 
     def re_queue(self, channel: str):
-        self._do_operation(QueuesDownstreamRequestType.ReQueue, channel)
+        self._do_operation(QueuesDownstreamRequestType.ReQueueRange, channel)
 
     @classmethod
     def decode(
