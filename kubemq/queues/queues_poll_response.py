@@ -96,3 +96,6 @@ class QueuesPollResponse(BaseModel):
 
     class Config:
         arbitrary_types_allowed = True
+
+    def __str__(self):
+        return f"QueuesPollResponse: ref_request_id={self.ref_request_id}, transaction_id={self.transaction_id}, messages={self.messages}, error={self.error}, is_error={self.is_error}, is_transaction_completed={self.is_transaction_completed}, active_offsets={self.active_offsets}, receiver_client_id={self.receiver_client_id}, response_handler={self.response_handler}, visibility_seconds={self.visibility_seconds}, is_auto_acked={self.is_auto_acked}"
