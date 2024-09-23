@@ -79,12 +79,9 @@ class QueueMessagesBase(BaseModel):
     def get_messages(self) -> List[QueueMessageWaitingPulled]:
         return self.messages
 
-    def __str__(self):
+    def __str__(self) -> str:
         return (
-            f"{self.__class__.__name__}: "
-            f"messages_count={len(self.messages)}, "
-            f"is_error={self.is_error}, "
-            f"error={self.error}"
+            f"QueueMessages: messages={self.messages}, is_error={self.is_error}, error={self.error}"
         )
 
 
