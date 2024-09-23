@@ -140,7 +140,8 @@ class QueueMessageReceived(BaseModel):
         raise ValueError("message visibility expired")
 
     def extend_visibility_timer(self, additional_seconds: int):
-
+        if additional_seconds <= 0:
+            raise ValueError("additional_seconds must be greater than 0")
         if not self._visibility_timer:
             raise ValueError("message visibility was not set for this transaction")
         if self._timer_expired:
