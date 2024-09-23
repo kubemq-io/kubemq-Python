@@ -54,7 +54,7 @@ class QueuesPollRequest(BaseModel):
         request.RequestTypeData = QueuesDownstreamRequestType.Get
         return request
 
-    def __repr__(self):
+    def __str__(self) -> str:
         return (
             f"QueuesSubscription: channel={self.channel}, poll_max_messages={self.poll_max_messages}, "
             f"poll_wait_timeout_in_seconds={self.poll_wait_timeout_in_seconds}, auto_ack_messages={self.auto_ack_messages}"
