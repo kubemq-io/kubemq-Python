@@ -163,3 +163,14 @@ class QueueMessageReceived(BaseModel):
                 self._visibility_timer.cancel()
     class Config:
         arbitrary_types_allowed = True
+
+    def __str__(self):
+        return (
+            f"QueueMessageReceived: id={self.id}, channel={self.channel}, metadata={self.metadata}, "
+            f"from_client_id={self.from_client_id}, tags={self.tags}, timestamp={self.timestamp}, "
+            f"sequence={self.sequence}, receive_count={self.receive_count}, is_re_routed={self.is_re_routed}, "
+            f"re_route_from_queue={self.re_route_from_queue}, expired_at={self.expired_at}, "
+            f"delayed_to={self.delayed_to}, transaction_id={self.transaction_id}, "
+            f"is_transaction_completed={self.is_transaction_completed}, receiver_client_id={self.receiver_client_id}, "
+            f"visibility_seconds={self.visibility_seconds}, is_auto_acked={self.is_auto_acked}"
+        )
