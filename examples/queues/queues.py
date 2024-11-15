@@ -1,6 +1,8 @@
 from time import sleep
 
 from kubemq.queues import *
+
+
 def example_send_receive():
     client = Client(address="localhost:50000")
     send_result = client.send_queues_message(
@@ -21,6 +23,7 @@ def example_send_receive():
         message.ack()
     client.close()
 
+
 def example_send_receive_with_auto_ack():
     client = Client(address="localhost:50000")
     send_result = client.send_queues_message(
@@ -32,10 +35,7 @@ def example_send_receive_with_auto_ack():
     print(f"Queue Message Sent: {send_result}")
 
     auto_ack_result = client.receive_queues_messages(
-        channel="auto_ack",
-        max_messages=1,
-        wait_timeout_in_seconds=10,
-        auto_ack=True
+        channel="auto_ack", max_messages=1, wait_timeout_in_seconds=10, auto_ack=True
     )
     for message in auto_ack_result.messages:
         print(f"Id:{message.id}, Body:{message.body.decode('utf-8')}")
@@ -44,44 +44,51 @@ def example_send_receive_with_auto_ack():
 
 def example_send_receive_with_dlq():
     client = Client(address="localhost:50000")
-    for i in range(10):
-        send_result = client.send_queues_message(
-            QueueMessage(
-                channel="before_dlq",
-                body=f"Message {i+1}".encode('utf-8'),
-                metadata="some-metadata",
-                attempts_before_dead_letter_queue=1,
-                dead_letter_queue="dlq"
-            ))
-        print(f"Queue Message Sent: {send_result}")
-
-    dlq_result = client.receive_queues_messages(
-        channel="before_dlq",
-        max_messages=10,
-        wait_timeout_in_seconds=10,
+    send_result = client.send_queues_message(
+        QueueMessage(
+            channel="python_process_queue",
+            body=f"Message".encode("utf-8"),
+            metadata="some-metadata",
+            attempts_before_dead_letter_queue=4,
+            dead_letter_queue="dlq_python_process_queue",
+        )
     )
-    for message in dlq_result.messages:
-        print(f"Id:{message.id}, Body:{message.body.decode('utf-8')}")
-        message.reject()
+    print(f"Queue Message Sent: {send_result}")
 
-    dlq_result = client.receive_queues_messages(
-        channel="dlq",
-        max_messages=10,
-        wait_timeout_in_seconds=10,
+    for i in range(2):
+        receive_result = client.receive_queues_messages(
+            channel="python_process_queue",
+            max_messages=1,
+            wait_timeout_in_seconds=2,
+        )
+        if len(receive_result.messages) == 0:
+            print("No more messages")
+            break
+        for message in receive_result.messages:
+            print(
+                f"Id:{message.id}, Body:{message.body.decode('utf-8')}, Receive Count:{message.receive_count}"
+            )
+            message.reject()
+    receive_result = client.receive_queues_messages(
+        channel="python_process_queue",
+        max_messages=1,
+        wait_timeout_in_seconds=2,
     )
-    for message in dlq_result.messages:
-        print(f"Id:{message.id}, Body:{message.body.decode('utf-8')}")
-        message.ack()
+    if len(receive_result.messages) == 0:
+        print("No more messages")
+    for message in receive_result.messages:
+        print(
+            f"Id:{message.id}, Body:{message.body.decode('utf-8')}, Receive Count:{message.receive_count}"
+        )
+        message.re_queue("python_process_re_queue")
+
     client.close()
+
 
 def example_send_receive_with_delay():
     client = Client(address="localhost:50000")
     send_result = client.send_queues_message(
-        QueueMessage(
-            channel="delay",
-            body=b"message with delay",
-            delay_in_seconds=5
-        )
+        QueueMessage(channel="delay", body=b"message with delay", delay_in_seconds=5)
     )
     print(f"Queue Message Sent: {send_result}")
 
@@ -98,13 +105,14 @@ def example_send_receive_with_delay():
         message.ack()
     client.close()
 
+
 def example_send_receive_with_expiration():
     client = Client(address="localhost:50000")
     send_result = client.send_queues_message(
         QueueMessage(
             channel="expiration",
             body=b"message with expiration",
-            expiration_in_seconds=5
+            expiration_in_seconds=5,
         )
     )
     print(f"Queue Message Sent: {send_result}")
@@ -117,6 +125,8 @@ def example_send_receive_with_expiration():
     )
     print(f"Received {len(expiration_result.messages)} messages")
     client.close()
+
+
 def example_with_message_ack():
     client = Client(address="localhost:50000")
     send_result = client.send_queues_message(
@@ -131,7 +141,7 @@ def example_with_message_ack():
         channel="message_ack",
         max_messages=1,
         wait_timeout_in_seconds=10,
-        auto_ack=False
+        auto_ack=False,
     )
     for message in message_ack_result.messages:
         print(f"Id:{message.id}, Body:{message.body.decode('utf-8')}")
@@ -153,7 +163,7 @@ def example_with_message_reject():
         channel="message_reject",
         max_messages=1,
         wait_timeout_in_seconds=10,
-        auto_ack=False
+        auto_ack=False,
     )
     for message in message_reject_result.messages:
         print(f"Id:{message.id}, Body:{message.body.decode('utf-8')}")
@@ -162,12 +172,13 @@ def example_with_message_reject():
         channel="message_reject",
         max_messages=1,
         wait_timeout_in_seconds=10,
-        auto_ack=False
+        auto_ack=False,
     )
     for message in message_reject_result.messages:
         print(f"Id:{message.id}, Body:{message.body.decode('utf-8')}")
         message.ack()
     client.close()
+
 
 def example_with_message_requeue():
     client = Client(address="localhost:50000")
@@ -183,7 +194,7 @@ def example_with_message_requeue():
         channel="message_requeue",
         max_messages=1,
         wait_timeout_in_seconds=10,
-        auto_ack=False
+        auto_ack=False,
     )
     for message in message_requeue_result.messages:
         print(f"Id:{message.id}, Body:{message.body.decode('utf-8')}")
@@ -192,18 +203,20 @@ def example_with_message_requeue():
         channel="requeue_channel",
         max_messages=1,
         wait_timeout_in_seconds=10,
-        auto_ack=False
+        auto_ack=False,
     )
     for message in message_requeue_result.messages:
         print(f"Id:{message.id}, Body:{message.body.decode('utf-8')}")
         message.ack()
+
+
 def example_with_ack_all():
     client = Client(address="localhost:50000")
     for i in range(10):
         send_result = client.send_queues_message(
             QueueMessage(
                 channel="ack_all",
-                body=f"Message {i+1}".encode('utf-8'),
+                body=f"Message {i+1}".encode("utf-8"),
                 metadata="some-metadata",
             )
         )
@@ -225,7 +238,7 @@ def example_with_reject_all():
         send_result = client.send_queues_message(
             QueueMessage(
                 channel="reject_all",
-                body=f"Message {i + 1}".encode('utf-8'),
+                body=f"Message {i + 1}".encode("utf-8"),
             )
         )
         print(f"Queue Message Sent: {send_result}")
@@ -249,13 +262,14 @@ def example_with_reject_all():
     reject_all_result.ack_all()
     client.close()
 
+
 def example_with_requeue_all():
     client = Client(address="localhost:50000")
     for i in range(10):
         send_result = client.send_queues_message(
             QueueMessage(
                 channel="requeue_all",
-                body=f"Message {i + 1}".encode('utf-8'),
+                body=f"Message {i + 1}".encode("utf-8"),
             )
         )
         print(f"Queue Message Sent: {send_result}")
@@ -295,13 +309,14 @@ def example_with_visibility():
         max_messages=1,
         wait_timeout_in_seconds=10,
         auto_ack=False,
-        visibility_seconds=2
+        visibility_seconds=2,
     )
     for message in result.messages:
         print(f"Id:{message.id}, Body:{message.body.decode('utf-8')}")
         time.sleep(1)
         message.ack()
     client.close()
+
 
 def example_with_visibility_expired():
     client = Client(address="localhost:50000")
@@ -318,7 +333,7 @@ def example_with_visibility_expired():
         max_messages=1,
         wait_timeout_in_seconds=10,
         auto_ack=False,
-        visibility_seconds=2
+        visibility_seconds=2,
     )
     for message in result.messages:
         try:
@@ -328,6 +343,7 @@ def example_with_visibility_expired():
         except Exception as err:
             print(err)
     client.close()
+
 
 def example_with_visibility_extension():
     client = Client(address="localhost:50000")
@@ -344,7 +360,7 @@ def example_with_visibility_extension():
         max_messages=1,
         wait_timeout_in_seconds=10,
         auto_ack=False,
-        visibility_seconds=2
+        visibility_seconds=2,
     )
     for message in result.messages:
         try:
@@ -356,6 +372,7 @@ def example_with_visibility_extension():
         except Exception as err:
             print(err)
     client.close()
+
 
 def example_with_wait_pull():
     client = Client(address="localhost:50000")
@@ -384,12 +401,13 @@ def example_with_wait_pull():
         print(f"Pull Id:{message.id}, Body:{message.body.decode('utf-8')}")
     client.close()
 
+
 if __name__ == "__main__":
     try:
 
-        example_send_receive()
+        # example_send_receive()
         # example_send_receive_with_auto_ack()
-        # example_send_receive_with_dlq()
+        example_send_receive_with_dlq()
         # example_send_receive_with_delay()
         # example_send_receive_with_expiration()
         # example_with_message_ack()

@@ -9,7 +9,7 @@ README = (HERE / "README.md").read_text()
 
 setup(
     name="kubemq",
-    version="3.4.0",
+    version="3.4.1",
     description="KubeMQ SDK for Python",
     long_description=README,
     long_description_content_type="text/markdown",

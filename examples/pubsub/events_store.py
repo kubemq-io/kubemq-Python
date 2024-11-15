@@ -33,7 +33,7 @@ def main():
                 EventStoreMessage(channel="es1", body=b"hello kubemq")
             )
             print(f"send result:{result}")
-            time.sleep(1)
+            time.sleep(1000)
     except Exception as e:
         print(e)
         return
