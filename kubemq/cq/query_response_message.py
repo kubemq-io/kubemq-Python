@@ -70,8 +70,8 @@ class QueryResponseMessage(BaseModel):
         pb_response.Executed = self.is_executed
         pb_response.Error = self.error
         pb_response.Timestamp = int(self.timestamp.timestamp() * 1e9)
-        pb_response.Metadata = self.query_received.metadata
-        pb_response.Body = self.query_received.body
+        pb_response.Metadata = self.metadata or ""
+        pb_response.Body = self.body or b""
         for key, value in self.tags.items():
             pb_response.Tags[key] = value
         return pb_response
