@@ -9,6 +9,8 @@ from kubemq.transport.keep_alive import KeepAliveConfig
 from kubemq.transport.interceptors import AuthInterceptorsAsync, AuthInterceptors
 from kubemq.transport.server_info import ServerInfo
 from kubemq.grpc import Empty
+import logging
+from kubemq.transport.channel_manager import ChannelManager
 
 
 def _get_ssl_credentials(tls_config: TlsConfig) -> ChannelCredentials:
@@ -73,30 +75,16 @@ class Transport:
         self._async_channel: Channel = None
         self._async_client: kubemq_pb2_grpc.kubemqStub = None
         self._is_connected: bool = False
+        self._logger = logging.getLogger("KubeMQ")
+        self._channel_manager = None
 
     def initialize(self) -> "Transport":
         try:
-            auth_interceptor = AuthInterceptors(self._opts.auth_token)
-            interceptors = [auth_interceptor]
-            credentials = (
-                _get_ssl_credentials(self._opts.tls) if self._opts.tls.enabled else None
-            )
-            self._channel = (
-                grpc.secure_channel(
-                    self._opts.address,
-                    credentials,
-                    options=_get_call_options(self._opts),
-                )
-                if credentials
-                else grpc.insecure_channel(
-                    self._opts.address, options=_get_call_options(self._opts)
-                )
-            )
-            self._channel = grpc.intercept_channel(self._channel, *interceptors)
-            self._client = kubemq_pb2_grpc.kubemqStub(self._channel)
-            self.ping()
-            self._initialize_async()
+            # Initialize the channel manager
+            self._channel_manager = ChannelManager(self._opts, self._logger)
+            self._client = self._channel_manager.get_client()
             self._is_connected = True
+            self._initialize_async()
         except Exception as ex:
             self._is_connected = False
             raise ex
@@ -127,7 +115,7 @@ class Transport:
                 interceptors=interceptors_async,
             )
 
-        self._async_client = kubemq_pb2_grpc.kubemqStub(self._channel)
+        self._async_client = kubemq_pb2_grpc.kubemqStub(self._async_channel)
 
     def ping(self) -> ServerInfo:
         response = self._client.Ping(Empty())
@@ -139,20 +127,41 @@ class Transport:
         )
 
     def kubemq_client(self) -> kubemq_pb2_grpc.kubemqStub:
+        if self._channel_manager:
+            return self._channel_manager.get_client()
         return self._client
 
     def kubemq_async_client(self) -> kubemq_pb2_grpc.kubemqStub:
         return self._async_client
 
     def is_connected(self) -> bool:
+        if self._channel_manager:
+            return self._channel_manager.connection_state.is_accepting_requests()
         return self._is_connected
 
+    def recreate_channel(self) -> kubemq_pb2_grpc.kubemqStub:
+        """
+        Recreates the gRPC channel and client after a connection failure.
+        
+        Returns:
+            kubemq_pb2_grpc.kubemqStub: New client instance
+        """
+        if self._channel_manager:
+            return self._channel_manager.recreate_channel()
+            
+        # This should never be reached with the new architecture
+        self._logger.error("Channel manager not initialized, cannot recreate channel")
+        raise ConnectionError("Channel manager not initialized, cannot recreate channel")
+
     def close(self) -> None:
-        if self._is_connected and self._channel is not None:
-            self._channel.close()
+        if self._channel_manager:
+            self._channel_manager.close()
             self._is_connected = False
-            self._channel = None
-            self._client = None
+        
+        if self._async_channel is not None:
+            self._async_channel.close()
+            self._async_channel = None
+            self._async_client = None
 
 
 class AsyncTransport:
