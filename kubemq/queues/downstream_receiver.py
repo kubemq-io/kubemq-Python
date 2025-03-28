@@ -14,7 +14,6 @@ from kubemq.grpc import (
 from kubemq.common import *
 from kubemq.common.helpers import decode_grpc_error, is_channel_error
 
-
 class DownstreamReceiver:
     """
     Class representing a downstream receiver for sending requests to a KubeMQ server.
@@ -55,6 +54,7 @@ class DownstreamReceiver:
         queue_size: int = 0,
         queue_timeout: float = 0.1,
         request_sleep_interval: float = 0.1,
+        timeout_buffer: float = 0.5,
     ):
         """Initialize a new DownstreamReceiver.
 
@@ -65,6 +65,7 @@ class DownstreamReceiver:
             queue_size: Maximum size of the request queue (0 for unlimited)
             queue_timeout: Timeout in seconds for queue polling
             request_sleep_interval: Sleep interval in seconds between requests (0 to disable)
+            timeout_buffer: Timeout buffer in seconds for request timeouts
         """
         self.transport = transport
         self.clientStub = transport.kubemq_client()
@@ -77,6 +78,7 @@ class DownstreamReceiver:
         self.allow_new_requests = True
         self.queue_timeout = queue_timeout
         self.request_sleep_interval = request_sleep_interval
+        self.timeout_buffer = timeout_buffer
         threading.Thread(target=self._send_queue_stream, args=(), daemon=True).start()
 
     def send(
@@ -109,7 +111,8 @@ class DownstreamReceiver:
                     response_result,
                 )
             self.queue.put(request)
-            response_result.wait(request.WaitTimeout / 1000)
+            request_wait_timeout = (request.WaitTimeout / 1000) + self.timeout_buffer
+            response_result.wait(request_wait_timeout)
             response: QueuesDownstreamResponse = response_container.get("response")
             with self.lock:
                 if self.response_tracking.get(request.RequestID):
