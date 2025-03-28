@@ -7,3 +7,4 @@
 .vscode/launch.json
 .idea/
 .pypirc
+.Taskfile.yaml
