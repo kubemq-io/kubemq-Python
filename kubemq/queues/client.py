@@ -1,26 +1,46 @@
+"""
+Error Handling Strategy:
+- Methods that interact directly with the KubeMQ server (ping, send_queues_message, etc.)
+  will raise exceptions when errors occur.
+- Helper methods (create_queues_channel, delete_queues_channel, etc.) will return None
+  when errors occur, as they are wrappers around lower-level functions.
+- All exceptions are logged before being raised or returned.
+"""
+
 import logging
 import threading
-import asyncio
 import time
 import uuid
 import grpc
 import socket
-from typing import List
-from kubemq.transport import *
-from kubemq.queues.queues_message import *
-from kubemq.queues import *
-from kubemq.common.exceptions import *
-from kubemq.common.helpers import *
-from kubemq.common.requests import *
-from kubemq.common.cancellation_token import *
-from kubemq.grpc import ReceiveQueueMessagesRequest
+from typing import List, Optional
+
+from kubemq.transport.transport import Transport
+from kubemq.transport.connection import Connection
+from kubemq.transport.tls_config import TlsConfig
+from kubemq.transport.keep_alive import KeepAliveConfig
+from kubemq.transport.server_info import ServerInfo
+
+from kubemq.queues.queues_message import QueueMessage
+from kubemq.queues.queues_send_result import QueueSendResult
+from kubemq.queues.queues_poll_response import QueuesPollResponse
+from kubemq.queues.upstream_sender import UpstreamSender
+from kubemq.queues.downstream_receiver import DownstreamReceiver
+from kubemq.queues.queues_messages_waiting_pulled import QueueMessagesWaiting, QueueMessagesPulled, QueueMessageWaitingPulled
+
+from kubemq.common.exceptions import ValidationError, GRPCError
+from kubemq.common import create_channel_request
+from kubemq.common.requests import delete_channel_request, list_queues_channels
+from kubemq.common.channel_stats import QueuesChannel
+from kubemq.grpc import ReceiveQueueMessagesRequest, QueuesDownstreamRequest, QueuesDownstreamResponse, QueuesDownstreamRequestType
 
 
 class Client:
     """
-
-
     Client class represents a client that connects to the KubeMQ server.
+
+    This class provides methods for sending and receiving messages, creating and
+    deleting channels, and managing the connection to the KubeMQ server.
 
     Attributes:
         connection (Connection): The connection configuration.
@@ -35,11 +55,12 @@ class Client:
         close(): Closes the connection to the KubeMQ server.
         ping() -> ServerInfo: Pings the KubeMQ server.
         send_queues_message(message: QueueMessage) -> QueueSendResult: Sends a message to the KubeMQ server queues.
-        create_queues_channel(channel: str) -> [bool, None]: Creates a queues channel.
-        delete_queues_channel(channel: str) -> [bool, None]: Deletes a queues channel.
-        list_queues_channels(channel_search) -> List[QueuesChannel]: Lists the queues channels.
-        receive_queues_messages(channel: str = None, max_messages: int = 1, wait_timeout_in_seconds: int = 60, auto_ack: bool = False) -> QueuesPollResponse: Receives messages from a queues
-    * channel.
+        create_queues_channel(channel: str) -> Optional[bool]: Creates a queues channel.
+        delete_queues_channel(channel: str) -> Optional[bool]: Deletes a queues channel.
+        list_queues_channels(channel_search: str) -> List[QueuesChannel]: Lists the queues channels.
+        receive_queues_messages(channel: str = None, max_messages: int = 1, 
+                               wait_timeout_in_seconds: int = 60, auto_ack: bool = False) -> QueuesPollResponse: 
+            Receives messages from a queues channel.
 
     Example usage:
         client = Client(address='localhost:50000')
@@ -49,7 +70,6 @@ class Client:
         client.close()
 
     Note: Make sure to set the connection attributes correctly before connecting to the server.
-
     """
 
     def __init__(
@@ -69,8 +89,38 @@ class Client:
         ping_interval_in_seconds: int = 0,
         ping_timeout_in_seconds: int = 0,
         log_level: int = None,
+        # New parameters for sender/receiver configuration
+        queue_size: int = 0,
+        queue_timeout: float = 0.1,
+        request_sleep_interval: float = 0.1,
+        send_timeout: float = 2.0,
+        connection_monitor_interval: float = 1.0,
     ) -> None:
-        self.connection: Connection = Connection(
+        """Initialize a new Client.
+        
+        Args:
+            address: The address of the KubeMQ server
+            client_id: The client ID to use
+            auth_token: The authentication token to use
+            tls: Whether to use TLS
+            tls_cert_file: The path to the TLS certificate file
+            tls_key_file: The path to the TLS key file
+            tls_ca_file: The path to the TLS CA file
+            max_send_size: The maximum size of messages to send
+            max_receive_size: The maximum size of messages to receive
+            disable_auto_reconnect: Whether to disable auto-reconnect
+            reconnect_interval_seconds: The interval between reconnection attempts
+            keep_alive: Whether to use keep-alive
+            ping_interval_in_seconds: The interval between ping messages
+            ping_timeout_in_seconds: The timeout for ping messages
+            log_level: The log level to use
+            queue_size: Maximum size of the request queue (0 for unlimited)
+            queue_timeout: Timeout in seconds for queue polling
+            request_sleep_interval: Sleep interval in seconds between requests
+            send_timeout: Timeout in seconds for waiting for a send response
+            connection_monitor_interval: Interval in seconds for monitoring connection status
+        """
+        self.connection = Connection(
             address=address,
             client_id=client_id,
             auth_token=auth_token,
@@ -103,9 +153,16 @@ class Client:
         self.logger.debug(f" - Disable Auto Reconnect: {disable_auto_reconnect}")
         self.logger.debug(f" - Reconnect Interval: {reconnect_interval_seconds} seconds")
         
+        # Store configuration for sender/receiver
+        self.queue_size = queue_size
+        self.queue_timeout = queue_timeout
+        self.request_sleep_interval = request_sleep_interval
+        self.send_timeout = send_timeout
+        self.connection_monitor_interval = connection_monitor_interval
+        
         try:
-            self.transport: Transport = Transport(self.connection).initialize()
-            self.shutdown_event: threading.Event = threading.Event()
+            self.transport = Transport(self.connection).initialize()
+            self.shutdown_event = threading.Event()
             self.upstream_sender = None
             self.downstream_receiver = None
             
@@ -127,19 +184,22 @@ class Client:
     def __exit__(self, exc_type, exc_value, traceback):
         self.close()
 
-    def connect(self):
+    def connect(self) -> None:
+        """Connect to the KubeMQ server if not already connected."""
         try:
             self.logger.debug(f"Client connecting to {self.connection.address}")
-            self.transport: Transport = Transport(self.connection).initialize()
+            if not self.transport.is_connected():
+                self.transport = Transport(self.connection).initialize()
             self.logger.debug(f"Client connected to {self.connection.address}")
         except Exception as e:
             ex = GRPCError(e)
             self.logger.error(str(ex))
             raise ex
 
-    def close(self):
+    def close(self) -> None:
+        """Close the connection to the KubeMQ server and release resources."""
         try:
-            time.sleep(1)
+            # time.sleep(1) - Removed as it's not clear why this is needed
             self.shutdown_event.set()
             if self.upstream_sender is not None:
                 self.upstream_sender.close()
@@ -161,7 +221,6 @@ class Client:
 
         Raises:
             GRPCError: If an error occurs during the ping.
-
         """
         try:
             self.logger.debug(f"Client pinging {self.connection.address}")
@@ -176,7 +235,6 @@ class Client:
         Sends a message to the queues.
 
         Args:
-            self: The current object instance.
             message (QueueMessage): The message to be sent.
 
         Returns:
@@ -185,51 +243,58 @@ class Client:
         # message.validate()
         if self.upstream_sender is None:
             self.upstream_sender = UpstreamSender(
-                self.transport,  self.logger, self.connection
+                self.transport, 
+                self.logger, 
+                self.connection,
+                queue_size=self.queue_size,
+                queue_timeout=self.queue_timeout,
+                request_sleep_interval=self.request_sleep_interval,
+                send_timeout=self.send_timeout
             )
 
         return self.upstream_sender.send(message)
 
-    def create_queues_channel(self, channel: str) -> [bool, None]:
+    def create_queues_channel(self, channel: str) -> Optional[bool]:
         """
         Create a queues channel for the given channel.
 
-        Parameters:
-        - channel (str): The name of the channel to create.
+        Args:
+            channel (str): The name of the channel to create.
 
         Returns:
-        - bool or None: Returns True if the channel is created successfully, otherwise returns None.
-
+            Optional[bool]: Returns True if the channel is created successfully, 
+                           None if there was an error during creation.
         """
         return create_channel_request(
             self.transport, self.connection.client_id, channel, "queues"
         )
 
-    def delete_queues_channel(self, channel: str) -> [bool, None]:
+    def delete_queues_channel(self, channel: str) -> Optional[bool]:
         """
         Delete Queues Channel
 
         Deletes a specific channel from the queues in the current connection.
 
-        Parameters:
-        - channel (str): The name of the channel to delete.
+        Args:
+            channel (str): The name of the channel to delete.
 
         Returns:
-        - bool or None: Returns True if the channel was successfully deleted. Returns None if there was an error during deletion.
+            Optional[bool]: Returns True if the channel was successfully deleted, 
+                           None if there was an error during deletion.
         """
         return delete_channel_request(
             self.transport, self.connection.client_id, channel, "queues"
         )
 
-    def list_queues_channels(self, channel_search) -> List[QueuesChannel]:
+    def list_queues_channels(self, channel_search: str) -> List[QueuesChannel]:
         """
         Retrieve a list of QueuesChannel objects based on the provided channel_search.
 
-        Parameters:
-        :param channel_search: The search term used to filter the list of QueuesChannels.
+        Args:
+            channel_search (str): The search term used to filter the list of QueuesChannels.
 
         Returns:
-        - A list of QueuesChannel objects that match the search term.
+            List[QueuesChannel]: A list of QueuesChannel objects that match the search term.
         """
         return list_queues_channels(
             self.transport, self.connection.client_id, channel_search
@@ -258,7 +323,12 @@ class Client:
         """
         if self.downstream_receiver is None:
             self.downstream_receiver = DownstreamReceiver(
-                self.transport, self.logger, self.connection
+                self.transport, 
+                self.logger, 
+                self.connection,
+                queue_size=self.queue_size,
+                queue_timeout=self.queue_timeout,
+                request_sleep_interval=self.request_sleep_interval
             )
 
         request = QueuesDownstreamRequest()
@@ -381,8 +451,8 @@ class Client:
 
         return pulled_messages
 
-    def _monitor_connection(self):
-        """Monitor the connection status and log changes"""
+    def _monitor_connection(self) -> None:
+        """Monitor the connection status and log changes."""
         last_status = True
         while not self.shutdown_event.is_set():
             current_status = self.transport.is_connected()
@@ -392,4 +462,4 @@ class Client:
                 else:
                     self.logger.warning(f"Connection to {self.connection.address} lost")
                 last_status = current_status
-            time.sleep(1)
+            time.sleep(self.connection_monitor_interval)
