@@ -47,7 +47,7 @@ def example_send_receive_with_dlq():
     send_result = client.send_queues_message(
         QueueMessage(
             channel="python_process_queue",
-            body=f"Message".encode("utf-8"),
+            body="Message".encode("utf-8"),
             metadata="some-metadata",
             attempts_before_dead_letter_queue=4,
             dead_letter_queue="dlq_python_process_queue",
@@ -216,7 +216,7 @@ def example_with_ack_all():
         send_result = client.send_queues_message(
             QueueMessage(
                 channel="ack_all",
-                body=f"Message {i+1}".encode("utf-8"),
+                body=f"Message {i + 1}".encode("utf-8"),
                 metadata="some-metadata",
             )
         )
@@ -404,10 +404,9 @@ def example_with_wait_pull():
 
 if __name__ == "__main__":
     try:
-
-        # example_send_receive()
+        example_send_receive()
         # example_send_receive_with_auto_ack()
-        example_send_receive_with_dlq()
+        # example_send_receive_with_dlq()
         # example_send_receive_with_delay()
         # example_send_receive_with_expiration()
         # example_with_message_ack()

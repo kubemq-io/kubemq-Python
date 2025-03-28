@@ -1,13 +1,10 @@
 import logging
 import threading
-import asyncio
 import time
-import uuid
 import grpc
 import socket
 from typing import List
 from kubemq.transport import *
-from kubemq.grpc import Request, Response
 from kubemq.cq import *
 from kubemq.common.exceptions import *
 from kubemq.common.helpers import *

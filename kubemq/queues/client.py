@@ -7,11 +7,11 @@ Error Handling Strategy:
 - All exceptions are logged before being raised or returned.
 """
 
+import asyncio
 import logging
 import threading
 import time
 import uuid
-import grpc
 import socket
 from typing import List, Optional
 
@@ -26,13 +26,22 @@ from kubemq.queues.queues_send_result import QueueSendResult
 from kubemq.queues.queues_poll_response import QueuesPollResponse
 from kubemq.queues.upstream_sender import UpstreamSender
 from kubemq.queues.downstream_receiver import DownstreamReceiver
-from kubemq.queues.queues_messages_waiting_pulled import QueueMessagesWaiting, QueueMessagesPulled, QueueMessageWaitingPulled
+from kubemq.queues.queues_messages_waiting_pulled import (
+    QueueMessagesWaiting,
+    QueueMessagesPulled,
+    QueueMessageWaitingPulled,
+)
 
 from kubemq.common.exceptions import ValidationError, GRPCError
 from kubemq.common import create_channel_request
 from kubemq.common.requests import delete_channel_request, list_queues_channels
 from kubemq.common.channel_stats import QueuesChannel
-from kubemq.grpc import ReceiveQueueMessagesRequest, QueuesDownstreamRequest, QueuesDownstreamResponse, QueuesDownstreamRequestType
+from kubemq.grpc import (
+    ReceiveQueueMessagesRequest,
+    QueuesDownstreamRequest,
+    QueuesDownstreamResponse,
+    QueuesDownstreamRequestType,
+)
 
 
 class Client:
@@ -58,8 +67,8 @@ class Client:
         create_queues_channel(channel: str) -> Optional[bool]: Creates a queues channel.
         delete_queues_channel(channel: str) -> Optional[bool]: Deletes a queues channel.
         list_queues_channels(channel_search: str) -> List[QueuesChannel]: Lists the queues channels.
-        receive_queues_messages(channel: str = None, max_messages: int = 1, 
-                               wait_timeout_in_seconds: int = 60, auto_ack: bool = False) -> QueuesPollResponse: 
+        receive_queues_messages(channel: str = None, max_messages: int = 1,
+                               wait_timeout_in_seconds: int = 60, auto_ack: bool = False) -> QueuesPollResponse:
             Receives messages from a queues channel.
 
     Example usage:
@@ -97,7 +106,7 @@ class Client:
         connection_monitor_interval: float = 1.0,
     ) -> None:
         """Initialize a new Client.
-        
+
         Args:
             address: The address of the KubeMQ server
             client_id: The client ID to use
@@ -146,28 +155,32 @@ class Client:
             self.logger.setLevel(log_level)
         else:
             self.logger.setLevel(logging.CRITICAL + 1)
-            
-        self.logger.debug(f"Initializing client with connection parameters:")
+
+        self.logger.debug("Initializing client with connection parameters:")
         self.logger.debug(f" - Address: {address}")
         self.logger.debug(f" - Client ID: {client_id}")
         self.logger.debug(f" - Disable Auto Reconnect: {disable_auto_reconnect}")
-        self.logger.debug(f" - Reconnect Interval: {reconnect_interval_seconds} seconds")
-        
+        self.logger.debug(
+            f" - Reconnect Interval: {reconnect_interval_seconds} seconds"
+        )
+
         # Store configuration for sender/receiver
         self.queue_size = queue_size
         self.queue_timeout = queue_timeout
         self.request_sleep_interval = request_sleep_interval
         self.send_timeout = send_timeout
         self.connection_monitor_interval = connection_monitor_interval
-        
+
         try:
             self.transport = Transport(self.connection).initialize()
             self.shutdown_event = threading.Event()
             self.upstream_sender = None
             self.downstream_receiver = None
-            
+
             # Monitor connection status for logging
-            connection_monitor = threading.Thread(target=self._monitor_connection, daemon=True)
+            connection_monitor = threading.Thread(
+                target=self._monitor_connection, daemon=True
+            )
             connection_monitor.start()
         except ValueError as e:
             ex = ValidationError(e)
@@ -182,6 +195,14 @@ class Client:
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
+        self.close()
+
+    async def __aenter__(self):
+        """Async context manager entry."""
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """Async context manager exit."""
         self.close()
 
     def connect(self) -> None:
@@ -212,6 +233,14 @@ class Client:
             self.logger.error(str(ex))
             raise ex
 
+    async def close_async(self) -> None:
+        """
+        Asynchronous version of close().
+
+        Closes the connection to the KubeMQ server and releases resources asynchronously.
+        """
+        await asyncio.to_thread(self.close)
+
     def ping(self) -> ServerInfo:
         """
         Ping the server and get the server information.
@@ -230,6 +259,18 @@ class Client:
             self.logger.error(str(ex))
             raise ex
 
+    async def ping_async(self) -> ServerInfo:
+        """
+        Asynchronous version of ping().
+
+        Returns:
+            ServerInfo: The server information.
+
+        Raises:
+            GRPCError: If an error occurs during the ping.
+        """
+        return await asyncio.to_thread(self.ping)
+
     def send_queues_message(self, message: QueueMessage) -> QueueSendResult:
         """
         Sends a message to the queues.
@@ -243,16 +284,28 @@ class Client:
         # message.validate()
         if self.upstream_sender is None:
             self.upstream_sender = UpstreamSender(
-                self.transport, 
-                self.logger, 
+                self.transport,
+                self.logger,
                 self.connection,
                 queue_size=self.queue_size,
                 queue_timeout=self.queue_timeout,
                 request_sleep_interval=self.request_sleep_interval,
-                send_timeout=self.send_timeout
+                send_timeout=self.send_timeout,
             )
 
         return self.upstream_sender.send(message)
+
+    async def send_queues_message_async(self, message: QueueMessage) -> QueueSendResult:
+        """
+        Asynchronous version of send_queues_message().
+
+        Args:
+            message (QueueMessage): The message to be sent.
+
+        Returns:
+            QueueSendResult: The result of the message send operation.
+        """
+        return await asyncio.to_thread(self.send_queues_message, message)
 
     def create_queues_channel(self, channel: str) -> Optional[bool]:
         """
@@ -262,12 +315,25 @@ class Client:
             channel (str): The name of the channel to create.
 
         Returns:
-            Optional[bool]: Returns True if the channel is created successfully, 
+            Optional[bool]: Returns True if the channel is created successfully,
                            None if there was an error during creation.
         """
         return create_channel_request(
             self.transport, self.connection.client_id, channel, "queues"
         )
+
+    async def create_queues_channel_async(self, channel: str) -> Optional[bool]:
+        """
+        Asynchronous version of create_queues_channel().
+
+        Args:
+            channel (str): The name of the channel to create.
+
+        Returns:
+            Optional[bool]: Returns True if the channel is created successfully,
+                           None if there was an error during creation.
+        """
+        return await asyncio.to_thread(self.create_queues_channel, channel)
 
     def delete_queues_channel(self, channel: str) -> Optional[bool]:
         """
@@ -279,12 +345,25 @@ class Client:
             channel (str): The name of the channel to delete.
 
         Returns:
-            Optional[bool]: Returns True if the channel was successfully deleted, 
+            Optional[bool]: Returns True if the channel was successfully deleted,
                            None if there was an error during deletion.
         """
         return delete_channel_request(
             self.transport, self.connection.client_id, channel, "queues"
         )
+
+    async def delete_queues_channel_async(self, channel: str) -> Optional[bool]:
+        """
+        Asynchronous version of delete_queues_channel().
+
+        Args:
+            channel (str): The name of the channel to delete.
+
+        Returns:
+            Optional[bool]: Returns True if the channel was successfully deleted,
+                           None if there was an error during deletion.
+        """
+        return await asyncio.to_thread(self.delete_queues_channel, channel)
 
     def list_queues_channels(self, channel_search: str) -> List[QueuesChannel]:
         """
@@ -299,6 +378,20 @@ class Client:
         return list_queues_channels(
             self.transport, self.connection.client_id, channel_search
         )
+
+    async def list_queues_channels_async(
+        self, channel_search: str
+    ) -> List[QueuesChannel]:
+        """
+        Asynchronous version of list_queues_channels().
+
+        Args:
+            channel_search (str): The search term used to filter the list of QueuesChannels.
+
+        Returns:
+            List[QueuesChannel]: A list of QueuesChannel objects that match the search term.
+        """
+        return await asyncio.to_thread(self.list_queues_channels, channel_search)
 
     def receive_queues_messages(
         self,
@@ -323,12 +416,12 @@ class Client:
         """
         if self.downstream_receiver is None:
             self.downstream_receiver = DownstreamReceiver(
-                self.transport, 
-                self.logger, 
+                self.transport,
+                self.logger,
                 self.connection,
                 queue_size=self.queue_size,
                 queue_timeout=self.queue_timeout,
-                request_sleep_interval=self.request_sleep_interval
+                request_sleep_interval=self.request_sleep_interval,
             )
 
         request = QueuesDownstreamRequest()
@@ -350,6 +443,36 @@ class Client:
         )
 
         return response
+
+    async def receive_queues_messages_async(
+        self,
+        channel: str = None,
+        max_messages: int = 1,
+        wait_timeout_in_seconds: int = 60,
+        auto_ack: bool = False,
+        visibility_seconds: int = 0,
+    ) -> QueuesPollResponse:
+        """
+        Asynchronous version of receive_queues_messages().
+
+        Args:
+            channel (str): The name of the channel to receive messages from.
+            max_messages (int): The maximum number of messages to receive.
+            wait_timeout_in_seconds (int): The timeout in seconds to wait for messages.
+            auto_ack (bool): Whether to automatically acknowledge messages.
+            visibility_seconds (int): The visibility timeout in seconds for received messages.
+
+        Returns:
+            QueuesPollResponse: The response containing the received messages.
+        """
+        return await asyncio.to_thread(
+            self.receive_queues_messages,
+            channel,
+            max_messages,
+            wait_timeout_in_seconds,
+            auto_ack,
+            visibility_seconds,
+        )
 
     def waiting(
         self, channel: str, max_messages: int, wait_timeout_in_seconds: int
@@ -401,6 +524,27 @@ class Client:
 
         return waiting_messages
 
+    async def waiting_async(
+        self, channel: str, max_messages: int, wait_timeout_in_seconds: int
+    ) -> QueueMessagesWaiting:
+        """
+        Asynchronous version of waiting().
+
+        Args:
+            channel (str): The name of the queue channel.
+            max_messages (int): The maximum number of messages to retrieve.
+            wait_timeout_in_seconds (int): The maximum amount of time to wait for messages in seconds.
+
+        Returns:
+            QueueMessagesWaiting: An object containing the waiting messages.
+
+        Raises:
+            ValueError: If channel is None, max_messages is less than 1, or wait_timeout_in_seconds is less than 1.
+        """
+        return await asyncio.to_thread(
+            self.waiting, channel, max_messages, wait_timeout_in_seconds
+        )
+
     def pull(
         self, channel: str, max_messages: int, wait_timeout_in_seconds: int
     ) -> QueueMessagesPulled:
@@ -451,6 +595,27 @@ class Client:
 
         return pulled_messages
 
+    async def pull_async(
+        self, channel: str, max_messages: int, wait_timeout_in_seconds: int
+    ) -> QueueMessagesPulled:
+        """
+        Asynchronous version of pull().
+
+        Args:
+            channel (str): The name of the queue channel.
+            max_messages (int): The maximum number of messages to pull.
+            wait_timeout_in_seconds (int): The maximum amount of time to wait for messages in seconds.
+
+        Returns:
+            QueueMessagesPulled: An object containing the pulled messages.
+
+        Raises:
+            ValueError: If channel is None, max_messages is less than 1, or wait_timeout_in_seconds is less than 1.
+        """
+        return await asyncio.to_thread(
+            self.pull, channel, max_messages, wait_timeout_in_seconds
+        )
+
     def _monitor_connection(self) -> None:
         """Monitor the connection status and log changes."""
         last_status = True
@@ -458,7 +623,9 @@ class Client:
             current_status = self.transport.is_connected()
             if current_status != last_status:
                 if current_status:
-                    self.logger.info(f"Connection to {self.connection.address} restored")
+                    self.logger.info(
+                        f"Connection to {self.connection.address} restored"
+                    )
                 else:
                     self.logger.warning(f"Connection to {self.connection.address} lost")
                 last_status = current_status

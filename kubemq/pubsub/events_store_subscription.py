@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Callable, Optional
 from enum import Enum
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, field_validator
 from kubemq.grpc import Subscribe
 from kubemq.common.subscribe_type import SubscribeType
 from kubemq.pubsub import EventStoreMessageReceived

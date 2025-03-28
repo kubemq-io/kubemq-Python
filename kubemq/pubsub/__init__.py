@@ -8,4 +8,3 @@ from .events_store_subscription import EventsStoreSubscription, EventsStoreType
 from .event_sender import EventSender
 from kubemq.common import CancellationToken
 from .client import Client
-

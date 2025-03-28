@@ -47,20 +47,19 @@ class QueueMessageReceived(BaseModel):
     def reject(self):
         self._do_operation(QueuesDownstreamRequestType.NAckRange)
 
-
     def re_queue(self, channel: str):
         self._do_operation(QueuesDownstreamRequestType.ReQueueRange, channel)
 
     @classmethod
     def decode(
-            cls,
-            message: pbQueueMessage,
-            transaction_id: str,
-            transaction_is_completed: bool,
-            receiver_client_id: str,
-            response_handler: Callable[[QueuesDownstreamRequest], QueuesDownstreamResponse],
-            visibility_seconds: int,
-            is_auto_acked: bool,
+        cls,
+        message: pbQueueMessage,
+        transaction_id: str,
+        transaction_is_completed: bool,
+        receiver_client_id: str,
+        response_handler: Callable[[QueuesDownstreamRequest], QueuesDownstreamResponse],
+        visibility_seconds: int,
+        is_auto_acked: bool,
     ) -> "QueueMessageReceived":
         instance = cls(
             id=message.MessageID,
@@ -95,7 +94,7 @@ class QueueMessageReceived(BaseModel):
             receiver_client_id=receiver_client_id,
             response_handler=response_handler,
             visibility_seconds=visibility_seconds,
-            is_auto_acked=is_auto_acked
+            is_auto_acked=is_auto_acked,
         )
 
         if instance.visibility_seconds > 0:
@@ -103,9 +102,13 @@ class QueueMessageReceived(BaseModel):
 
         return instance
 
-    def _do_operation(self, request_type: QueuesDownstreamRequestType, re_queue_channel: str = ""):
+    def _do_operation(
+        self, request_type: QueuesDownstreamRequestType, re_queue_channel: str = ""
+    ):
         if self.is_auto_acked:
-            raise ValueError("transaction was set with auto ack, message operations are not allowed")
+            raise ValueError(
+                "transaction was set with auto ack, message operations are not allowed"
+            )
         if self.is_transaction_completed:
             raise ValueError("transaction is already completed")
         if self._message_completed:
@@ -128,9 +131,10 @@ class QueueMessageReceived(BaseModel):
 
     def _start_visibility_timer(self):
         with self._lock:
-            self._visibility_timer = threading.Timer(self.visibility_seconds, self._on_visibility_expired)
+            self._visibility_timer = threading.Timer(
+                self.visibility_seconds, self._on_visibility_expired
+            )
             self._visibility_timer.start()
-
 
     def _on_visibility_expired(self):
         with self._lock:
@@ -146,21 +150,26 @@ class QueueMessageReceived(BaseModel):
             raise ValueError("message visibility was not set for this transaction")
         if self._timer_expired:
             raise ValueError("message visibility expired, cannot perform operation")
-        remaining_time = self._visibility_timer.interval - self._visibility_timer.interval
+        remaining_time = (
+            self._visibility_timer.interval - self._visibility_timer.interval
+        )
         new_duration = remaining_time + additional_seconds
         with self._lock:
             if self._message_completed:
                 raise ValueError("message transaction is already completed")
             self._visibility_timer.cancel()
-            self._visibility_timer = threading.Timer(new_duration, self._on_visibility_expired)
+            self._visibility_timer = threading.Timer(
+                new_duration, self._on_visibility_expired
+            )
             self._visibility_timer.start()
 
     def _mark_transaction_completed(self):
         with self._lock:
             self._message_completed = True
-            self.is_transaction_completed=True
+            self.is_transaction_completed = True
             if self._visibility_timer:
                 self._visibility_timer.cancel()
+
     class Config:
         arbitrary_types_allowed = True
 

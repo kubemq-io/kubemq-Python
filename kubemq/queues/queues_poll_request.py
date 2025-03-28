@@ -42,7 +42,6 @@ class QueuesPollRequest(BaseModel):
             raise ValueError("queue subscription must have a channel.")
         return v
 
-
     def encode(self, client_id: str = "") -> QueuesDownstreamRequest:
         request = QueuesDownstreamRequest()
         request.RequestID = str(uuid.uuid4())

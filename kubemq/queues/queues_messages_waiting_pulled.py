@@ -80,9 +80,7 @@ class QueueMessagesBase(BaseModel):
         return self.messages
 
     def __str__(self) -> str:
-        return (
-            f"QueueMessages: messages={self.messages}, is_error={self.is_error}, error={self.error}"
-        )
+        return f"QueueMessages: messages={self.messages}, is_error={self.is_error}, error={self.error}"
 
 
 class QueueMessagesWaiting(QueueMessagesBase):
