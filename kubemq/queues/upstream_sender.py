@@ -4,9 +4,11 @@ import queue
 import time
 import grpc
 from kubemq.transport import Transport, Connection
-from kubemq.grpc import QueuesUpstreamRequest, QueuesUpstreamResponse, SendQueueMessageResult
+from kubemq.grpc import QueuesUpstreamRequest, QueuesUpstreamResponse, SendQueueMessageResult, QueueMessage
 from kubemq.common import *
 from kubemq.queues import *
+from kubemq.common.helpers import decode_grpc_error, is_channel_error
+
 class UpstreamSender:
     """
 
@@ -15,6 +17,7 @@ class UpstreamSender:
     Class representing an upstream sender for sending messages to a server.
 
     Attributes:
+        transport (Transport): The transport object for channel management.
         clientStub (Transport): The transport object used for communication with the server.
         connection (Connection): The connection object representing the client's connection to the server.
         shutdown_event (threading.Event): The event object used to signal the shutdown of the sender.
@@ -37,6 +40,7 @@ class UpstreamSender:
     """
     def __init__(self, transport: Transport, logger: logging.Logger,
                  connection: Connection):
+        self.transport = transport
         self.clientStub = transport.kubemq_client()
         self.connection = connection
         self.shutdown_event = threading.Event()
@@ -48,36 +52,44 @@ class UpstreamSender:
         threading.Thread(target=self._send_queue_stream, args=(), daemon=True).start()
 
     def send(self, message: QueueMessage) -> [QueueSendResult, None]:
-        if not self.allow_new_messages:
-            raise ConnectionError("Client is not connected to the server and cannot send messages.")
-        response_result = threading.Event()
-        response_container = {}
-        message_id = message.id
-        queue_upstream_request = message.encode(self.connection.client_id)
-        with self.lock:
-            self.response_tracking[queue_upstream_request.RequestID] = (
-                response_container, response_result, message_id)
-        self.sending_queue.put(queue_upstream_request)
-        response_result.wait()
-        response: QueuesUpstreamResponse = response_container.get('response')
-        with self.lock:
-            if response is not None:
-                del self.response_tracking[queue_upstream_request.RequestID]
-        if response is None or len(response.Results) == 0:
-            return None
-        send_result = response.Results[0]
-        return QueueSendResult().decode(send_result)
+        try:
+            if not self.transport.is_connected():
+                raise ConnectionError("Client is not connected to the server and cannot send messages.")
+            if not self.allow_new_messages:
+                raise ConnectionError("Sender is not ready to accept new messages.")
+
+            response_result = threading.Event()
+            response_container = {}
+            message_id = message.id
+            queue_upstream_request = message.encode(self.connection.client_id)
+            with self.lock:
+                self.response_tracking[queue_upstream_request.RequestID] = (
+                    response_container, response_result, message_id)
+            self.sending_queue.put(queue_upstream_request)
+            response_result.wait(2)
+            response: QueuesUpstreamResponse = response_container.get('response')
+            with self.lock:
+                if self.response_tracking.get(queue_upstream_request.RequestID):
+                    del self.response_tracking[queue_upstream_request.RequestID]
+                if response is None:
+                    return QueueSendResult(
+                        id=message_id,
+                        is_error=True,
+                        error="Error: Timeout waiting for response"
+                    )
+            send_result = response.Results[0]
+            return QueueSendResult().decode(send_result)
+        except Exception as e:
+            self.logger.error(f"Error sending message: {str(e)}")
+            return QueueSendResult(
+                id=message.id,
+                is_error=True,
+                error=str(e)
+            )
 
     def _handle_disconnection(self):
         with self.lock:
             self.allow_new_messages = False
-            while not self.sending_queue.empty():
-                try:
-                    self.sending_queue.get_nowait()  # Clear the queue
-                except queue.Empty:
-                    continue
-
-            # Set error on all response containers
             for request_id, (response_container, response_result, message_id) in self.response_tracking.items():
                 response_container['response'] = QueuesUpstreamResponse(
                     RefRequestID=request_id,
@@ -98,32 +110,84 @@ class UpstreamSender:
                     yield msg
                 except queue.Empty:
                     continue
+                finally:
+                    sleep(0.1)
 
         while not self.shutdown_event.is_set():
             try:
-                with self.lock:
-                    self.allow_new_messages = True
+                self.clientStub = self.transport.kubemq_client()
                 responses = self.clientStub.QueuesUpstream(send_requests())
                 for response in responses:
                     if self.shutdown_event.is_set():
                         break
                     response_request_id = response.RefRequestID
                     with self.lock:
+                        self.allow_new_messages = True
                         if response_request_id in self.response_tracking:
                             response_container, response_result, message_od = self.response_tracking[
                                 response_request_id]
                             response_container['response'] = response
                             response_result.set()
             except grpc.RpcError as e:
-                self.logger.debug(decode_grpc_error(e))
+                error_details = decode_grpc_error(e)
+                self.logger.error(f"gRPC error type: {type(e).__name__}, error: {error_details}")
+                self.logger.error(f"gRPC error details: code={e.code() if hasattr(e, 'code') else 'N/A'}, details={e.details() if hasattr(e, 'details') else 'N/A'}")
                 self._handle_disconnection()
-                time.sleep(self.connection.reconnect_interval_seconds)
+                
+                # Attempt to recreate channel
+                try:
+                    self.clientStub = self.transport.recreate_channel()
+                    self.logger.info("Successfully recreated gRPC channel")
+                    with self.lock:
+                        self.allow_new_messages = True
+                except ConnectionError as conn_ex:
+                    if self.connection.disable_auto_reconnect:
+                        self.logger.warning("Auto-reconnect is disabled, not attempting to reconnect")
+                        # Set permanent error state
+                        with self.lock:
+                            self.allow_new_messages = False
+                        return  # Exit the thread
+                    else:
+                        self.logger.error(f"Connection error: {str(conn_ex)}")
+                        time.sleep(self.connection.get_reconnect_delay())
+                        continue
+                except Exception as channel_ex:
+                    self.logger.error(f"Failed to recreate channel: {str(channel_ex)}, type: {type(channel_ex).__name__}")
+                    # Use fixed reconnect interval, default to 1 second if not specified
+                    time.sleep(self.connection.get_reconnect_delay())
+                    continue
+                
+                time.sleep(self.connection.get_reconnect_delay())
                 continue
             except Exception as e:
-                self.logger.debug(f"Error: {str(e)}")
-                self._handle_disconnection()
-                time.sleep(self.connection.reconnect_interval_seconds)
+                self.logger.error(f"Generic exception type: {type(e).__name__}, error: {str(e)}")
+                if is_channel_error(e):
+                    self.logger.info("Detected channel error in generic exception handler")
+                    self._handle_disconnection()
+                    
+                    try:
+                        self.clientStub = self.transport.recreate_channel()
+                        self.logger.info("Successfully recreated gRPC channel from generic handler")
+                    except ConnectionError as conn_ex:
+                        if self.connection.disable_auto_reconnect:
+                            self.logger.warning("Auto-reconnect is disabled, not attempting to reconnect")
+                            # Set permanent error state
+                            with self.lock:
+                                self.allow_new_messages = False
+                            return  # Exit the thread
+                        else:
+                            self.logger.error(f"Connection error: {str(conn_ex)}")
+                    except Exception as channel_ex:
+                        self.logger.error(f"Failed to recreate channel from generic handler: {str(channel_ex)}")
+                    
+                    time.sleep(self.connection.get_reconnect_delay())
+                else:
+                    # Handle non-channel errors differently
+                    self.logger.error("Non-channel error detected, clearing affected messages only")
+                    self._handle_disconnection()
+                    time.sleep(self.connection.get_reconnect_delay())
                 continue
+
     def close(self):
         self.allow_new_messages = False
         self.shutdown_event.set()

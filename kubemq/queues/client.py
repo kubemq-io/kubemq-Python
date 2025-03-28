@@ -96,11 +96,22 @@ class Client:
             self.logger.setLevel(log_level)
         else:
             self.logger.setLevel(logging.CRITICAL + 1)
+            
+        self.logger.debug(f"Initializing client with connection parameters:")
+        self.logger.debug(f" - Address: {address}")
+        self.logger.debug(f" - Client ID: {client_id}")
+        self.logger.debug(f" - Disable Auto Reconnect: {disable_auto_reconnect}")
+        self.logger.debug(f" - Reconnect Interval: {reconnect_interval_seconds} seconds")
+        
         try:
             self.transport: Transport = Transport(self.connection).initialize()
             self.shutdown_event: threading.Event = threading.Event()
             self.upstream_sender = None
             self.downstream_receiver = None
+            
+            # Monitor connection status for logging
+            connection_monitor = threading.Thread(target=self._monitor_connection, daemon=True)
+            connection_monitor.start()
         except ValueError as e:
             ex = ValidationError(e)
             self.logger.error(str(ex))
@@ -233,35 +244,21 @@ class Client:
         visibility_seconds: int = 0,
     ) -> QueuesPollResponse:
         """
+        Receive messages from a queues channel.
 
-        Receive messages from a specific channel in the queues.
-
-        Parameters:
-        - channel (str): The name of the channel to receive messages from. Defaults to None.
-        - max_messages (int): The maximum number of messages to receive. Defaults to 1.
-        - wait_timeout_in_seconds (int): The maximum time in seconds to wait for new messages. Defaults to 60.
-        - auto_ack (bool): Whether to automatically acknowledge the received messages. Defaults to False.
+        Args:
+            channel (str): The name of the channel to receive messages from.
+            max_messages (int): The maximum number of messages to receive.
+            wait_timeout_in_seconds (int): The timeout in seconds to wait for messages.
+            auto_ack (bool): Whether to automatically acknowledge messages.
+            visibility_seconds (int): The visibility timeout in seconds for received messages.
 
         Returns:
-        - QueuesPollResponse: The response object containing the received messages.
-
-        Raises:
-        - ValueError: If the channel is None, max_messages is less than 1, or wait_timeout_in_seconds is less than 1.
-
+            QueuesPollResponse: The response containing the received messages.
         """
-        if channel is None:
-            raise ValueError("channel cannot be None.")
-        if max_messages < 1:
-            raise ValueError("poll_max_messages must be greater than 0.")
-        if wait_timeout_in_seconds < 1:
-            raise ValueError("poll_wait_timeout_in_seconds must be greater than 0.")
-        if auto_ack and visibility_seconds > 0:
-            raise ValueError(
-                "auto_ack and visibility_seconds cannot be set together"
-            )
         if self.downstream_receiver is None:
             self.downstream_receiver = DownstreamReceiver(
-                self.transport,  self.logger, self.connection
+                self.transport, self.logger, self.connection
             )
 
         request = QueuesDownstreamRequest()
@@ -383,3 +380,16 @@ class Client:
             )
 
         return pulled_messages
+
+    def _monitor_connection(self):
+        """Monitor the connection status and log changes"""
+        last_status = True
+        while not self.shutdown_event.is_set():
+            current_status = self.transport.is_connected()
+            if current_status != last_status:
+                if current_status:
+                    self.logger.info(f"Connection to {self.connection.address} restored")
+                else:
+                    self.logger.warning(f"Connection to {self.connection.address} lost")
+                last_status = current_status
+            time.sleep(1)
