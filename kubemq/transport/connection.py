@@ -7,7 +7,7 @@ from kubemq.transport.tls_config import TlsConfig
 class Connection(BaseModel):
     DEFAULT_MAX_SEND_SIZE: ClassVar[int] = 1024 * 1024 * 100  # 100MB
     DEFAULT_MAX_RCV_SIZE: ClassVar[int] = 1024 * 1024 * 100  # 100MB
-    DEFAULT_RECONNECT_INTERVAL_SECONDS: ClassVar[int] = 5
+    DEFAULT_RECONNECT_INTERVAL_SECONDS: ClassVar[int] = 1
 
     address: str = Field(default="")
     client_id: str = Field(default="")
@@ -45,8 +45,8 @@ class Connection(BaseModel):
         # TLS and KeepAlive configs are automatically validated by Pydantic
         return self
 
-    def get_reconnect_interval_duration(self) -> int:
-        return self.reconnect_interval_seconds * 1000
+    def get_reconnect_delay(self) -> int:
+        return self.reconnect_interval_seconds
 
     def set_log_level(self, value: int) -> "Connection":
         self.log_level = value
