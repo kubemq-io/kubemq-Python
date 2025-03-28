@@ -26,6 +26,7 @@ class BaseError(Exception):
     ```
 
     """
+
     pass
 
 
@@ -63,6 +64,7 @@ class ConnectionError(BaseError):
         self.message = f"Connection Error: {message}"
         super().__init__(self.message)
 
+
 class SendEventError(BaseError):
     """
     The `SendEventError` class is a subclass of the `BaseError` class. It represents an error that occurs when sending an event.
@@ -80,6 +82,7 @@ class SendEventError(BaseError):
     def __init__(self, message: str) -> None:
         self.message = f"Send Event Error: {message}"
         super().__init__(self.message)
+
 
 class DeleteChannelError(BaseError):
     """
@@ -102,25 +105,32 @@ class DeleteChannelError(BaseError):
                 None
 
     """
+
     def __init__(self, message: str) -> None:
         self.message = f"Delete Channel Error: {message}"
         super().__init__(self.message)
+
+
 class CreateChannelError(BaseError):
     """
 
     This class represents an error that occurs when attempting to create a channel.
 
     """
+
     def __init__(self, message: str) -> None:
         self.message = f"Create Channel Error: {message}"
         super().__init__(self.message)
-class ListChannelsError(BaseError):
-    """
 
-    """
+
+class ListChannelsError(BaseError):
+    """ """
+
     def __init__(self, message: str) -> None:
         self.message = f"List Channels Error: {message}"
         super().__init__(self.message)
+
+
 class GRPCError(Exception):
     """
     A custom exception class for handling GRPC errors.
@@ -135,17 +145,25 @@ class GRPCError(Exception):
         None
 
     """
+
     def __init__(self, exc):
         # Initialize the base exception message in case neither status nor details are found
         self.message = str(exc)
 
         # Check if the exception has 'code' (status) and 'details' methods
-        if hasattr(exc, 'code') and callable(exc.code) and hasattr(exc, 'details') and callable(exc.details):
+        if (
+            hasattr(exc, "code")
+            and callable(exc.code)
+            and hasattr(exc, "details")
+            and callable(exc.details)
+        ):
             status = exc.code()
             details = exc.details()
 
             # Ensure that status and details are not None
             if status is not None and details is not None:
-                self.message = f"KubeMQ Connection Error - Status: {status} Details: {details}"
+                self.message = (
+                    f"KubeMQ Connection Error - Status: {status} Details: {details}"
+                )
 
         super().__init__(self.message)

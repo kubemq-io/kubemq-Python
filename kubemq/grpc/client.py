@@ -16,7 +16,7 @@ def sender_thread(sender, thread_id):
             Channel="es4",
             Metadata=f"Thread {thread_id} - Message {_}",
             ClientID="python-sdk",
-            Store=True
+            Store=True,
         )
         response = sender.send(event=event)
         # Uncomment the next line if you need to print the response or handle it.
@@ -37,7 +37,7 @@ def generate_and_send_messages(sender):
 
 
 def run():
-    with grpc.insecure_channel('localhost:50000') as channel:
+    with grpc.insecure_channel("localhost:50000") as channel:
         stub = kubemqStub(channel)
         shutdown_event = threading.Event()
         sender = EventSender(stub, shutdown_event)
@@ -45,9 +45,9 @@ def run():
 
         time.sleep(2)
         # Example of sending a single message and waiting for the response
-        print ("Starting to send messages",datetime.now())
+        print("Starting to send messages", datetime.now())
         generate_and_send_messages(sender)
-        print("All messages sent",datetime.now())
+        print("All messages sent", datetime.now())
         try:
             # Keep the main thread running, unless interrupted
             while not shutdown_event.is_set():
@@ -67,7 +67,6 @@ class EventSender:
         self._allow_new_messages = True
         threading.Thread(target=self._send_events_stream, args=(), daemon=True).start()
 
-
     def send(self, event: Event) -> [Result, None]:
         if not event.Store:
             self._sending_queue.put(event)
@@ -76,10 +75,13 @@ class EventSender:
         response_container = {}
 
         with self._lock:
-            self._response_tracking[event.EventID] = (response_container, response_event)
+            self._response_tracking[event.EventID] = (
+                response_container,
+                response_event,
+            )
         self._sending_queue.put(event)
         response_event.wait()
-        response = response_container.get('response')
+        response = response_container.get("response")
         with self._lock:
             del self._response_tracking[event.EventID]
         return response
@@ -88,7 +90,9 @@ class EventSender:
         def send_requests():
             while not self._shutdown_event.is_set():
                 try:
-                    msg = self._sending_queue.get(timeout=1)  # timeout to check for shutdown event periodically
+                    msg = self._sending_queue.get(
+                        timeout=1
+                    )  # timeout to check for shutdown event periodically
                     yield msg
                 except queue.Empty:
                     continue
@@ -96,15 +100,17 @@ class EventSender:
         while not self._shutdown_event.is_set():
             try:
                 responses = self._clientStub.SendEventsStream(send_requests())
-                print(f"Connecting to the server...")
+                print("Connecting to the server...")
                 for response in responses:
                     if self._shutdown_event.is_set():
                         break
                     response_event_id = response.EventID
                     with self._lock:
                         if response_event_id in self._response_tracking:
-                            response_container, response_event = self._response_tracking[response_event_id]
-                            response_container['response'] = response
+                            response_container, response_event = (
+                                self._response_tracking[response_event_id]
+                            )
+                            response_container["response"] = response
                             response_event.set()
             except grpc.RpcError as e:
                 print(f"GRPC Error: {e}. Retrying in 5 seconds...")
@@ -112,5 +118,5 @@ class EventSender:
                 continue
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     run()

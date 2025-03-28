@@ -7,6 +7,7 @@ from kubemq.transport import Transport, Connection
 from kubemq.grpc import Event, Result
 from kubemq.common import *
 
+
 class EventSender:
     """
     EventSender is a class that is responsible for sending events to a server using a transport, tracking the response of each event, and handling disconnections.
@@ -29,8 +30,14 @@ class EventSender:
     - handle_disconnection(): Handles the disconnection from the server. Clears the sending queue and sets an error on all response containers.
     - send_events_stream(): Continuously sends events from the sending queue to the server. Handles disconnections and tracks responses.
     """
-    def __init__(self, transport: Transport, shutdown_event: threading.Event, logger: logging.Logger,
-                 connection: Connection):
+
+    def __init__(
+        self,
+        transport: Transport,
+        shutdown_event: threading.Event,
+        logger: logging.Logger,
+        connection: Connection,
+    ):
         self.clientStub = transport.kubemq_client()
         self.connection = connection
         self.shutdown_event = shutdown_event
@@ -43,7 +50,9 @@ class EventSender:
 
     def send(self, event: Event) -> [Result, None]:
         if not self.allow_new_messages:
-            raise ConnectionError("Client is not connected to the server and cannot send messages.")
+            raise ConnectionError(
+                "Client is not connected to the server and cannot send messages."
+            )
 
         if not event.Store:
             self.sending_queue.put(event)
@@ -55,7 +64,7 @@ class EventSender:
             self.response_tracking[event.EventID] = (response_container, response_event)
         self.sending_queue.put(event)
         response_event.wait()
-        response = response_container.get('response')
+        response = response_container.get("response")
         with self.lock:
             del self.response_tracking[event.EventID]
         return response
@@ -70,11 +79,14 @@ class EventSender:
                     continue
 
             # Set error on all response containers
-            for event_id, (response_container, response_event) in self.response_tracking.items():
-                response_container['response'] = Result(
+            for event_id, (
+                response_container,
+                response_event,
+            ) in self.response_tracking.items():
+                response_container["response"] = Result(
                     EventID=event_id,
                     Sent=False,
-                    Error='Error: Disconnected from server'
+                    Error="Error: Disconnected from server",
                 )
                 response_event.set()  # Signal that the response has been processed
             self.response_tracking.clear()
@@ -83,7 +95,9 @@ class EventSender:
         def send_requests():
             while not self.shutdown_event.is_set():
                 try:
-                    msg = self.sending_queue.get(timeout=1)  # timeout to check for shutdown event periodically
+                    msg = self.sending_queue.get(
+                        timeout=1
+                    )  # timeout to check for shutdown event periodically
                     yield msg
                 except queue.Empty:
                     continue
@@ -99,8 +113,10 @@ class EventSender:
                     response_event_id = response.EventID
                     with self.lock:
                         if response_event_id in self.response_tracking:
-                            response_container, response_event = self.response_tracking[response_event_id]
-                            response_container['response'] = response
+                            response_container, response_event = self.response_tracking[
+                                response_event_id
+                            ]
+                            response_container["response"] = response
                             response_event.set()
             except grpc.RpcError as e:
                 self.logger.debug(decode_grpc_error(e))

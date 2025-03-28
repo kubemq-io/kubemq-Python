@@ -1,12 +1,15 @@
 import logging
 import time
 from kubemq.client import Client
-from kubemq.entities import EventMessage, EventMessageReceived, EventsSubscription,CancellationToken
+
 
 def main():
-
     try:
-        client = Client(address="localhost:50000", client_id="events_example", log_level=logging.DEBUG)
+        client = Client(
+            address="localhost:50000",
+            client_id="events_example",
+            log_level=logging.DEBUG,
+        )
         # client._run_events_upstream_sender(CancellationToken())
 
         # def on_receive_event(event: EventMessageReceived):

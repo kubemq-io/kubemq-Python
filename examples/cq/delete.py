@@ -1,4 +1,3 @@
-import os
 from kubemq.cq import *
 
 
@@ -18,6 +17,7 @@ def delete_queries_channel(channelName):
             print(f"Queries channel: {channelName} deleted successfully.")
     except Exception as e:
         print(f"Error creating Queries Channel: {channelName},  {e}")
+
 
 if __name__ == "__main__":
     delete_commands_channel("new_commands_channel")

@@ -1,4 +1,3 @@
-import os
 from kubemq.pubsub import *
 
 
@@ -18,6 +17,7 @@ def create_events_store_channel(channelName):
             print(f"Events Store channel: {channelName} created successfully.")
     except Exception as e:
         print(f"Error creating Events Store Channel: {channelName},  {e}")
+
 
 if __name__ == "__main__":
     create_events_channel("new_events_channel")

@@ -4,10 +4,12 @@ from random import random
 
 from kubemq.queues import *
 
+
 def worker(message: QueueMessageReceived):
     print(f"Worker received message: {message.body.decode('utf-8')}\n")
     time.sleep(random())  # Simulate processing time
     message.re_queue("q2")
+
 
 def main():
     with Client(address="localhost:50000") as client:
@@ -16,7 +18,7 @@ def main():
             send_result = client.send_queues_message(
                 QueueMessage(
                     channel="q1",
-                    body=f"Message {i+1}".encode('utf-8'),
+                    body=f"Message {i + 1}".encode("utf-8"),
                     metadata="some-metadata",
                 )
             )

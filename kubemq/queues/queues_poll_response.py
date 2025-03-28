@@ -38,9 +38,13 @@ class QueuesPollResponse(BaseModel):
     def re_queue_all(self, channel: str):
         self._do_operation(QueuesDownstreamRequestType.ReQueueAll, channel)
 
-    def _do_operation(self, request_type: QueuesDownstreamRequestType, re_queue_channel: str = ""):
+    def _do_operation(
+        self, request_type: QueuesDownstreamRequestType, re_queue_channel: str = ""
+    ):
         if self.is_auto_acked:
-            raise ValueError("transaction was set with auto ack, transaction operations are not allowed")
+            raise ValueError(
+                "transaction was set with auto ack, transaction operations are not allowed"
+            )
         if self.is_transaction_completed:
             raise ValueError("transaction is already completed")
         if not self.response_handler:
@@ -54,7 +58,7 @@ class QueuesPollResponse(BaseModel):
             request.RefTransactionId = self.transaction_id
             request.SequenceRange.extend(self.active_offsets)
             self.response_handler(request)
-            self.is_transaction_completed=True
+            self.is_transaction_completed = True
             for message in self.messages:
                 message._mark_transaction_completed()
 
@@ -75,7 +79,7 @@ class QueuesPollResponse(BaseModel):
                 receiver_client_id,
                 response_handler,
                 visibility_seconds=request_visibility_seconds,
-                is_auto_acked=request_auto_ack
+                is_auto_acked=request_auto_ack,
             )
             for message in response.Messages
         ]
