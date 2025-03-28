@@ -1,4 +1,4 @@
-from uuid import UUID, uuid4
+from uuid import uuid4
 from typing import Dict, Optional
 from pydantic import BaseModel, Field, field_validator
 from kubemq.grpc import Event as pbEvent

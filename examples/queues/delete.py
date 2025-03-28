@@ -1,4 +1,3 @@
-import os
 from kubemq.queues import *
 
 

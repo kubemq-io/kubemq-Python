@@ -15,6 +15,7 @@ class CancellationToken:
         cancel: Set the cancellation event.
         is_set: Check if cancellation has been requested.
     """
+
     def __init__(self):
         self.event = threading.Event()
 

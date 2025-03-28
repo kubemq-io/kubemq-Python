@@ -62,6 +62,7 @@ class QueueSendResult(BaseModel):
 
     class Config:
         arbitrary_types_allowed = True
+
     def __str__(self):
         return (
             f"QueueSendResult: id={self.id}, sent_at={self.sent_at}, expired_at={self.expired_at}, "

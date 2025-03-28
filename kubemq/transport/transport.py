@@ -6,7 +6,7 @@ from typing import Sequence
 from kubemq.transport.connection import Connection
 from kubemq.transport.tls_config import TlsConfig
 from kubemq.transport.keep_alive import KeepAliveConfig
-from kubemq.transport.interceptors import AuthInterceptorsAsync, AuthInterceptors
+from kubemq.transport.interceptors import AuthInterceptorsAsync
 from kubemq.transport.server_info import ServerInfo
 from kubemq.grpc import Empty
 import logging
@@ -142,22 +142,24 @@ class Transport:
     def recreate_channel(self) -> kubemq_pb2_grpc.kubemqStub:
         """
         Recreates the gRPC channel and client after a connection failure.
-        
+
         Returns:
             kubemq_pb2_grpc.kubemqStub: New client instance
         """
         if self._channel_manager:
             return self._channel_manager.recreate_channel()
-            
+
         # This should never be reached with the new architecture
         self._logger.error("Channel manager not initialized, cannot recreate channel")
-        raise ConnectionError("Channel manager not initialized, cannot recreate channel")
+        raise ConnectionError(
+            "Channel manager not initialized, cannot recreate channel"
+        )
 
     def close(self) -> None:
         if self._channel_manager:
             self._channel_manager.close()
             self._is_connected = False
-        
+
         if self._async_channel is not None:
             self._async_channel.close()
             self._async_channel = None
