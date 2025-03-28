@@ -1,3 +1,5 @@
+import asyncio
+
 import grpc
 from grpc import Channel
 from grpc._cython.cygrpc import ChannelCredentials
@@ -161,7 +163,7 @@ class Transport:
             self._is_connected = False
 
         if self._async_channel is not None:
-            self._async_channel.close()
+            asyncio.get_event_loop().run_until_complete(self._async_channel.close())
             self._async_channel = None
             self._async_client = None
 
