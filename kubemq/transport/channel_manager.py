@@ -142,10 +142,7 @@ class ChannelManager:
                 self._channel = None
                 self._client = None
 
-            # Use fixed reconnection interval from client configuration
             reconnect_seconds = self._connection.reconnect_interval_seconds
-            if reconnect_seconds <= 0:
-                reconnect_seconds = 1  # Default to 1 second if not specified
 
             self.logger.info(f"Waiting {reconnect_seconds} seconds before reconnection")
             time.sleep(reconnect_seconds)
