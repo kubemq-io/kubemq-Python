@@ -98,10 +98,6 @@ class Client:
         ping_interval_in_seconds: int = 0,
         ping_timeout_in_seconds: int = 0,
         log_level: int = None,
-        # New parameters for sender/receiver configuration
-        queue_size: int = 0,
-        queue_timeout: float = 0.1,
-        request_sleep_interval: float = 0.1,
         send_timeout: float = 2.0,
         connection_monitor_interval: float = 1.0,
     ) -> None:
@@ -123,9 +119,6 @@ class Client:
             ping_interval_in_seconds: The interval between ping messages
             ping_timeout_in_seconds: The timeout for ping messages
             log_level: The log level to use
-            queue_size: Maximum size of the request queue (0 for unlimited)
-            queue_timeout: Timeout in seconds for queue polling
-            request_sleep_interval: Sleep interval in seconds between requests
             send_timeout: Timeout in seconds for waiting for a send response
             connection_monitor_interval: Interval in seconds for monitoring connection status
         """
@@ -164,10 +157,6 @@ class Client:
             f" - Reconnect Interval: {reconnect_interval_seconds} seconds"
         )
 
-        # Store configuration for sender/receiver
-        self.queue_size = queue_size
-        self.queue_timeout = queue_timeout
-        self.request_sleep_interval = request_sleep_interval
         self.send_timeout = send_timeout
         self.connection_monitor_interval = connection_monitor_interval
 
@@ -203,7 +192,7 @@ class Client:
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         """Async context manager exit."""
-        self.close()
+        await self.close_async()
 
     def connect(self) -> None:
         """Connect to the KubeMQ server if not already connected."""
@@ -287,9 +276,6 @@ class Client:
                 self.transport,
                 self.logger,
                 self.connection,
-                queue_size=self.queue_size,
-                queue_timeout=self.queue_timeout,
-                request_sleep_interval=self.request_sleep_interval,
                 send_timeout=self.send_timeout,
             )
 
@@ -419,9 +405,6 @@ class Client:
                 self.transport,
                 self.logger,
                 self.connection,
-                queue_size=self.queue_size,
-                queue_timeout=self.queue_timeout,
-                request_sleep_interval=self.request_sleep_interval,
             )
 
         request = QueuesDownstreamRequest()
