@@ -51,9 +51,6 @@ class DownstreamReceiver:
         transport: Transport,
         logger: logging.Logger,
         connection: Connection,
-        queue_size: int = 0,
-        queue_timeout: float = 0.1,
-        request_sleep_interval: float = 0.1,
         timeout_buffer: float = 0.5,
     ):
         """Initialize a new DownstreamReceiver.
@@ -74,10 +71,8 @@ class DownstreamReceiver:
         self.logger = logger
         self.lock = threading.Lock()
         self.response_tracking = {}
-        self.queue = queue.Queue(maxsize=queue_size)
+        self.queue = queue.Queue()
         self.allow_new_requests = True
-        self.queue_timeout = queue_timeout
-        self.request_sleep_interval = request_sleep_interval
         self.timeout_buffer = timeout_buffer
         threading.Thread(target=self._send_queue_stream, args=(), daemon=True).start()
 
@@ -177,13 +172,11 @@ class DownstreamReceiver:
         """
         while not self.shutdown_event.is_set():
             try:
-                req = self.queue.get(timeout=self.queue_timeout)
+                req = self.queue.get()
                 yield req
             except queue.Empty:
                 continue
-            finally:
-                if self.request_sleep_interval > 0:
-                    sleep(self.request_sleep_interval)
+
 
     def _process_responses(self, responses: Iterator[QueuesDownstreamResponse]) -> None:
         """Process responses from the server.
