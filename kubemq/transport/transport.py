@@ -1,4 +1,5 @@
 import asyncio
+import threading
 
 import grpc
 from grpc import Channel
@@ -76,6 +77,7 @@ class Transport:
         self._client: kubemq_pb2_grpc.kubemqStub = None
         self._async_channel: Channel = None
         self._async_client: kubemq_pb2_grpc.kubemqStub = None
+        self._is_connected_lock = threading.Lock()
         self._is_connected: bool = False
         self._logger = logging.getLogger("KubeMQ")
         self._channel_manager = None
@@ -85,10 +87,12 @@ class Transport:
             # Initialize the channel manager
             self._channel_manager = ChannelManager(self._opts, self._logger)
             self._client = self._channel_manager.get_client()
-            self._is_connected = True
+            with self._is_connected_lock:
+                self._is_connected = True
             self._initialize_async()
         except Exception as ex:
-            self._is_connected = False
+            with self._is_connected_lock:
+                self._is_connected = False
             raise ex
         return self
 
@@ -139,7 +143,9 @@ class Transport:
     def is_connected(self) -> bool:
         if self._channel_manager:
             return self._channel_manager.connection_state.is_accepting_requests()
-        return self._is_connected
+
+        with self._is_connected_lock:
+            return self._is_connected
 
     def recreate_channel(self) -> kubemq_pb2_grpc.kubemqStub:
         """
@@ -160,74 +166,11 @@ class Transport:
     def close(self) -> None:
         if self._channel_manager:
             self._channel_manager.close()
-            self._is_connected = False
+            with self._is_connected_lock:
+                self._is_connected = False
 
         if self._async_channel is not None:
             asyncio.get_event_loop().run_until_complete(self._async_channel.close())
             self._async_channel = None
             self._async_client = None
 
-
-class AsyncTransport:
-    def __init__(self, connection: Connection) -> None:
-        self._opts: Connection = connection.complete()
-        self._channel: Channel = None
-        self._client: kubemq_pb2_grpc.kubemqStub = None
-        self._is_connected: bool = False
-
-    async def initialize(self) -> "AsyncTransport":
-        auth_interceptor_async: AuthInterceptorsAsync = AuthInterceptorsAsync(
-            self._opts.auth_token
-        )
-        interceptors_async: Sequence[grpc.aio.ClientInterceptor] = [
-            auth_interceptor_async
-        ]
-
-        if self._opts.tls.enabled:
-            try:
-                credentials: ChannelCredentials = _get_ssl_credentials(self._opts.tls)
-                self._channel = grpc.aio.secure_channel(
-                    self._opts.address,
-                    credentials,
-                    options=_get_call_options(self._opts),
-                    interceptors=interceptors_async,
-                )
-            except Exception as e:
-                raise e
-        else:
-            self._channel = grpc.aio.insecure_channel(
-                self._opts.address,
-                options=_get_call_options(self._opts),
-                interceptors=interceptors_async,
-            )
-
-        self._client = kubemq_pb2_grpc.kubemqStub(self._channel)
-        try:
-            await self.ping()
-            self._is_connected = True
-        except Exception as ex:
-            self._is_connected = False
-            raise ex
-        return self
-
-    async def ping(self) -> ServerInfo:
-        response = await self._client.Ping(Empty())
-        return ServerInfo(
-            host=response.Host,
-            version=response.Version,
-            server_start_time=response.ServerStartTime,
-            server_up_time_seconds=response.ServerUpTimeSeconds,
-        )
-
-    def kubemq_client(self) -> kubemq_pb2_grpc.kubemqStub:
-        return self._client
-
-    def is_connected(self) -> bool:
-        return self._is_connected
-
-    async def close(self) -> None:
-        if self._is_connected and self._channel is not None:
-            await self._channel.close()
-            self._is_connected = False
-            self._channel = None
-            self._client = None
