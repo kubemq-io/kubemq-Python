@@ -55,9 +55,6 @@ class UpstreamSender:
         transport: Transport,
         logger: logging.Logger,
         connection: Connection,
-        queue_size: int = 0,
-        queue_timeout: float = 0.1,
-        request_sleep_interval: float = 0.1,
         send_timeout: float = 2.0,
     ):
         """Initialize a new UpstreamSender.
@@ -78,10 +75,8 @@ class UpstreamSender:
         self.logger = logger
         self.lock = threading.Lock()
         self.response_tracking = {}
-        self.sending_queue = queue.Queue(maxsize=queue_size)
+        self.sending_queue = queue.Queue()
         self.allow_new_messages = True
-        self.queue_timeout = queue_timeout
-        self.request_sleep_interval = request_sleep_interval
         self.send_timeout = send_timeout
         threading.Thread(target=self._send_queue_stream, args=(), daemon=True).start()
 
@@ -166,13 +161,11 @@ class UpstreamSender:
         """
         while not self.shutdown_event.is_set():
             try:
-                msg = self.sending_queue.get(timeout=self.queue_timeout)
+                msg = self.sending_queue.get()
                 yield msg
             except queue.Empty:
                 continue
-            finally:
-                if self.request_sleep_interval > 0:
-                    sleep(self.request_sleep_interval)
+
 
     def _process_responses(self, responses: Iterator[QueuesUpstreamResponse]) -> None:
         """Process responses from the server.
