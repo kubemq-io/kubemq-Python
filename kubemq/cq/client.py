@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import threading
 import time
@@ -227,6 +228,14 @@ class Client:
     def __exit__(self, exc_type, exc_value, traceback):
         self.close()
 
+    async def __aenter__(self):
+        """Async context manager entry."""
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """Async context manager exit."""
+        await self.close_async()
+
     def connect(self):
         try:
             self.logger.debug(f"Client connecting to {self.connection.address}")
@@ -248,6 +257,17 @@ class Client:
             self.logger.error(str(ex))
             raise ex
 
+    async def close_async(self) -> None:
+        """
+        Asynchronous version of close().
+
+        Closes the connection to the KubeMQ server and releases resources asynchronously.
+        """
+        self.logger.debug(f"Client disconnecting from {self.connection.address}")
+        await self.transport.close_async()
+        self.logger.debug(f"Client disconnected from {self.connection.address}")
+        self.shutdown_event.set()
+
     def ping(self) -> ServerInfo:
         """
         Pings the server to check the connection status.
@@ -266,6 +286,18 @@ class Client:
             self.logger.error(str(ex))
             raise ex
 
+    async def ping_async(self) -> ServerInfo:
+        """
+        Asynchronous version of ping().
+
+        Returns:
+            ServerInfo: The server information.
+
+        Raises:
+            GRPCError: If an error occurs during the ping.
+        """
+        return await asyncio.to_thread(self.ping)
+
     def send_command_request(self, message: CommandMessage) -> CommandResponseMessage:
         """
         Send a command request to the Kubemq server.
@@ -280,6 +312,18 @@ class Client:
             message.encode(self.connection.client_id)
         )
         return CommandResponseMessage().decode(response)
+
+    async def send_command_request_async(self, message: CommandMessage) -> CommandResponseMessage:
+        """
+        Asynchronous version of send_command_request().
+
+        Args:
+            message (CommandMessage): The command message to send.
+
+        Returns:
+            CommandResponseMessage: The response message received from the server.
+        """
+        return await asyncio.to_thread(self.send_command_request, message)
 
     def send_query_request(self, message: QueryMessage) -> QueryResponseMessage:
         """
@@ -303,6 +347,18 @@ class Client:
         )
         return QueryResponseMessage().decode(response)
 
+    async def send_query_request_async(self, message: QueryMessage) -> QueryResponseMessage:
+        """
+        Asynchronous version of send_query_request().
+
+        Args:
+            message (QueryMessage): The query message to send.
+
+        Returns:
+            QueryResponseMessage: The response received from the Kubemq server.
+        """
+        return await asyncio.to_thread(self.send_query_request, message)
+
     def send_response_message(
         self, message: [CommandResponseMessage, QueryResponseMessage]
     ) -> None:
@@ -321,6 +377,20 @@ class Client:
             message.encode(self.connection.client_id)
         )
 
+    async def send_response_message_async(
+        self, message: [CommandResponseMessage, QueryResponseMessage]
+    ) -> None:
+        """
+        Asynchronous version of send_response_message().
+
+        Args:
+            message: A CommandResponseMessage or QueryResponseMessage object to be sent as a response.
+
+        Returns:
+            None
+        """
+        await asyncio.to_thread(self.send_response_message, message)
+
     def create_commands_channel(self, channel: str) -> [bool, None]:
         """Create a commands channel for the given channel.
 
@@ -333,6 +403,18 @@ class Client:
         return create_channel_request(
             self.transport, self.connection.client_id, channel, "commands"
         )
+
+    async def create_commands_channel_async(self, channel: str) -> [bool, None]:
+        """
+        Asynchronous version of create_commands_channel().
+
+        Args:
+            channel (str): The name of the channel to create.
+
+        Returns:
+            [bool, None]: Returns True if successful, None if there was an error.
+        """
+        return await asyncio.to_thread(self.create_commands_channel, channel)
 
     def create_queries_channel(self, channel: str):
         """
@@ -348,6 +430,18 @@ class Client:
             self.transport, self.connection.client_id, channel, "queries"
         )
 
+    async def create_queries_channel_async(self, channel: str):
+        """
+        Asynchronous version of create_queries_channel().
+
+        Args:
+            channel (str): The name of the channel to create.
+
+        Returns:
+            None
+        """
+        return await asyncio.to_thread(self.create_queries_channel, channel)
+
     def delete_commands_channel(self, channel: str):
         """
         Delete the "commands" channel for the specified client.
@@ -359,6 +453,18 @@ class Client:
             self.transport, self.connection.client_id, channel, "commands"
         )
 
+    async def delete_commands_channel_async(self, channel: str):
+        """
+        Asynchronous version of delete_commands_channel().
+
+        Args:
+            channel (str): The name of the channel to delete.
+
+        Returns:
+            None
+        """
+        return await asyncio.to_thread(self.delete_commands_channel, channel)
+
     def delete_queries_channel(self, channel: str):
         """
         Delete a queries channel.
@@ -368,6 +474,18 @@ class Client:
         return delete_channel_request(
             self.transport, self.connection.client_id, channel, "queries"
         )
+
+    async def delete_queries_channel_async(self, channel: str):
+        """
+        Asynchronous version of delete_queries_channel().
+
+        Args:
+            channel (str): The name of the channel to delete.
+
+        Returns:
+            None
+        """
+        return await asyncio.to_thread(self.delete_queries_channel, channel)
 
     def list_commands_channels(self, channel_search: str = "") -> List[CQChannel]:
         """
@@ -382,6 +500,18 @@ class Client:
         return list_cq_channels(
             self.transport, self.connection.client_id, "commands", channel_search
         )
+
+    async def list_commands_channels_async(self, channel_search: str = "") -> List[CQChannel]:
+        """
+        Asynchronous version of list_commands_channels().
+
+        Args:
+            channel_search (str): Optional. A string used to filter the channels by name.
+
+        Returns:
+            List[CQChannel]: A list of CQChannel objects matching the search criteria.
+        """
+        return await asyncio.to_thread(self.list_commands_channels, channel_search)
 
     def list_queries_channels(self, channel_search: str = "") -> List[CQChannel]:
         """
@@ -398,6 +528,18 @@ class Client:
         return list_cq_channels(
             self.transport, self.connection.client_id, "queries", channel_search
         )
+
+    async def list_queries_channels_async(self, channel_search: str = "") -> List[CQChannel]:
+        """
+        Asynchronous version of list_queries_channels().
+
+        Args:
+            channel_search (str, optional): A string used to filter the query channels.
+
+        Returns:
+            List[CQChannel]: A list of CQChannel objects representing the available query channels.
+        """
+        return await asyncio.to_thread(self.list_queries_channels, channel_search)
 
     def subscribe_to_commands(
         self, subscription: CommandsSubscription, cancel: CancellationToken = None
@@ -477,4 +619,97 @@ class Client:
             except Exception as e:
                 error_callable(decode_grpc_error(e))
                 time.sleep(self.connection.reconnect_interval_seconds)
+                continue
+
+    def subscribe_to_commands_async(
+        self, subscription: CommandsSubscription, cancel: CancellationToken = None
+    ):
+        """
+        Asynchronous version of subscribe_to_commands().
+        Supports both sync and async callbacks.
+
+        :param subscription: The CommandsSubscription object that contains the commands to subscribe to.
+        :param cancel: The CancellationToken object used to cancel the subscription (optional).
+        :return: asyncio.Task object that can be awaited
+        """
+        return self._subscribe_async(subscription, cancel)
+
+    def subscribe_to_queries_async(
+        self, subscription: QueriesSubscription, cancel: CancellationToken = None
+    ):
+        """
+        Asynchronous version of subscribe_to_queries().
+        Supports both sync and async callbacks.
+
+        :param subscription: The query subscription to subscribe to.
+        :type subscription: QueriesSubscription
+        :param cancel: The cancellation token to cancel the subscription (optional).
+        :type cancel: CancellationToken, defaults to None
+        :return: asyncio.Task object that can be awaited
+        """
+        return self._subscribe_async(subscription, cancel)
+
+    def _subscribe_async(
+        self,
+        subscription: [CommandsSubscription, QueriesSubscription],
+        cancel: [CancellationToken, None],
+    ):
+        if cancel is None:
+            cancel = CancellationToken()
+        cancel_token_event = cancel.event
+        args = ()
+        if isinstance(subscription, CommandsSubscription):
+            args = (
+                lambda: self.transport.kubemq_client().SubscribeToRequests(
+                    subscription.decode(self.connection.client_id)
+                ),
+                lambda message: subscription.raise_on_receive_message_async(
+                    CommandMessageReceived().decode(message)
+                ),
+                lambda error: subscription.raise_on_error_async(error),
+                cancel_token_event,
+            )
+        if isinstance(subscription, QueriesSubscription):
+            args = (
+                lambda: self.transport.kubemq_client().SubscribeToRequests(
+                    subscription.encode(self.connection.client_id)
+                ),
+                lambda message: subscription.raise_on_receive_message_async(
+                    QueryMessageReceived().decode(message)
+                ),
+                lambda error: subscription.raise_on_error_async(error),
+                cancel_token_event,
+            )
+        return asyncio.create_task(self._subscribe_task_async(*args))
+
+    async def _subscribe_task_async(
+        self,
+        stream_callable,
+        decode_callable,
+        error_callable,
+        cancel_token: threading.Event,
+    ):
+        """Async version of subscription task that supports async callbacks."""
+        while not cancel_token.is_set() and not self.shutdown_event.is_set():
+            try:
+                # Run the gRPC stream creation and iteration in a thread to avoid blocking
+                response = await asyncio.to_thread(stream_callable)
+
+                # Process messages from the stream
+                while not cancel_token.is_set() and not self.shutdown_event.is_set():
+                    try:
+                        # Read next message from stream in a thread to avoid blocking
+                        message = await asyncio.to_thread(next, response)
+                        # Await the decode callable which handles both sync and async callbacks
+                        await decode_callable(message)
+                    except StopIteration:
+                        # Stream ended, break inner loop to reconnect
+                        break
+            except grpc.RpcError as e:
+                await error_callable(decode_grpc_error(e))
+                await asyncio.sleep(self.connection.reconnect_interval_seconds)
+                continue
+            except Exception as e:
+                await error_callable(decode_grpc_error(e))
+                await asyncio.sleep(self.connection.reconnect_interval_seconds)
                 continue

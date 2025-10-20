@@ -1,3 +1,4 @@
+import asyncio
 from pydantic import BaseModel, field_validator, ValidationError
 from typing import Callable, Optional
 from kubemq.grpc import Subscribe
@@ -30,9 +31,26 @@ class CommandsSubscription(BaseModel):
     ) -> None:
         self.on_receive_command_callback(received_command)
 
+    async def raise_on_receive_message_async(
+        self, received_command: CommandMessageReceived
+    ) -> None:
+        """Async-aware version that supports both sync and async callbacks."""
+        if asyncio.iscoroutinefunction(self.on_receive_command_callback):
+            await self.on_receive_command_callback(received_command)
+        else:
+            self.on_receive_command_callback(received_command)
+
     def raise_on_error(self, msg: str) -> None:
         if self.on_error_callback:
             self.on_error_callback(msg)
+
+    async def raise_on_error_async(self, msg: str) -> None:
+        """Async-aware version that supports both sync and async callbacks."""
+        if self.on_error_callback:
+            if asyncio.iscoroutinefunction(self.on_error_callback):
+                await self.on_error_callback(msg)
+            else:
+                self.on_error_callback(msg)
 
     def decode(self, client_id: str = "") -> Subscribe:
         request = Subscribe()
