@@ -1,5 +1,6 @@
+from __future__ import annotations
 from pydantic import BaseModel, Field, field_validator
-from typing import Optional, Self
+from typing import Optional
 import uuid
 from kubemq.grpc import QueuesDownstreamRequest, QueuesDownstreamRequestType
 
@@ -115,7 +116,7 @@ class QueuesPollRequest(BaseModel):
         return v
 
     # Utility methods
-    def with_updates(self, **kwargs) -> Self:
+    def with_updates(self, **kwargs) -> QueuesPollRequest:
         """
         Create a new poll request with updated values.
         

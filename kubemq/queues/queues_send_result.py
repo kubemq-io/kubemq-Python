@@ -1,5 +1,6 @@
+from __future__ import annotations
 from pydantic import BaseModel, Field
-from typing import Optional, Self, ClassVar
+from typing import Optional, ClassVar
 from datetime import datetime
 from kubemq.grpc import SendQueueMessageResult
 
@@ -109,7 +110,7 @@ class QueueSendResult(BaseModel):
         
         return max(0, (self.delayed_to - datetime.now()).total_seconds())
     
-    def with_updates(self, **kwargs) -> Self:
+    def with_updates(self, **kwargs) -> QueueSendResult:
         """
         Create a new result with updated values.
         
@@ -128,7 +129,7 @@ class QueueSendResult(BaseModel):
 
     # Decoding methods
     @classmethod
-    def decode(cls, result: SendQueueMessageResult) -> Self:
+    def decode(cls, result: SendQueueMessageResult) -> QueueSendResult:
         """
         Create a QueueSendResult from a protobuf SendQueueMessageResult.
         

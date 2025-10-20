@@ -1,5 +1,6 @@
+from __future__ import annotations
 from pydantic import BaseModel, Field, field_validator, model_validator
-from typing import Dict, Optional, ClassVar, Self
+from typing import Dict, Optional, ClassVar
 import uuid
 from datetime import datetime
 from kubemq.grpc import QueueMessage as pbQueueMessage
@@ -156,7 +157,7 @@ class QueueMessage(BaseModel):
         return v
 
     @model_validator(mode="after")
-    def check_message_content(self) -> Self:
+    def check_message_content(self) -> QueueMessage:
         """
         Validate that the message has at least one of metadata, body, or tags.
         
@@ -225,7 +226,7 @@ class QueueMessage(BaseModel):
     
     # Decoding methods
     @classmethod
-    def decode(cls, pb_message: pbQueueMessage) -> Self:
+    def decode(cls, pb_message: pbQueueMessage) -> QueueMessage:
         """
         Create a QueueMessage from a protobuf QueueMessage.
         
@@ -250,7 +251,7 @@ class QueueMessage(BaseModel):
         )
     
     # Utility methods
-    def with_updates(self, **kwargs) -> Self:
+    def with_updates(self, **kwargs) -> QueueMessage:
         """
         Create a new QueueMessage with updated values.
         
