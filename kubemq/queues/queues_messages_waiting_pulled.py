@@ -1,5 +1,6 @@
+from __future__ import annotations
 from pydantic import BaseModel, Field, field_validator
-from typing import Dict, List, Optional, Self, ClassVar
+from typing import Dict, List, Optional, ClassVar
 from datetime import datetime
 import time
 from kubemq.grpc import QueueMessage as pbQueueMessage
@@ -130,7 +131,7 @@ class QueueMessageWaitingPulled(BaseModel):
             
         return (datetime.now() - self.timestamp).total_seconds()
     
-    def with_updates(self, **kwargs) -> Self:
+    def with_updates(self, **kwargs) -> QueueMessageWaitingPulled:
         """
         Create a new message with updated values.
         
@@ -190,7 +191,7 @@ class QueueMessageWaitingPulled(BaseModel):
         cls,
         message: pbQueueMessage,
         receiver_client_id: str,
-    ) -> Self:
+    ) -> QueueMessageWaitingPulled:
         """
         Create a QueueMessageWaitingPulled from a protobuf QueueMessage.
         
@@ -343,7 +344,7 @@ class QueueMessagesBase(BaseModel):
         """
         return len(self.messages) == 0
     
-    def with_updates(self, **kwargs) -> Self:
+    def with_updates(self, **kwargs) -> QueueMessageWaitingPulled:
         """
         Create a new collection with updated values.
         
