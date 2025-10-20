@@ -228,7 +228,13 @@ class Client:
 
         Closes the connection to the KubeMQ server and releases resources asynchronously.
         """
-        await asyncio.to_thread(self.close)
+        self.shutdown_event.set()
+        if self.upstream_sender is not None:
+            self.upstream_sender.close()
+        if self.downstream_receiver is not None:
+            self.downstream_receiver.close()
+        self.logger.debug(f"Client disconnecting from {self.connection.address}")
+        await self.transport.close_async()
 
     def ping(self) -> ServerInfo:
         """

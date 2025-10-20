@@ -1,3 +1,4 @@
+import asyncio
 from pydantic import BaseModel, field_validator
 from typing import Callable, Optional
 from kubemq.grpc import Subscribe
@@ -41,10 +42,25 @@ class QueriesSubscription(BaseModel):
         """Raises the on_receive_query_callback with the received query message."""
         self.on_receive_query_callback(received_query)
 
+    async def raise_on_receive_message_async(self, received_query: QueryMessageReceived) -> None:
+        """Async-aware version that supports both sync and async callbacks."""
+        if asyncio.iscoroutinefunction(self.on_receive_query_callback):
+            await self.on_receive_query_callback(received_query)
+        else:
+            self.on_receive_query_callback(received_query)
+
     def raise_on_error(self, msg: str) -> None:
         """Raises the on_error_callback with the specified error message."""
         if self.on_error_callback:
             self.on_error_callback(msg)
+
+    async def raise_on_error_async(self, msg: str) -> None:
+        """Async-aware version that supports both sync and async callbacks."""
+        if self.on_error_callback:
+            if asyncio.iscoroutinefunction(self.on_error_callback):
+                await self.on_error_callback(msg)
+            else:
+                self.on_error_callback(msg)
 
     def encode(self, client_id: str = "") -> Subscribe:
         """Encodes the query subscription into a Subscribe message."""
