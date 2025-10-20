@@ -1,5 +1,6 @@
+from __future__ import annotations
 from pydantic import BaseModel, Field, field_validator
-from typing import List, Callable, Optional, Self, Protocol
+from typing import List, Callable, Optional, Protocol
 import uuid
 import logging
 from kubemq.grpc import (
@@ -161,7 +162,7 @@ class QueuesPollResponse(BaseModel):
         """
         return len(self.messages) == 0
     
-    def with_updates(self, **kwargs) -> Self:
+    def with_updates(self, **kwargs) -> QueuesPollResponse:
         """
         Create a new response with updated values.
         
@@ -229,7 +230,7 @@ class QueuesPollResponse(BaseModel):
         response_handler: Callable[[QueuesDownstreamRequest], QueuesDownstreamResponse],
         request_visibility_seconds: int = 0,
         request_auto_ack: bool = False,
-    ) -> Self:
+    ) -> QueuesPollResponse:
         """
         Create a QueuesPollResponse from a protobuf QueuesDownstreamResponse.
         
