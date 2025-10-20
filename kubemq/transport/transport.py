@@ -163,14 +163,35 @@ class Transport:
             "Channel manager not initialized, cannot recreate channel"
         )
 
-    def close(self) -> None:
+    async def close_async(self) -> None:
+        """Close the transport asynchronously."""
         if self._channel_manager:
             self._channel_manager.close()
             with self._is_connected_lock:
                 self._is_connected = False
 
         if self._async_channel is not None:
-            asyncio.get_event_loop().run_until_complete(self._async_channel.close())
+            await self._async_channel.close()
             self._async_channel = None
             self._async_client = None
+
+    def close(self) -> None:
+        """Close the transport synchronously."""
+        if self._channel_manager:
+            self._channel_manager.close()
+            with self._is_connected_lock:
+                self._is_connected = False
+
+        if self._async_channel is not None:
+            try:
+                # Check if we're running in an async context
+                asyncio.get_running_loop()
+                # In async context - just nullify and let garbage collection handle cleanup
+                self._async_channel = None
+                self._async_client = None
+            except RuntimeError:
+                # Not in async context - safe to use run_until_complete
+                asyncio.get_event_loop().run_until_complete(self._async_channel.close())
+                self._async_channel = None
+                self._async_client = None
 

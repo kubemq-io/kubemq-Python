@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime
 from typing import Callable, Optional
 from enum import Enum
@@ -66,9 +67,25 @@ class EventsStoreSubscription(BaseModel):
         if self.on_receive_event_callback:
             self.on_receive_event_callback(received_event)
 
+    async def raise_on_receive_message_async(self, received_event: EventStoreMessageReceived):
+        """Async-aware version that supports both sync and async callbacks."""
+        if self.on_receive_event_callback:
+            if asyncio.iscoroutinefunction(self.on_receive_event_callback):
+                await self.on_receive_event_callback(received_event)
+            else:
+                self.on_receive_event_callback(received_event)
+
     def raise_on_error(self, msg: str):
         if self.on_error_callback:
             self.on_error_callback(msg)
+
+    async def raise_on_error_async(self, msg: str):
+        """Async-aware version that supports both sync and async callbacks."""
+        if self.on_error_callback:
+            if asyncio.iscoroutinefunction(self.on_error_callback):
+                await self.on_error_callback(msg)
+            else:
+                self.on_error_callback(msg)
 
     def encode(self, client_id: str = "") -> Subscribe:
         request = Subscribe()
