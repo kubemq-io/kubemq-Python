@@ -1,0 +1,549 @@
+"""Native async Queues client for KubeMQ."""
+
+from __future__ import annotations
+
+import asyncio
+import uuid
+from collections.abc import AsyncIterator, Awaitable
+from typing import (
+    TYPE_CHECKING,
+    Callable,
+)
+
+from kubemq.common.async_cancellation_token import AsyncCancellationToken
+from kubemq.core.client import NativeAsyncBaseClient
+from kubemq.core.config import ClientConfig
+from kubemq.grpc import kubemq_pb2 as pb
+from kubemq.queues.queues_message import QueueMessage
+from kubemq.queues.queues_message_received import QueueMessageReceived
+from kubemq.queues.queues_send_result import QueueSendResult
+
+if TYPE_CHECKING:
+    from kubemq.transport.async_transport import AsyncTransport
+
+# Type aliases for callbacks
+AsyncMessageCallback = Callable[[QueueMessageReceived], Awaitable[None]]
+AsyncErrorCallback = Callable[[Exception], Awaitable[None]]
+
+
+class AsyncQueuesPollResponse:
+    """Async response from polling messages from a queue.
+
+    This is a simplified async version of QueuesPollResponse that provides
+    async methods for acknowledging, rejecting, and re-queuing messages.
+    """
+
+    def __init__(
+        self,
+        ref_request_id: str,
+        transaction_id: str,
+        messages: list[QueueMessageReceived],
+        error: str,
+        is_error: bool,
+        is_transaction_completed: bool,
+        active_offsets: list[int],
+        receiver_client_id: str,
+        visibility_seconds: int,
+        is_auto_acked: bool,
+        transport: AsyncTransport,
+    ) -> None:
+        self.ref_request_id = ref_request_id
+        self.transaction_id = transaction_id
+        self.messages = messages
+        self.error = error
+        self.is_error = is_error
+        self.is_transaction_completed = is_transaction_completed
+        self.active_offsets = active_offsets
+        self.receiver_client_id = receiver_client_id
+        self.visibility_seconds = visibility_seconds
+        self.is_auto_acked = is_auto_acked
+        self._transport = transport
+
+    async def ack_all(self) -> None:
+        """Acknowledge all messages in the response."""
+        if self.is_auto_acked:
+            raise ValueError("Messages are auto-acknowledged")
+        if self.is_transaction_completed:
+            raise ValueError("Transaction is already completed")
+
+        await self._do_operation(pb.QueuesDownstreamRequestType.AckAll)
+
+    async def reject_all(self) -> None:
+        """Reject all messages in the response."""
+        if self.is_auto_acked:
+            raise ValueError("Messages are auto-acknowledged")
+        if self.is_transaction_completed:
+            raise ValueError("Transaction is already completed")
+
+        await self._do_operation(pb.QueuesDownstreamRequestType.NAckAll)
+
+    async def re_queue_all(self, channel: str) -> None:
+        """Re-queue all messages to another channel."""
+        if self.is_auto_acked:
+            raise ValueError("Messages are auto-acknowledged")
+        if self.is_transaction_completed:
+            raise ValueError("Transaction is already completed")
+
+        await self._do_operation(pb.QueuesDownstreamRequestType.ReQueueAll, channel)
+
+    async def _do_operation(
+        self,
+        request_type: int,
+        re_queue_channel: str = "",
+    ) -> None:
+        """Perform an operation on all messages."""
+        request = pb.QueuesDownstreamRequest()
+        request.RequestID = str(uuid.uuid4())
+        request.ClientID = self.receiver_client_id
+        request.RequestTypeData = request_type  # type: ignore[assignment]
+        request.ReQueueChannel = re_queue_channel
+        request.RefTransactionId = self.transaction_id
+        request.SequenceRange.extend(self.active_offsets)
+
+        # Use the transport's receive method with a single request
+        async def single_request() -> AsyncIterator[pb.QueuesDownstreamRequest]:
+            yield request
+
+        async for _ in self._transport.queues_downstream(single_request()):
+            break  # Only need one response
+
+        self.is_transaction_completed = True
+
+    def count(self) -> int:
+        """Get the number of messages in the response."""
+        return len(self.messages)
+
+    def is_empty(self) -> bool:
+        """Check if the response contains no messages."""
+        return len(self.messages) == 0
+
+    @classmethod
+    def decode(
+        cls,
+        response: pb.QueuesDownstreamResponse,
+        receiver_client_id: str,
+        transport: AsyncTransport,
+        request_visibility_seconds: int = 0,
+        request_auto_ack: bool = False,
+    ) -> AsyncQueuesPollResponse:
+        """Create an AsyncQueuesPollResponse from a protobuf response."""
+        messages = [
+            QueueMessageReceived.decode(
+                message,
+                response.TransactionId,
+                response.TransactionComplete,
+                receiver_client_id,
+                None,  # No sync response handler for async
+                visibility_seconds=request_visibility_seconds,
+                is_auto_acked=request_auto_ack,
+            )
+            for message in response.Messages
+        ]
+
+        return cls(
+            ref_request_id=response.RefRequestId,
+            transaction_id=response.TransactionId,
+            messages=messages,
+            error=response.Error,
+            is_error=response.IsError,
+            is_transaction_completed=response.TransactionComplete,
+            active_offsets=list(response.ActiveOffsets),
+            receiver_client_id=receiver_client_id,
+            visibility_seconds=request_visibility_seconds,
+            is_auto_acked=request_auto_ack,
+            transport=transport,
+        )
+
+
+class AsyncClient(NativeAsyncBaseClient):
+    """Native async Queues client.
+
+    Provides queue message sending and receiving with transaction support
+    using native gRPC async.
+
+    Example:
+        async with AsyncClient(address="localhost:50000") as client:
+            # Send message
+            result = await client.send_queue_message(QueueMessage(
+                channel="tasks",
+                body=b"work item",
+            ))
+
+            # Receive messages
+            response = await client.receive_queue_messages(
+                channel="tasks",
+                max_messages=10,
+            )
+            for msg in response.messages:
+                print(msg.body)
+            await response.ack_all()
+    """
+
+    def __init__(
+        self,
+        address: str = "",
+        client_id: str | None = None,
+        auth_token: str | None = None,
+        config: ClientConfig | None = None,
+        **kwargs,
+    ) -> None:
+        """Initialize the async Queues client.
+
+        Note: The client is NOT connected after initialization.
+        Use `await client.connect()` or `async with client:` to connect.
+
+        Args:
+            address: KubeMQ server address (host:port)
+            client_id: Client identifier (defaults to hostname)
+            auth_token: Authentication token
+            config: Pre-built ClientConfig object (overrides other params)
+            **kwargs: Additional configuration options
+        """
+        super().__init__(
+            address=address,
+            client_id=client_id,
+            auth_token=auth_token,
+            config=config,
+            **kwargs,
+        )
+
+    # =========================================================================
+    # Send Operations
+    # =========================================================================
+
+    async def send_queue_message(
+        self,
+        message: QueueMessage,
+    ) -> QueueSendResult:
+        """Send a single queue message.
+
+        Args:
+            message: The queue message to send
+
+        Returns:
+            QueueSendResult with send confirmation
+        """
+        self._ensure_connected()
+        assert self._transport is not None
+
+        # Encode to protobuf
+        pb_message = message.encode_message(self._config.client_id or "")
+        result = await self._transport.send_queue_message(pb_message)
+        return QueueSendResult.decode(result)
+
+    async def send_queue_messages_batch(
+        self,
+        messages: list[QueueMessage],
+        max_concurrent: int = 100,
+    ) -> list[QueueSendResult]:
+        """Send multiple queue messages with concurrency control.
+
+        Args:
+            messages: List of messages to send
+            max_concurrent: Maximum concurrent sends
+
+        Returns:
+            List of results for each message
+        """
+        self._ensure_connected()
+
+        semaphore = asyncio.Semaphore(max_concurrent)
+
+        async def bounded_send(msg: QueueMessage, index: int) -> tuple[int, QueueSendResult]:
+            async with semaphore:
+                try:
+                    result = await self.send_queue_message(msg)
+                    return (index, result)
+                except Exception as e:
+                    return (
+                        index,
+                        QueueSendResult(
+                            id=msg.id,
+                            is_error=True,
+                            error=str(e),
+                        ),
+                    )
+
+        tasks = [bounded_send(msg, i) for i, msg in enumerate(messages)]
+        indexed_results = await asyncio.gather(*tasks)
+
+        sorted_results = sorted(indexed_results, key=lambda x: x[0])
+        return [result for _, result in sorted_results]
+
+    # =========================================================================
+    # Receive Operations
+    # =========================================================================
+
+    async def receive_queue_messages(
+        self,
+        channel: str,
+        max_messages: int = 1,
+        wait_timeout_seconds: int = 60,
+        auto_ack: bool = False,
+        visibility_seconds: int = 0,
+    ) -> AsyncQueuesPollResponse:
+        """Receive messages from queue (polling).
+
+        Args:
+            channel: Queue channel to receive from
+            max_messages: Maximum messages to receive
+            wait_timeout_seconds: How long to wait for messages
+            auto_ack: If True, messages are auto-acknowledged after receive
+            visibility_seconds: Visibility timeout for messages
+
+        Returns:
+            AsyncQueuesPollResponse with received messages
+
+        Note:
+            The simple receive RPC doesn't support auto_ack at the protocol level.
+            If auto_ack is True, messages are acknowledged after being received.
+        """
+        self._ensure_connected()
+        assert self._transport is not None
+        client_id = self._config.client_id or ""
+
+        request = pb.ReceiveQueueMessagesRequest()
+        request.RequestID = str(uuid.uuid4())
+        request.ClientID = client_id
+        request.Channel = channel
+        request.MaxNumberOfMessages = max_messages
+        request.WaitTimeSeconds = wait_timeout_seconds
+        request.IsPeak = False
+        # Note: ReceiveQueueMessagesRequest doesn't have AutoAck field
+        # auto_ack is handled manually below
+
+        response = await self._transport.receive_queue_messages(request)
+
+        # Convert to simplified poll response
+        messages = [
+            QueueMessageReceived.decode(
+                msg,
+                "",  # transaction_id not in simple receive
+                True,  # transaction complete
+                client_id,
+                None,
+                visibility_seconds=visibility_seconds,
+                is_auto_acked=auto_ack,
+            )
+            for msg in response.Messages
+        ]
+
+        poll_response = AsyncQueuesPollResponse(
+            ref_request_id=response.RequestID,
+            transaction_id="",
+            messages=messages,
+            error=response.Error,
+            is_error=response.IsError,
+            is_transaction_completed=auto_ack,
+            active_offsets=[],
+            receiver_client_id=client_id,
+            visibility_seconds=visibility_seconds,
+            is_auto_acked=auto_ack,
+            transport=self._transport,
+        )
+
+        # If auto_ack requested, acknowledge all messages now
+        # Note: Simple receive already removes messages from queue,
+        # so this is just marking the response as auto-acked
+        return poll_response
+
+    async def peek_queue_messages(
+        self,
+        channel: str,
+        max_messages: int = 1,
+        wait_timeout_seconds: int = 60,
+    ) -> AsyncQueuesPollResponse:
+        """Peek at messages without removing them from the queue.
+
+        Args:
+            channel: Queue channel to peek from
+            max_messages: Maximum messages to peek
+            wait_timeout_seconds: How long to wait for messages
+
+        Returns:
+            AsyncQueuesPollResponse with peeked messages
+        """
+        self._ensure_connected()
+        assert self._transport is not None
+        client_id = self._config.client_id or ""
+
+        request = pb.ReceiveQueueMessagesRequest()
+        request.RequestID = str(uuid.uuid4())
+        request.ClientID = client_id
+        request.Channel = channel
+        request.MaxNumberOfMessages = max_messages
+        request.WaitTimeSeconds = wait_timeout_seconds
+        request.IsPeak = True
+
+        response = await self._transport.receive_queue_messages(request)
+
+        messages = [
+            QueueMessageReceived.decode(
+                msg,
+                "",
+                True,
+                client_id,
+                None,
+                visibility_seconds=0,
+                is_auto_acked=True,
+            )
+            for msg in response.Messages
+        ]
+
+        return AsyncQueuesPollResponse(
+            ref_request_id=response.RequestID,
+            transaction_id="",
+            messages=messages,
+            error=response.Error,
+            is_error=response.IsError,
+            is_transaction_completed=True,
+            active_offsets=[],
+            receiver_client_id=client_id,
+            visibility_seconds=0,
+            is_auto_acked=True,
+            transport=self._transport,
+        )
+
+    # =========================================================================
+    # Streaming Operations
+    # =========================================================================
+
+    async def subscribe_to_queue(
+        self,
+        channel: str,
+        max_messages: int = 1,
+        wait_timeout_seconds: int = 60,
+        auto_ack: bool = False,
+        visibility_seconds: int = 0,
+        cancellation_token: AsyncCancellationToken | None = None,
+    ) -> AsyncIterator[AsyncQueuesPollResponse]:
+        """Subscribe to queue messages using bidirectional streaming.
+
+        This method continuously polls for messages and yields responses.
+
+        Args:
+            channel: Queue channel to subscribe to
+            max_messages: Maximum messages per poll
+            wait_timeout_seconds: Wait timeout per poll
+            auto_ack: If True, messages are auto-acknowledged
+            visibility_seconds: Visibility timeout for messages
+            cancellation_token: Optional token to cancel subscription
+
+        Yields:
+            AsyncQueuesPollResponse for each poll batch
+        """
+        self._ensure_connected()
+
+        token = cancellation_token or AsyncCancellationToken()
+        await self._register_subscription(token)
+
+        try:
+            while not token.is_cancelled:
+                try:
+                    response = await self.receive_queue_messages(
+                        channel=channel,
+                        max_messages=max_messages,
+                        wait_timeout_seconds=wait_timeout_seconds,
+                        auto_ack=auto_ack,
+                        visibility_seconds=visibility_seconds,
+                    )
+
+                    if not response.is_empty():
+                        yield response
+
+                except Exception as e:
+                    if token.is_cancelled:
+                        break
+                    self._logger.warning(f"Error receiving messages: {e}")
+                    await asyncio.sleep(self._config.reconnect_interval_seconds)
+
+        finally:
+            await self._unregister_subscription(token)
+
+    async def process_queue_messages(
+        self,
+        channel: str,
+        callback: AsyncMessageCallback,
+        error_callback: AsyncErrorCallback | None = None,
+        max_messages: int = 1,
+        wait_timeout_seconds: int = 60,
+        auto_ack: bool = False,
+        cancellation_token: AsyncCancellationToken | None = None,
+    ) -> None:
+        """Process queue messages with an async callback.
+
+        This method continuously processes messages until cancelled.
+
+        Args:
+            channel: Queue channel to process from
+            callback: Async callback for each message
+            error_callback: Optional async callback for errors
+            max_messages: Maximum messages per poll
+            wait_timeout_seconds: Wait timeout per poll
+            auto_ack: If True, messages are auto-acknowledged
+            cancellation_token: Optional token to cancel processing
+        """
+        token = cancellation_token or AsyncCancellationToken()
+
+        async for response in self.subscribe_to_queue(
+            channel=channel,
+            max_messages=max_messages,
+            wait_timeout_seconds=wait_timeout_seconds,
+            auto_ack=auto_ack,
+            cancellation_token=token,
+        ):
+            if response.is_error:
+                if error_callback:
+                    await error_callback(Exception(response.error))
+                continue
+
+            for message in response.messages:
+                try:
+                    await callback(message)
+                except Exception as e:
+                    if error_callback:
+                        await error_callback(e)
+
+            # Acknowledge if not auto-acked
+            if not auto_ack and not response.is_transaction_completed:
+                try:
+                    await response.ack_all()
+                except Exception as e:
+                    if error_callback:
+                        await error_callback(e)
+
+    # =========================================================================
+    # Queue Management
+    # =========================================================================
+
+    async def ack_all_queue_messages(
+        self,
+        channel: str,
+    ) -> int:
+        """Acknowledge all messages in a queue.
+
+        Args:
+            channel: Queue channel to ack all messages
+
+        Returns:
+            Number of messages acknowledged
+        """
+        self._ensure_connected()
+        assert self._transport is not None
+
+        request = pb.AckAllQueueMessagesRequest()
+        request.RequestID = str(uuid.uuid4())
+        request.ClientID = self._config.client_id or ""
+        request.Channel = channel
+        request.WaitTimeSeconds = 60
+
+        response = await self._transport.ack_all_queue_messages(request)
+
+        if response.IsError:
+            raise Exception(response.Error)
+
+        return response.AffectedMessages
+
+
+# Alias for backward compatibility and clearer naming
+AsyncQueuesClient = AsyncClient
