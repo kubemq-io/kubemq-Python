@@ -6,8 +6,7 @@ from kubemq.grpc import Request as pbRequest
 
 
 class QueryMessageReceived(BaseModel):
-    """
-    Class representing a query message received.
+    """Received query message from a subscription.
 
     Attributes:
         id (str): The unique ID of the query message.
@@ -18,6 +17,10 @@ class QueryMessageReceived(BaseModel):
         body (bytes): The body of the query message.
         reply_channel (str): The channel through which the reply for the query message should be sent.
         tags (Dict[str, str]): A dictionary containing tags associated with the query message.
+
+    Thread Safety:
+        Instances are safe to read from multiple threads or asyncio
+        tasks after receipt. Do not modify fields after receiving.
     """
 
     id: str = Field(default="")
@@ -29,7 +32,7 @@ class QueryMessageReceived(BaseModel):
     reply_channel: str = Field(default="")
     tags: dict[str, str] = Field(default_factory=dict)
 
-    model_config = {"arbitrary_types_allowed": True}
+    model_config = {"arbitrary_types_allowed": True, "frozen": True}
 
     @classmethod
     def decode(cls, query_receive: pbRequest) -> "QueryMessageReceived":

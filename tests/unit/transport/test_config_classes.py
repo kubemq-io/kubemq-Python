@@ -145,15 +145,16 @@ class TestKeepAliveConfigDefaults:
     """Tests for KeepAliveConfig default values."""
 
     def test_default_values(self):
-        """Test default values are set correctly."""
+        """Test default values are GS-compliant (enabled, 10s/5s)."""
         config = KeepAliveConfig()
 
-        assert config.enabled is False
-        assert config.ping_interval_in_seconds == 0
-        assert config.ping_timeout_in_seconds == 0
+        assert config.enabled is True
+        assert config.ping_interval_in_seconds == 10
+        assert config.ping_timeout_in_seconds == 5
+        assert config.permit_without_calls is True
 
     def test_disabled_config_is_valid(self):
-        """Test disabled config with zero values is valid."""
+        """Test disabled config is valid."""
         config = KeepAliveConfig(enabled=False)
 
         assert config.enabled is False

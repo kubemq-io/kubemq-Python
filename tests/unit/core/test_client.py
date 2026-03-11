@@ -11,7 +11,7 @@ import pytest
 
 from kubemq.core.client import AsyncBaseClient, BaseClient, NativeAsyncBaseClient
 from kubemq.core.config import ClientConfig
-from kubemq.core.exceptions import KubeMQConnectionError
+from kubemq.core.exceptions import KubeMQClientClosedError, KubeMQConnectionError
 from kubemq.transport.server_info import ServerInfo
 
 # ==============================================================================
@@ -161,7 +161,7 @@ class TestBaseClientConnection:
         client = ConcreteBaseClient(address="localhost:50000")
         client.close()
 
-        with pytest.raises(RuntimeError, match="Client is closed"):
+        with pytest.raises(KubeMQClientClosedError, match="Client is closed"):
             client._ensure_connected()
 
     @patch("kubemq.transport.transport.Transport")
@@ -442,11 +442,11 @@ class TestNativeAsyncBaseClientConnection:
 
     @pytest.mark.asyncio
     async def test_cannot_reconnect_after_close(self):
-        """Test that reconnection after close raises RuntimeError."""
+        """Test that reconnection after close raises KubeMQClientClosedError."""
         client = ConcreteNativeAsyncBaseClient(address="localhost:50000")
         client._closed = True
 
-        with pytest.raises(RuntimeError, match="closed and cannot be reconnected"):
+        with pytest.raises(KubeMQClientClosedError, match="closed and cannot be reconnected"):
             await client.connect()
 
     def test_is_connected_false_before_connect(self):
@@ -636,19 +636,19 @@ class TestNativeAsyncBaseClientEnsureConnected:
     """Tests for NativeAsyncBaseClient _ensure_connected method."""
 
     def test_ensure_connected_raises_when_closed(self):
-        """Test _ensure_connected raises RuntimeError when client is closed."""
+        """Test _ensure_connected raises KubeMQClientClosedError when client is closed."""
         client = ConcreteNativeAsyncBaseClient(address="localhost:50000")
         client._closed = True
 
-        with pytest.raises(RuntimeError, match="Client is closed"):
+        with pytest.raises(KubeMQClientClosedError, match="Client is closed"):
             client._ensure_connected()
 
     def test_ensure_connected_raises_when_closing(self):
-        """Test _ensure_connected raises RuntimeError when client is closing."""
+        """Test _ensure_connected raises KubeMQClientClosedError when client is closing."""
         client = ConcreteNativeAsyncBaseClient(address="localhost:50000")
         client._closing = True
 
-        with pytest.raises(RuntimeError, match="shutting down"):
+        with pytest.raises(KubeMQClientClosedError, match="shutting down"):
             client._ensure_connected()
 
     def test_ensure_connected_raises_when_not_connected(self):

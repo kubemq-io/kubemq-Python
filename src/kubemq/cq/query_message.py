@@ -1,25 +1,43 @@
+from __future__ import annotations
+
+import sys
 import uuid
 from typing import Optional
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from kubemq.grpc import Request as pbQuery
 
+if sys.version_info >= (3, 11):
+    from typing import Self
+else:
+    from typing_extensions import Self
+
 
 class QueryMessage(BaseModel):
-    """
-    Class representing a query message.
+    """A query message for request-response patterns with optional caching.
+
+    Instances are immutable after construction. Use ``with_updates()``
+    or ``model_copy(update={...})`` to create modified copies.
+
+    Thread Safety:
+        Instances are immutable (frozen) and safe to read from multiple
+        threads. However, reusing the same instance for multiple send
+        operations is not recommended — create a new instance per send
+        to ensure unique message IDs.
 
     Attributes:
-        id (Optional[str]): The ID of the query message.
-        channel (str): The channel of the query message.
-        metadata (Optional[str]): The metadata of the query message.
-        body (bytes): The body of the query message.
-        tags (Dict[str, str]): The tags of the query message.
-        timeout_in_seconds (int): The timeout of the query message in seconds.
-        cache_key (str): The cache key of the query message.
-        cache_ttl_int_seconds (int): The cache TTL of the query message in seconds.
+        id: The ID of the query message.
+        channel: The channel of the query message.
+        metadata: The metadata of the query message.
+        body: The body of the query message.
+        tags: The tags of the query message.
+        timeout_in_seconds: The timeout of the query message in seconds.
+        cache_key: The cache key of the query message.
+        cache_ttl_int_seconds: The cache TTL of the query message in seconds.
     """
+
+    model_config = ConfigDict(arbitrary_types_allowed=True, frozen=True)
 
     id: Optional[str] = Field(default_factory=lambda: str(uuid.uuid4()))
     channel: str
@@ -29,8 +47,6 @@ class QueryMessage(BaseModel):
     timeout_in_seconds: int = Field(gt=0)
     cache_key: str = ""
     cache_ttl_int_seconds: int = 0
-
-    model_config = {"arbitrary_types_allowed": True}
 
     @field_validator("channel")
     def channel_must_exist(cls, v: str) -> str:
@@ -60,6 +76,28 @@ class QueryMessage(BaseModel):
         pb_query.CacheKey = self.cache_key
         pb_query.CacheTTL = self.cache_ttl_int_seconds * 1000
         return pb_query
+
+    def with_updates(self, **kwargs) -> Self:
+        """Create a new message with updated values.
+
+        Since message instances are immutable, this creates a copy
+        with the specified fields overridden.
+
+        Returns:
+            A new instance of the same type with updated fields.
+        """
+        return self.model_copy(update=kwargs)
+
+    def with_updates(self, **kwargs) -> Self:
+        """Create a new message with updated values.
+
+        Since message instances are immutable, this creates a copy
+        with the specified fields overridden.
+
+        Returns:
+            A new instance of the same type with updated fields.
+        """
+        return self.model_copy(update=kwargs)
 
     def __repr__(self) -> str:
         return (

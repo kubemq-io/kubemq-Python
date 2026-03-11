@@ -10,7 +10,7 @@ import grpc.aio
 import pytest
 
 from kubemq.core.config import ClientConfig
-from kubemq.core.exceptions import KubeMQConnectionError, KubeMQTimeoutError
+from kubemq.core.exceptions import KubeMQClientClosedError, KubeMQConnectionError, KubeMQTimeoutError
 from kubemq.grpc import kubemq_pb2 as pb
 from kubemq.transport.async_transport import AsyncTransport
 
@@ -268,12 +268,12 @@ class TestAsyncTransportEnsureConnected:
             transport._ensure_connected()
 
     def test_ensure_connected_raises_when_closing(self, mock_config):
-        """Test _ensure_connected raises when closing."""
+        """Test _ensure_connected raises KubeMQClientClosedError when closing."""
         transport = AsyncTransport(mock_config)
         transport._connected = True
         transport._closing = True
 
-        with pytest.raises(KubeMQConnectionError, match="closing"):
+        with pytest.raises(KubeMQClientClosedError, match="closing"):
             transport._ensure_connected()
 
     def test_ensure_connected_passes_when_connected(self, mock_config):
@@ -362,16 +362,16 @@ class TestAsyncTransportStreamManagement:
         await transport._unregister_stream(mock_call)
 
     @pytest.mark.asyncio
-    async def test_close_cancels_active_streams(self, mock_config):
-        """Test close cancels all active streams."""
+    async def test_close_clears_active_streams(self, mock_config):
+        """Test close drains and clears all active streams."""
         transport = AsyncTransport(mock_config)
 
         mock_channel = AsyncMock()
         mock_stub = MagicMock()
 
-        # Create mock streams
-        mock_stream1 = MagicMock()
-        mock_stream2 = MagicMock()
+        # Create mock streams that resolve immediately (simulate completed streams)
+        mock_stream1 = AsyncMock()
+        mock_stream2 = AsyncMock()
 
         with (
             patch("grpc.aio.insecure_channel", return_value=mock_channel),
@@ -385,9 +385,42 @@ class TestAsyncTransportStreamManagement:
 
             await transport.close()
 
-        # Streams should be cancelled
-        mock_stream1.cancel.assert_called_once()
-        mock_stream2.cancel.assert_called_once()
+        # Streams should be cleared after close
+        assert len(transport._active_streams) == 0
+
+    @pytest.mark.asyncio
+    async def test_close_force_cancels_on_timeout(self, mock_config):
+        """Test close force-cancels streams that exceed drain_timeout."""
+        transport = AsyncTransport(mock_config)
+
+        mock_channel = AsyncMock()
+        mock_stub = MagicMock()
+
+        cancel_called = False
+
+        class HangingStream:
+            """Simulates a gRPC stream that never completes."""
+
+            def __await__(self):
+                return asyncio.sleep(999).__await__()
+
+            def cancel(self):
+                nonlocal cancel_called
+                cancel_called = True
+
+        mock_stream = HangingStream()
+
+        with (
+            patch("grpc.aio.insecure_channel", return_value=mock_channel),
+            patch("kubemq.grpc.kubemq_pb2_grpc.kubemqStub", return_value=mock_stub),
+        ):
+            await transport.connect(verify=False)
+            await transport._register_stream(mock_stream)
+
+            await transport.close(drain_timeout=0.05)
+
+        assert cancel_called
+        assert len(transport._active_streams) == 0
 
 
 class TestAsyncTransportChannelOptions:
@@ -545,7 +578,7 @@ class TestAsyncTransportTLSConnection:
         mock_credentials = MagicMock()
 
         with (
-            patch.object(transport, "_get_ssl_credentials", return_value=mock_credentials),
+            patch.object(transport, "_build_ssl_credentials", return_value=mock_credentials),
             patch("grpc.aio.secure_channel", return_value=mock_channel) as mock_secure,
             patch("kubemq.grpc.kubemq_pb2_grpc.kubemqStub", return_value=mock_stub),
         ):
@@ -555,11 +588,10 @@ class TestAsyncTransportTLSConnection:
         assert transport.is_connected
 
     @pytest.mark.asyncio
-    async def test_get_ssl_credentials_with_all_files(self, tmp_path):
-        """Test _get_ssl_credentials reads certificate files."""
+    async def test_build_ssl_credentials_with_all_files(self, tmp_path):
+        """Test _build_ssl_credentials reads certificate files."""
         from kubemq.core.config import TLSConfig
 
-        # Create temp cert files
         ca_file = tmp_path / "ca.pem"
         ca_file.write_bytes(b"-----BEGIN CERTIFICATE-----\nca content\n-----END CERTIFICATE-----")
         cert_file = tmp_path / "cert.pem"
@@ -583,7 +615,7 @@ class TestAsyncTransportTLSConnection:
 
         with patch("grpc.ssl_channel_credentials") as mock_ssl:
             mock_ssl.return_value = MagicMock()
-            transport._get_ssl_credentials()
+            transport._build_ssl_credentials()
 
             mock_ssl.assert_called_once()
             call_args = mock_ssl.call_args
@@ -592,11 +624,10 @@ class TestAsyncTransportTLSConnection:
             assert call_args[1]["certificate_chain"] is not None
 
     @pytest.mark.asyncio
-    async def test_get_ssl_credentials_without_ca_file(self, tmp_path):
-        """Test _get_ssl_credentials works without CA file."""
+    async def test_build_ssl_credentials_without_ca_file(self, tmp_path):
+        """Test _build_ssl_credentials works without CA file."""
         from kubemq.core.config import TLSConfig
 
-        # Create cert/key files without CA file
         cert_file = tmp_path / "cert.pem"
         cert_file.write_bytes(
             b"-----BEGIN CERTIFICATE-----\ncert content\n-----END CERTIFICATE-----"
@@ -611,18 +642,16 @@ class TestAsyncTransportTLSConnection:
                 enabled=True,
                 cert_file=cert_file,
                 key_file=key_file,
-                # No ca_file
             ),
         )
         transport = AsyncTransport(config)
 
         with patch("grpc.ssl_channel_credentials") as mock_ssl:
             mock_ssl.return_value = MagicMock()
-            transport._get_ssl_credentials()
+            transport._build_ssl_credentials()
 
             mock_ssl.assert_called_once()
             call_args = mock_ssl.call_args
-            # CA file is None when not provided
             assert call_args[1]["root_certificates"] is None
 
 

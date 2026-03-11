@@ -160,6 +160,36 @@ async def async_cq_client(kubemq_address: str, unique_client_id: str):
 
 
 # ==============================================================================
+# Integration Test Cleanup
+# ==============================================================================
+
+
+@pytest.fixture(autouse=True)
+def _integration_cleanup(request):
+    """Auto-cleanup for integration tests.
+
+    Ensures any client fixtures created during the test are properly closed
+    even if the test fails.
+    """
+    if "integration" not in [m.name for m in request.node.iter_markers()]:
+        yield
+        return
+
+    yield
+
+    for fixture_name in request.fixturenames:
+        try:
+            client = request.getfixturevalue(fixture_name)
+        except Exception:
+            continue
+        if client is not None and hasattr(client, "close"):
+            try:
+                client.close()
+            except Exception:
+                pass
+
+
+# ==============================================================================
 # Shared Unit Test Fixtures
 # ==============================================================================
 

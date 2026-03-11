@@ -9,6 +9,7 @@ from pathlib import Path
 
 import grpc
 
+from kubemq._internal.telemetry import KubeMQTagsCarrier, create_link_from_context, error_code_to_error_type
 from kubemq.common.cancellation_token import CancellationToken
 from kubemq.common.channel_stats import CQChannel
 from kubemq.common.helpers import decode_grpc_error
@@ -17,8 +18,12 @@ from kubemq.common.requests import (
     delete_channel_request,
     list_cq_channels,
 )
+from pydantic import ValidationError
+
 from kubemq.core import BaseClient, ClientConfig
-from kubemq.core.compat import deprecated_async_method, run_in_thread
+from kubemq._internal.deprecation import deprecated, deprecated_async
+from kubemq.core.exceptions import KubeMQValidationError
+from kubemq.core.compat import run_in_thread
 from kubemq.core.config import KeepAliveConfig, TLSConfig
 from kubemq.cq.command_message import CommandMessage
 from kubemq.cq.command_message_received import CommandMessageReceived
@@ -63,6 +68,10 @@ class Client(BaseClient):
             response = client.send_command_request(...)
         finally:
             client.close()
+
+    Thread Safety:
+        This class is thread-safe. Share across threads. One instance
+        per application recommended.
     """
 
     def __init__(
@@ -165,7 +174,7 @@ class Client(BaseClient):
         self._logger.debug(f"Client disconnected from {self._config.address}")
         self._shutdown_event.set()
 
-    @deprecated_async_method("AsyncCQClient.ping")
+    @deprecated_async(replacement="AsyncCQClient.ping()", since="4.0.0", removal="5.0.0")
     async def ping_async(self) -> ServerInfo:
         """Asynchronous version of ping().
 
@@ -180,9 +189,62 @@ class Client(BaseClient):
         """
         return await run_in_thread(self.ping)
 
-    # Command methods
+    # Command methods — GS-aligned verbs
+
+    def _send_command_impl(self, message: CommandMessage) -> CommandResponseMessage:
+        """Internal implementation for sending a command."""
+        self._validate_message_size(message.body)
+        start = time.perf_counter()
+        error_type_val = None
+        with self._instrumentor.start_span("send", message.channel) as span:
+            try:
+                self._ensure_connected()
+                assert self._transport is not None
+                pb_req = message.encode(self._config.client_id or "")
+                tags_dict = dict(pb_req.Tags)
+                KubeMQTagsCarrier(tags_dict).inject()
+                pb_req.Tags.update(tags_dict)
+                if span.is_recording():
+                    from kubemq._internal.semconv import (
+                        MESSAGING_MESSAGE_BODY_SIZE,
+                        MESSAGING_MESSAGE_ID,
+                    )
+                    span.set_attribute(MESSAGING_MESSAGE_ID, message.id)
+                    span.set_attribute(MESSAGING_MESSAGE_BODY_SIZE, len(message.body))
+                response = self._transport.kubemq_client().SendRequest(pb_req)
+                self._instrumentor._metrics.record_sent_message("send", message.channel)
+                return CommandResponseMessage().decode(response)
+            except ValidationError as e:
+                error_type_val = "validation"
+                self._instrumentor.record_error(span, e, error_type_val)
+                raise KubeMQValidationError(str(e), is_retryable=False) from e
+            except Exception as e:
+                error_type_val = error_code_to_error_type(getattr(e, "code", None))
+                self._instrumentor.record_error(span, e, error_type_val)
+                raise
+            finally:
+                duration = time.perf_counter() - start
+                self._instrumentor._metrics.record_operation_duration(
+                    duration, "send", message.channel, error_type_val
+                )
+
+    def send_command(self, message: CommandMessage) -> CommandResponseMessage:
+        """Send a command request and wait for response.
+
+        Args:
+            message: The command message to send.
+
+        Returns:
+            CommandResponseMessage with the response.
+        """
+        return self._send_command_impl(message)
+
+    @deprecated(replacement="send_command()", since="4.0.0", removal="5.0.0")
     def send_command_request(self, message: CommandMessage) -> CommandResponseMessage:
         """Send a command request and wait for response.
+
+        Deprecated:
+            Use ``send_command()`` instead. Will be removed in v5.0.
 
         Args:
             message: The command message to send
@@ -190,19 +252,14 @@ class Client(BaseClient):
         Returns:
             CommandResponseMessage with the response
         """
-        self._ensure_connected()
-        assert self._transport is not None
-        response = self._transport.kubemq_client().SendRequest(
-            message.encode(self._config.client_id or "")
-        )
-        return CommandResponseMessage().decode(response)
+        return self._send_command_impl(message)
 
-    @deprecated_async_method("AsyncCQClient.send_command")
+    @deprecated_async(replacement="AsyncCQClient.send_command()", since="4.0.0", removal="5.0.0")
     async def send_command_request_async(self, message: CommandMessage) -> CommandResponseMessage:
         """Send a command request asynchronously.
 
         Deprecated:
-            Use `AsyncCQClient.send_command()` for native async support.
+            Use ``AsyncCQClient.send_command()`` for native async support.
 
         Args:
             message: The command message to send
@@ -210,11 +267,64 @@ class Client(BaseClient):
         Returns:
             CommandResponseMessage with the response
         """
-        return await run_in_thread(self.send_command_request, message)
+        return await run_in_thread(self._send_command_impl, message)
 
-    # Query methods
+    # Query methods — GS-aligned verbs
+
+    def _send_query_impl(self, message: QueryMessage) -> QueryResponseMessage:
+        """Internal implementation for sending a query."""
+        self._validate_message_size(message.body)
+        start = time.perf_counter()
+        error_type_val = None
+        with self._instrumentor.start_span("send", message.channel) as span:
+            try:
+                self._ensure_connected()
+                assert self._transport is not None
+                pb_req = message.encode(self._config.client_id or "")
+                tags_dict = dict(pb_req.Tags)
+                KubeMQTagsCarrier(tags_dict).inject()
+                pb_req.Tags.update(tags_dict)
+                if span.is_recording():
+                    from kubemq._internal.semconv import (
+                        MESSAGING_MESSAGE_BODY_SIZE,
+                        MESSAGING_MESSAGE_ID,
+                    )
+                    span.set_attribute(MESSAGING_MESSAGE_ID, message.id)
+                    span.set_attribute(MESSAGING_MESSAGE_BODY_SIZE, len(message.body))
+                response = self._transport.kubemq_client().SendRequest(pb_req)
+                self._instrumentor._metrics.record_sent_message("send", message.channel)
+                return QueryResponseMessage().decode(response)
+            except ValidationError as e:
+                error_type_val = "validation"
+                self._instrumentor.record_error(span, e, error_type_val)
+                raise KubeMQValidationError(str(e), is_retryable=False) from e
+            except Exception as e:
+                error_type_val = error_code_to_error_type(getattr(e, "code", None))
+                self._instrumentor.record_error(span, e, error_type_val)
+                raise
+            finally:
+                duration = time.perf_counter() - start
+                self._instrumentor._metrics.record_operation_duration(
+                    duration, "send", message.channel, error_type_val
+                )
+
+    def send_query(self, message: QueryMessage) -> QueryResponseMessage:
+        """Send a query request and wait for response.
+
+        Args:
+            message: The query message to send.
+
+        Returns:
+            QueryResponseMessage with the response.
+        """
+        return self._send_query_impl(message)
+
+    @deprecated(replacement="send_query()", since="4.0.0", removal="5.0.0")
     def send_query_request(self, message: QueryMessage) -> QueryResponseMessage:
         """Send a query request and wait for response.
+
+        Deprecated:
+            Use ``send_query()`` instead. Will be removed in v5.0.
 
         Args:
             message: The query message to send
@@ -222,19 +332,14 @@ class Client(BaseClient):
         Returns:
             QueryResponseMessage with the response
         """
-        self._ensure_connected()
-        assert self._transport is not None
-        response = self._transport.kubemq_client().SendRequest(
-            message.encode(self._config.client_id or "")
-        )
-        return QueryResponseMessage().decode(response)
+        return self._send_query_impl(message)
 
-    @deprecated_async_method("AsyncCQClient.send_query")
+    @deprecated_async(replacement="AsyncCQClient.send_query()", since="4.0.0", removal="5.0.0")
     async def send_query_request_async(self, message: QueryMessage) -> QueryResponseMessage:
         """Send a query request asynchronously.
 
         Deprecated:
-            Use `AsyncCQClient.send_query()` for native async support.
+            Use ``AsyncCQClient.send_query()`` for native async support.
 
         Args:
             message: The query message to send
@@ -242,7 +347,7 @@ class Client(BaseClient):
         Returns:
             QueryResponseMessage with the response
         """
-        return await run_in_thread(self.send_query_request, message)
+        return await run_in_thread(self._send_query_impl, message)
 
     # Response methods
     def send_response_message(self, message: CommandResponseMessage | QueryResponseMessage) -> None:
@@ -253,9 +358,26 @@ class Client(BaseClient):
         """
         self._ensure_connected()
         assert self._transport is not None
-        self._transport.kubemq_client().SendResponse(message.encode(self._config.client_id or ""))
+        channel = getattr(message, "reply_channel", "") or ""
+        start = time.perf_counter()
+        error_type_val = None
+        with self._instrumentor.start_span("settle", channel) as span:
+            try:
+                self._transport.kubemq_client().SendResponse(
+                    message.encode(self._config.client_id or "")
+                )
+                self._instrumentor._metrics.record_sent_message("settle", channel)
+            except Exception as e:
+                error_type_val = error_code_to_error_type(getattr(e, "code", None))
+                self._instrumentor.record_error(span, e, error_type_val)
+                raise
+            finally:
+                duration = time.perf_counter() - start
+                self._instrumentor._metrics.record_operation_duration(
+                    duration, "settle", channel, error_type_val
+                )
 
-    @deprecated_async_method("AsyncCQClient.send_response")
+    @deprecated_async(replacement="AsyncCQClient.send_response()", since="4.0.0", removal="5.0.0")
     async def send_response_message_async(
         self, message: CommandResponseMessage | QueryResponseMessage
     ) -> None:
@@ -411,6 +533,16 @@ class Client(BaseClient):
         Args:
             subscription: The subscription configuration
             cancel: Optional cancellation token
+
+        Cancellation:
+            Pass a ``CancellationToken`` to cancel the subscription from
+            another thread. When cancelled, the subscription loop exits
+            cleanly without raising an exception.
+
+        Callback Concurrency:
+            Messages are delivered sequentially to the subscription's
+            ``on_receive_command`` callback. Only one callback executes
+            at a time per subscription.
         """
         self._subscribe(subscription, cancel)
 
@@ -422,6 +554,16 @@ class Client(BaseClient):
         Args:
             subscription: The subscription configuration
             cancel: Optional cancellation token
+
+        Cancellation:
+            Pass a ``CancellationToken`` to cancel the subscription from
+            another thread. When cancelled, the subscription loop exits
+            cleanly without raising an exception.
+
+        Callback Concurrency:
+            Messages are delivered sequentially to the subscription's
+            ``on_receive_query`` callback. Only one callback executes
+            at a time per subscription.
         """
         self._subscribe(subscription, cancel)
 
@@ -438,6 +580,7 @@ class Client(BaseClient):
         cancel_token_event = cancel.event
         transport = self._transport  # Capture for lambda
         client_id = self._config.client_id or ""
+        channel = subscription.channel
         args: tuple = ()
         if isinstance(subscription, CommandsSubscription):
             args = (
@@ -449,6 +592,7 @@ class Client(BaseClient):
                 ),
                 lambda error: subscription.raise_on_error(error),
                 cancel_token_event,
+                channel,
             )
         if isinstance(subscription, QueriesSubscription):
             args = (
@@ -460,8 +604,11 @@ class Client(BaseClient):
                 ),
                 lambda error: subscription.raise_on_error(error),
                 cancel_token_event,
+                channel,
             )
-        threading.Thread(target=self._subscribe_task, args=args, daemon=True).start()
+        thread = threading.Thread(target=self._subscribe_task, args=args, daemon=True)
+        self._register_subscription_thread(thread)
+        thread.start()
 
     def _subscribe_task(
         self,
@@ -469,6 +616,7 @@ class Client(BaseClient):
         decode_callable,
         error_callable,
         cancel_token: threading.Event,
+        channel: str = "",
     ) -> None:
         """Background subscription task."""
         while not cancel_token.is_set() and not self._shutdown_event.is_set():
@@ -477,7 +625,35 @@ class Client(BaseClient):
                 for message in response:
                     if cancel_token.is_set():
                         break
-                    decode_callable(message)
+                    start = time.perf_counter()
+                    error_type_val = None
+                    tags_dict = dict(message.Tags) if hasattr(message, "Tags") else {}
+                    carrier = KubeMQTagsCarrier(tags_dict)
+                    parent_ctx = carrier.extract()
+                    links = []
+                    link = create_link_from_context(parent_ctx)
+                    if link is not None:
+                        links.append(link)
+                    with self._instrumentor.start_span(
+                        "process", channel, links=links or None
+                    ) as span:
+                        try:
+                            decode_callable(message)
+                            self._instrumentor._metrics.record_consumed_message(
+                                "process", channel
+                            )
+                        except Exception as handler_err:
+                            error_type_val = error_code_to_error_type(
+                                getattr(handler_err, "code", None)
+                            )
+                            self._instrumentor.record_error(
+                                span, handler_err, error_type_val
+                            )
+                        finally:
+                            duration = time.perf_counter() - start
+                            self._instrumentor._metrics.record_operation_duration(
+                                duration, "process", channel, error_type_val
+                            )
             except grpc.RpcError as e:
                 error_callable(decode_grpc_error(e))
                 time.sleep(self._config.reconnect_interval_seconds)
@@ -533,6 +709,7 @@ class Client(BaseClient):
         cancel_token_event = cancel.event
         transport = self._transport  # Capture for lambda
         client_id = self._config.client_id or ""
+        channel = subscription.channel
         args: tuple = ()
         if isinstance(subscription, CommandsSubscription):
             args = (
@@ -544,6 +721,7 @@ class Client(BaseClient):
                 ),
                 lambda error: subscription.raise_on_error_async(error),
                 cancel_token_event,
+                channel,
             )
         if isinstance(subscription, QueriesSubscription):
             args = (
@@ -555,6 +733,7 @@ class Client(BaseClient):
                 ),
                 lambda error: subscription.raise_on_error_async(error),
                 cancel_token_event,
+                channel,
             )
         return asyncio.create_task(self._subscribe_task_async(*args))  # type: ignore[arg-type]
 
@@ -564,22 +743,46 @@ class Client(BaseClient):
         decode_callable,
         error_callable,
         cancel_token: threading.Event,
+        channel: str = "",
     ):
         """Async version of subscription task that supports async callbacks."""
         while not cancel_token.is_set() and not self._shutdown_event.is_set():
             try:
-                # Run the gRPC stream creation and iteration in a thread to avoid blocking
                 response = await asyncio.to_thread(stream_callable)
 
-                # Process messages from the stream
                 while not cancel_token.is_set() and not self._shutdown_event.is_set():
                     try:
-                        # Read next message from stream in a thread to avoid blocking
                         message = await asyncio.to_thread(next, response)
-                        # Await the decode callable which handles both sync and async callbacks
-                        await decode_callable(message)
+                        start = time.perf_counter()
+                        error_type_val = None
+                        tags_dict = dict(message.Tags) if hasattr(message, "Tags") else {}
+                        carrier = KubeMQTagsCarrier(tags_dict)
+                        parent_ctx = carrier.extract()
+                        links = []
+                        link = create_link_from_context(parent_ctx)
+                        if link is not None:
+                            links.append(link)
+                        with self._instrumentor.start_span(
+                            "process", channel, links=links or None
+                        ) as span:
+                            try:
+                                await decode_callable(message)
+                                self._instrumentor._metrics.record_consumed_message(
+                                    "process", channel
+                                )
+                            except Exception as handler_err:
+                                error_type_val = error_code_to_error_type(
+                                    getattr(handler_err, "code", None)
+                                )
+                                self._instrumentor.record_error(
+                                    span, handler_err, error_type_val
+                                )
+                            finally:
+                                duration = time.perf_counter() - start
+                                self._instrumentor._metrics.record_operation_duration(
+                                    duration, "process", channel, error_type_val
+                                )
                     except StopIteration:
-                        # Stream ended, break inner loop to reconnect
                         break
             except grpc.RpcError as e:
                 await error_callable(decode_grpc_error(e))

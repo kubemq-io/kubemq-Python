@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+import sys
 from typing import Optional
 from uuid import uuid4
 
@@ -5,9 +8,28 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from kubemq.grpc import Event as pbEvent
 
+if sys.version_info >= (3, 11):
+    from typing import Self
+else:
+    from typing_extensions import Self
+
 
 class EventMessage(BaseModel):
-    id: Optional[str] = None
+    """An event message for fire-and-forget publishing.
+
+    Instances are immutable after construction. Use ``with_updates()``
+    or ``model_copy(update={...})`` to create modified copies.
+
+    Thread Safety:
+        Instances are immutable (frozen) and safe to read from multiple
+        threads. However, reusing the same instance for multiple send
+        operations is not recommended — create a new instance per send
+        to ensure unique message IDs.
+    """
+
+    model_config = ConfigDict(arbitrary_types_allowed=True, frozen=True)
+
+    id: str = Field(default_factory=lambda: str(uuid4()))
     channel: str
     metadata: Optional[str] = None
     body: bytes = Field(default=b"")
@@ -45,8 +67,13 @@ class EventMessage(BaseModel):
         pb_event.Tags.update(tags)
         return pb_event
 
-    model_config = ConfigDict(arbitrary_types_allowed=True)
+    def with_updates(self, **kwargs) -> Self:
+        """Create a new message with updated values.
 
-    def model_post_init(self, __context) -> None:
-        if self.id is None:
-            self.id = str(uuid4())
+        Since message instances are immutable, this creates a copy
+        with the specified fields overridden.
+
+        Returns:
+            A new instance of the same type with updated fields.
+        """
+        return self.model_copy(update=kwargs)

@@ -162,7 +162,7 @@ class QueueMessageReceived(BaseModel):
 
             self._visibility_timer.cancel()
             self._visibility_timer = threading.Timer(new_duration, self._on_visibility_expired)
-            setattr(self._visibility_timer, "_start_time", time.time())
+            self._visibility_timer._start_time = time.time()  # type: ignore[attr-defined]
             self._visibility_timer.start()
 
     # Properties
@@ -235,7 +235,9 @@ class QueueMessageReceived(BaseModel):
         transaction_id: str,
         transaction_is_completed: bool = False,
         receiver_client_id: str = "",
-        response_handler: Optional[Callable[[QueuesDownstreamRequest], QueuesDownstreamResponse]] = None,
+        response_handler: Optional[
+            Callable[[QueuesDownstreamRequest], QueuesDownstreamResponse]
+        ] = None,
         visibility_seconds: int = 0,
         is_auto_acked: bool = False,
     ) -> "QueueMessageReceived":
@@ -362,7 +364,7 @@ class QueueMessageReceived(BaseModel):
             self._visibility_timer = threading.Timer(
                 self.visibility_seconds, self._on_visibility_expired
             )
-            setattr(self._visibility_timer, "_start_time", time.time())
+            self._visibility_timer._start_time = time.time()  # type: ignore[attr-defined]
             self._visibility_timer.start()
 
     def _cancel_visibility_timer(self):

@@ -10,8 +10,12 @@ import pytest
 
 from kubemq.core.config import (
     ClientConfig,
+    JitterType,
     KeepAliveConfig,
+    OperationTimeouts,
+    RetryPolicy,
     TLSConfig,
+    resolve_timeout,
 )
 
 
@@ -26,12 +30,16 @@ class TestTLSConfig:
         assert config.key_file is None
         assert config.ca_file is None
 
-    def test_enabled_requires_cert_and_key(self):
-        """Test TLS enabled requires cert and key files."""
-        with pytest.raises(ValueError, match="cert_file is required"):
-            TLSConfig(enabled=True)
+    def test_server_only_tls_no_client_cert_required(self):
+        """Test server-only TLS does not require client cert/key files."""
+        config = TLSConfig(enabled=True)
+        assert config.enabled is True
+        assert config.cert_file is None
+        assert config.key_file is None
 
-        with pytest.raises(ValueError, match="key_file is required"):
+    def test_mtls_requires_both_cert_and_key(self):
+        """Test mTLS requires both cert and key (not just one)."""
+        with pytest.raises(ValueError, match="Client certificate and key must both be provided"):
             TLSConfig(enabled=True, cert_file=Path("/fake/cert.pem"))
 
     def test_enabled_with_existing_files(self):
@@ -74,11 +82,12 @@ class TestKeepAliveConfig:
     """Tests for KeepAliveConfig dataclass."""
 
     def test_default_values(self):
-        """Test default configuration values."""
+        """Test default configuration values (GS-compliant: enabled, 10s/5s)."""
         config = KeepAliveConfig()
-        assert config.enabled is False
-        assert config.ping_interval_in_seconds == 30
-        assert config.ping_timeout_in_seconds == 10
+        assert config.enabled is True
+        assert config.ping_interval_in_seconds == 10
+        assert config.ping_timeout_in_seconds == 5
+        assert config.permit_without_calls is True
 
     def test_custom_values(self):
         """Test custom configuration values."""
@@ -119,6 +128,16 @@ class TestClientConfig:
         assert config.reconnect_interval_seconds == 1
         assert config.max_send_size == ClientConfig.DEFAULT_MAX_MESSAGE_SIZE
         assert config.max_receive_size == ClientConfig.DEFAULT_MAX_MESSAGE_SIZE
+        assert config.connection_timeout == 10.0
+        assert config.wait_for_ready is True
+        assert config.drain_timeout == 5.0
+        assert config.reconnect_buffer_size == 8 * 1024 * 1024
+        assert config.max_reconnect_attempts == -1
+        assert config.reconnect_initial_delay_ms == 500
+        assert config.reconnect_max_delay_ms == 30_000
+        assert config.reconnect_backoff_multiplier == 2.0
+        assert config.buffer_overflow_mode == "error"
+        assert config.on_buffer_drain is None
 
     def test_custom_client_id(self):
         """Test custom client ID."""
@@ -311,10 +330,15 @@ KUBEMQ_CLIENT_ID=dotenv-client
         """Test the default max message size constant."""
         assert ClientConfig.DEFAULT_MAX_MESSAGE_SIZE == 100 * 1024 * 1024  # 100MB
 
-    def test_address_required(self):
-        """Test that address is required."""
-        with pytest.raises(ValueError, match="address is required"):
-            ClientConfig(address="")
+    def test_address_defaults_when_empty(self):
+        """Test that empty address defaults to localhost:50000."""
+        config = ClientConfig(address="")
+        assert config.address == "localhost:50000"
+
+    def test_address_defaults_when_omitted(self):
+        """Test that omitted address defaults to localhost:50000."""
+        config = ClientConfig()
+        assert config.address == "localhost:50000"
 
 
 class TestConfigRepr:
@@ -329,3 +353,147 @@ class TestConfigRepr:
         repr_str = repr(config)
         assert "secret-token-123" not in repr_str
         assert "***" in repr_str
+
+
+# -----------------------------------------------------------------------
+# REQ-ERR-3: RetryPolicy
+# -----------------------------------------------------------------------
+
+
+class TestJitterType:
+    def test_members(self):
+        assert set(JitterType) == {JitterType.FULL, JitterType.EQUAL, JitterType.NONE}
+
+
+class TestRetryPolicy:
+    def test_defaults(self):
+        policy = RetryPolicy()
+        assert policy.max_retries == 3
+        assert policy.initial_backoff_ms == 500
+        assert policy.max_backoff_ms == 30_000
+        assert policy.backoff_multiplier == 2.0
+        assert policy.jitter == JitterType.FULL
+        assert policy.max_concurrent_retries == 10
+
+    def test_frozen(self):
+        policy = RetryPolicy()
+        with pytest.raises(AttributeError):
+            policy.max_retries = 5  # type: ignore[misc]
+
+    def test_validation_max_retries(self):
+        with pytest.raises(ValueError, match="max_retries must be 0–10"):
+            RetryPolicy(max_retries=11)
+        with pytest.raises(ValueError, match="max_retries must be 0–10"):
+            RetryPolicy(max_retries=-1)
+
+    def test_validation_initial_backoff(self):
+        with pytest.raises(ValueError, match="initial_backoff_ms must be 50–5000"):
+            RetryPolicy(initial_backoff_ms=10)
+        with pytest.raises(ValueError, match="initial_backoff_ms must be 50–5000"):
+            RetryPolicy(initial_backoff_ms=6000)
+
+    def test_validation_max_backoff(self):
+        with pytest.raises(ValueError, match="max_backoff_ms must be 1000–120000"):
+            RetryPolicy(max_backoff_ms=500)
+
+    def test_validation_multiplier(self):
+        with pytest.raises(ValueError, match="backoff_multiplier must be 1.5–3.0"):
+            RetryPolicy(backoff_multiplier=1.0)
+        with pytest.raises(ValueError, match="backoff_multiplier must be 1.5–3.0"):
+            RetryPolicy(backoff_multiplier=4.0)
+
+    def test_validation_max_concurrent_retries(self):
+        with pytest.raises(ValueError, match="max_concurrent_retries must be 0–100"):
+            RetryPolicy(max_concurrent_retries=-1)
+        with pytest.raises(ValueError, match="max_concurrent_retries must be 0–100"):
+            RetryPolicy(max_concurrent_retries=101)
+
+    def test_zero_retries_valid(self):
+        policy = RetryPolicy(max_retries=0)
+        assert policy.max_retries == 0
+
+    def test_zero_concurrent_retries_valid(self):
+        policy = RetryPolicy(max_concurrent_retries=0)
+        assert policy.max_concurrent_retries == 0
+
+
+# -----------------------------------------------------------------------
+# REQ-ERR-4: OperationTimeouts
+# -----------------------------------------------------------------------
+
+
+class TestOperationTimeouts:
+    def test_defaults(self):
+        timeouts = OperationTimeouts()
+        assert timeouts.send_publish == 5.0
+        assert timeouts.subscribe_initial == 10.0
+        assert timeouts.request_query == 10.0
+        assert timeouts.queue_receive_single == 10.0
+        assert timeouts.queue_receive_streaming == 30.0
+        assert timeouts.connection_establishment == 10.0
+
+    def test_frozen(self):
+        timeouts = OperationTimeouts()
+        with pytest.raises(AttributeError):
+            timeouts.send_publish = 99.0  # type: ignore[misc]
+
+    def test_validation_positive(self):
+        with pytest.raises(ValueError, match="send_publish must be positive"):
+            OperationTimeouts(send_publish=0)
+        with pytest.raises(ValueError, match="connection_establishment must be positive"):
+            OperationTimeouts(connection_establishment=-1.0)
+
+    def test_legacy_factory(self):
+        legacy = OperationTimeouts.legacy()
+        assert legacy.send_publish == 30.0
+        assert legacy.subscribe_initial == 30.0
+        assert legacy.request_query == 30.0
+        assert legacy.queue_receive_single == 30.0
+        assert legacy.queue_receive_streaming == 30.0
+        assert legacy.connection_establishment == 30.0
+
+    def test_custom_values(self):
+        timeouts = OperationTimeouts(send_publish=2.0, request_query=15.0)
+        assert timeouts.send_publish == 2.0
+        assert timeouts.request_query == 15.0
+
+
+class TestResolveTimeout:
+    def test_explicit_wins(self):
+        assert resolve_timeout(2.0, 5.0) == 2.0
+
+    def test_none_uses_default(self):
+        assert resolve_timeout(None, 5.0) == 5.0
+
+    def test_explicit_zero_is_explicit(self):
+        # 0.0 is falsy but is a valid explicit override
+        # The spec says "if explicit is not None" so 0.0 should be used
+        # But note: 0.0 timeout would be impractical. The function is simple.
+        assert resolve_timeout(0.0, 5.0) == 0.0
+
+
+class TestClientConfigRetryAndTimeouts:
+    def test_default_retry_policy(self):
+        config = ClientConfig()
+        assert isinstance(config.retry_policy, RetryPolicy)
+        assert config.retry_policy.max_retries == 3
+
+    def test_custom_retry_policy(self):
+        policy = RetryPolicy(max_retries=5)
+        config = ClientConfig(retry_policy=policy)
+        assert config.retry_policy.max_retries == 5
+
+    def test_default_operation_timeouts(self):
+        config = ClientConfig()
+        assert isinstance(config.operation_timeouts, OperationTimeouts)
+        assert config.operation_timeouts.send_publish == 5.0
+
+    def test_legacy_timeout_mode(self):
+        config = ClientConfig(legacy_timeout_mode=True)
+        assert config.operation_timeouts.send_publish == 30.0
+        assert config.operation_timeouts.subscribe_initial == 30.0
+        assert config.operation_timeouts.request_query == 30.0
+
+    def test_legacy_timeout_mode_false(self):
+        config = ClientConfig(legacy_timeout_mode=False)
+        assert config.operation_timeouts.send_publish == 5.0

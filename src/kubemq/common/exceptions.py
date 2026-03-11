@@ -1,6 +1,13 @@
 """Legacy exception module - imports from core for backward compatibility.
 
 DEPRECATED: Import from kubemq.core.exceptions instead.
+
+Removal timeline:
+    v4.x: DeprecationWarning emitted on import
+    v5.0: Module removed entirely
+
+Users should migrate to:
+    from kubemq import KubeMQError, KubeMQValidationError, ...
 """
 
 from __future__ import annotations

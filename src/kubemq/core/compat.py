@@ -5,8 +5,9 @@ from __future__ import annotations
 import asyncio
 import functools
 import warnings
+from collections.abc import Awaitable, Callable
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Awaitable, Callable, TypeVar
+from typing import Any, TypeVar
 
 T = TypeVar("T")
 

@@ -3,15 +3,20 @@
 from __future__ import annotations
 
 import asyncio
+import time
 from collections.abc import AsyncIterator, Awaitable
 from typing import (
     TYPE_CHECKING,
     Callable,
 )
 
+from pydantic import ValidationError
+
+from kubemq._internal.telemetry import KubeMQTagsCarrier, create_link_from_context, error_code_to_error_type
 from kubemq.common.async_cancellation_token import AsyncCancellationToken
 from kubemq.core.client import NativeAsyncBaseClient
 from kubemq.core.config import ClientConfig
+from kubemq.core.exceptions import KubeMQValidationError
 from kubemq.cq.command_message import CommandMessage
 from kubemq.cq.command_message_received import CommandMessageReceived
 from kubemq.cq.command_response_message import CommandResponseMessage
@@ -68,6 +73,9 @@ class AsyncClient(NativeAsyncBaseClient):
                         is_executed=True,
                     )
                 )
+
+    Thread Safety:
+        Safe to share across asyncio tasks within a single event loop.
     """
 
     def __init__(
@@ -114,14 +122,43 @@ class AsyncClient(NativeAsyncBaseClient):
         Returns:
             CommandResponseMessage with the response
         """
-        self._ensure_connected()
-        assert self._transport is not None
-        pb_request = message.encode(self._config.client_id or "")
-        response = await self._transport.send_request(
-            pb_request,
-            timeout_seconds=message.timeout_in_seconds,
-        )
-        return CommandResponseMessage.decode(response)
+        self._validate_message_size(message.body)
+        start = time.perf_counter()
+        error_type_val = None
+        with self._instrumentor.start_span("send", message.channel) as span:
+            try:
+                self._ensure_connected()
+                assert self._transport is not None
+                pb_request = message.encode(self._config.client_id or "")
+                tags_dict = dict(pb_request.Tags)
+                KubeMQTagsCarrier(tags_dict).inject()
+                pb_request.Tags.update(tags_dict)
+                if span.is_recording():
+                    from kubemq._internal.semconv import (
+                        MESSAGING_MESSAGE_BODY_SIZE,
+                        MESSAGING_MESSAGE_ID,
+                    )
+                    span.set_attribute(MESSAGING_MESSAGE_ID, message.id)
+                    span.set_attribute(MESSAGING_MESSAGE_BODY_SIZE, len(message.body))
+                response = await self._transport.send_request(
+                    pb_request,
+                    timeout_seconds=message.timeout_in_seconds,
+                )
+                self._instrumentor._metrics.record_sent_message("send", message.channel)
+                return CommandResponseMessage.decode(response)
+            except ValidationError as e:
+                error_type_val = "validation"
+                self._instrumentor.record_error(span, e, error_type_val)
+                raise KubeMQValidationError(str(e), is_retryable=False) from e
+            except Exception as e:
+                error_type_val = error_code_to_error_type(getattr(e, "code", None))
+                self._instrumentor.record_error(span, e, error_type_val)
+                raise
+            finally:
+                duration = time.perf_counter() - start
+                self._instrumentor._metrics.record_operation_duration(
+                    duration, "send", message.channel, error_type_val
+                )
 
     async def send_commands_batch(
         self,
@@ -183,14 +220,43 @@ class AsyncClient(NativeAsyncBaseClient):
         Returns:
             QueryResponseMessage with the response
         """
-        self._ensure_connected()
-        assert self._transport is not None
-        pb_request = message.encode(self._config.client_id or "")
-        response = await self._transport.send_request(
-            pb_request,
-            timeout_seconds=message.timeout_in_seconds,
-        )
-        return QueryResponseMessage.decode(response)
+        self._validate_message_size(message.body)
+        start = time.perf_counter()
+        error_type_val = None
+        with self._instrumentor.start_span("send", message.channel) as span:
+            try:
+                self._ensure_connected()
+                assert self._transport is not None
+                pb_request = message.encode(self._config.client_id or "")
+                tags_dict = dict(pb_request.Tags)
+                KubeMQTagsCarrier(tags_dict).inject()
+                pb_request.Tags.update(tags_dict)
+                if span.is_recording():
+                    from kubemq._internal.semconv import (
+                        MESSAGING_MESSAGE_BODY_SIZE,
+                        MESSAGING_MESSAGE_ID,
+                    )
+                    span.set_attribute(MESSAGING_MESSAGE_ID, message.id)
+                    span.set_attribute(MESSAGING_MESSAGE_BODY_SIZE, len(message.body))
+                response = await self._transport.send_request(
+                    pb_request,
+                    timeout_seconds=message.timeout_in_seconds,
+                )
+                self._instrumentor._metrics.record_sent_message("send", message.channel)
+                return QueryResponseMessage.decode(response)
+            except ValidationError as e:
+                error_type_val = "validation"
+                self._instrumentor.record_error(span, e, error_type_val)
+                raise KubeMQValidationError(str(e), is_retryable=False) from e
+            except Exception as e:
+                error_type_val = error_code_to_error_type(getattr(e, "code", None))
+                self._instrumentor.record_error(span, e, error_type_val)
+                raise
+            finally:
+                duration = time.perf_counter() - start
+                self._instrumentor._metrics.record_operation_duration(
+                    duration, "send", message.channel, error_type_val
+                )
 
     async def send_queries_batch(
         self,
@@ -249,8 +315,23 @@ class AsyncClient(NativeAsyncBaseClient):
         """
         self._ensure_connected()
         assert self._transport is not None
-        pb_response = response.encode(self._config.client_id or "")
-        await self._transport.send_response(pb_response)
+        channel = getattr(response, "reply_channel", "") or ""
+        start = time.perf_counter()
+        error_type_val = None
+        with self._instrumentor.start_span("settle", channel) as span:
+            try:
+                pb_response = response.encode(self._config.client_id or "")
+                await self._transport.send_response(pb_response)
+                self._instrumentor._metrics.record_sent_message("settle", channel)
+            except Exception as e:
+                error_type_val = error_code_to_error_type(getattr(e, "code", None))
+                self._instrumentor.record_error(span, e, error_type_val)
+                raise
+            finally:
+                duration = time.perf_counter() - start
+                self._instrumentor._metrics.record_operation_duration(
+                    duration, "settle", channel, error_type_val
+                )
 
     # =========================================================================
     # Subscription Operations
@@ -271,6 +352,10 @@ class AsyncClient(NativeAsyncBaseClient):
 
         Yields:
             CommandMessageReceived for each command
+
+        Cancellation:
+            Pass an ``AsyncCancellationToken`` to cancel the subscription.
+            When cancelled, the async iterator terminates.
 
         Example:
             token = AsyncCancellationToken()
@@ -295,14 +380,41 @@ class AsyncClient(NativeAsyncBaseClient):
             request = subscription.encode(self._config.client_id or "")
 
             async for pb_request in self._transport.subscribe_to_requests(request, token):
-                command = CommandMessageReceived.decode(pb_request)
+                start = time.perf_counter()
+                error_type_val = None
+                tags_dict = dict(pb_request.Tags) if hasattr(pb_request, "Tags") else {}
+                carrier = KubeMQTagsCarrier(tags_dict)
+                parent_ctx = carrier.extract()
+                links = []
+                link = create_link_from_context(parent_ctx)
+                if link is not None:
+                    links.append(link)
+                with self._instrumentor.start_span(
+                    "process", subscription.channel, links=links or None
+                ) as span:
+                    try:
+                        command = CommandMessageReceived.decode(pb_request)
 
-                # Call the subscription callback if provided
-                if subscription.on_receive_command_callback:
-                    if asyncio.iscoroutinefunction(subscription.on_receive_command_callback):
-                        await subscription.on_receive_command_callback(command)
-                    else:
-                        subscription.on_receive_command_callback(command)
+                        if subscription.on_receive_command_callback:
+                            if asyncio.iscoroutinefunction(subscription.on_receive_command_callback):
+                                await subscription.on_receive_command_callback(command)
+                            else:
+                                subscription.on_receive_command_callback(command)
+
+                        self._instrumentor._metrics.record_consumed_message(
+                            "process", subscription.channel
+                        )
+                    except Exception as proc_err:
+                        error_type_val = error_code_to_error_type(
+                            getattr(proc_err, "code", None)
+                        )
+                        self._instrumentor.record_error(span, proc_err, error_type_val)
+                        raise
+                    finally:
+                        duration = time.perf_counter() - start
+                        self._instrumentor._metrics.record_operation_duration(
+                            duration, "process", subscription.channel, error_type_val
+                        )
 
                 yield command
 
@@ -333,6 +445,10 @@ class AsyncClient(NativeAsyncBaseClient):
         Yields:
             QueryMessageReceived for each query
 
+        Cancellation:
+            Pass an ``AsyncCancellationToken`` to cancel the subscription.
+            When cancelled, the async iterator terminates.
+
         Example:
             token = AsyncCancellationToken()
             async for query in client.subscribe_to_queries(sub, token):
@@ -355,14 +471,41 @@ class AsyncClient(NativeAsyncBaseClient):
             request = subscription.encode(self._config.client_id or "")
 
             async for pb_request in self._transport.subscribe_to_requests(request, token):
-                query = QueryMessageReceived.decode(pb_request)
+                start = time.perf_counter()
+                error_type_val = None
+                tags_dict = dict(pb_request.Tags) if hasattr(pb_request, "Tags") else {}
+                carrier = KubeMQTagsCarrier(tags_dict)
+                parent_ctx = carrier.extract()
+                links = []
+                link = create_link_from_context(parent_ctx)
+                if link is not None:
+                    links.append(link)
+                with self._instrumentor.start_span(
+                    "process", subscription.channel, links=links or None
+                ) as span:
+                    try:
+                        query = QueryMessageReceived.decode(pb_request)
 
-                # Call the subscription callback if provided
-                if subscription.on_receive_query_callback:
-                    if asyncio.iscoroutinefunction(subscription.on_receive_query_callback):
-                        await subscription.on_receive_query_callback(query)
-                    else:
-                        subscription.on_receive_query_callback(query)
+                        if subscription.on_receive_query_callback:
+                            if asyncio.iscoroutinefunction(subscription.on_receive_query_callback):
+                                await subscription.on_receive_query_callback(query)
+                            else:
+                                subscription.on_receive_query_callback(query)
+
+                        self._instrumentor._metrics.record_consumed_message(
+                            "process", subscription.channel
+                        )
+                    except Exception as proc_err:
+                        error_type_val = error_code_to_error_type(
+                            getattr(proc_err, "code", None)
+                        )
+                        self._instrumentor.record_error(span, proc_err, error_type_val)
+                        raise
+                    finally:
+                        duration = time.perf_counter() - start
+                        self._instrumentor._metrics.record_operation_duration(
+                            duration, "process", subscription.channel, error_type_val
+                        )
 
                 yield query
 
@@ -383,29 +526,111 @@ class AsyncClient(NativeAsyncBaseClient):
         callback: AsyncCommandCallback,
         error_callback: AsyncErrorCallback | None = None,
         cancellation_token: AsyncCancellationToken | None = None,
+        *,
+        max_concurrent_callbacks: int = 1,
     ) -> None:
         """Subscribe to commands with an async callback.
 
         This method runs until cancelled and doesn't yield commands.
+        By default, callbacks are invoked sequentially. Set
+        ``max_concurrent_callbacks`` to allow concurrent processing.
 
         Args:
             subscription: Subscription configuration
             callback: Async callback for each command
             error_callback: Optional async callback for errors
             cancellation_token: Optional token to cancel subscription
+            max_concurrent_callbacks: Maximum number of callbacks that may
+                execute concurrently. Default ``1`` (sequential). Must be
+                >= 1 and <= 1000.
+
+        Raises:
+            ValueError: If ``max_concurrent_callbacks`` < 1 or > 1000.
+
+        Cancellation:
+            Pass an ``AsyncCancellationToken`` to cancel the subscription.
+            When cancelled, in-flight callbacks are awaited before return.
         """
+        if max_concurrent_callbacks < 1:
+            raise ValueError("max_concurrent_callbacks must be >= 1")
+        if max_concurrent_callbacks > 1000:
+            raise ValueError(
+                "max_concurrent_callbacks must be <= 1000 "
+                "(prevents accidental resource exhaustion)"
+            )
+
         self._ensure_connected()
         assert self._transport is not None
 
         token = cancellation_token or AsyncCancellationToken()
         await self._register_subscription(token)
 
+        pending_tasks: set[asyncio.Task] = set()  # type: ignore[type-arg]
+
         try:
             request = subscription.encode(self._config.client_id or "")
 
-            async for pb_request in self._transport.subscribe_to_requests(request, token):
-                command = CommandMessageReceived.decode(pb_request)
-                await callback(command)
+            if max_concurrent_callbacks == 1:
+                async for pb_request in self._transport.subscribe_to_requests(request, token):
+                    start = time.perf_counter()
+                    error_type_val = None
+                    tags_dict = dict(pb_request.Tags) if hasattr(pb_request, "Tags") else {}
+                    carrier = KubeMQTagsCarrier(tags_dict)
+                    parent_ctx = carrier.extract()
+                    links = []
+                    link = create_link_from_context(parent_ctx)
+                    if link is not None:
+                        links.append(link)
+                    with self._instrumentor.start_span(
+                        "process", subscription.channel, links=links or None
+                    ) as span:
+                        try:
+                            command = CommandMessageReceived.decode(pb_request)
+                            await callback(command)
+                            self._instrumentor._metrics.record_consumed_message(
+                                "process", subscription.channel
+                            )
+                        except Exception as proc_err:
+                            error_type_val = error_code_to_error_type(
+                                getattr(proc_err, "code", None)
+                            )
+                            self._instrumentor.record_error(span, proc_err, error_type_val)
+                            raise
+                        finally:
+                            duration = time.perf_counter() - start
+                            self._instrumentor._metrics.record_operation_duration(
+                                duration, "process", subscription.channel, error_type_val
+                            )
+            else:
+                sem = asyncio.Semaphore(max_concurrent_callbacks)
+
+                async def _run_cmd_callback(cmd: CommandMessageReceived) -> None:
+                    try:
+                        await callback(cmd)
+                    except Exception as cb_err:
+                        if error_callback:
+                            try:
+                                await error_callback(cb_err)
+                            except Exception:
+                                pass
+                        elif self._logger:
+                            self._logger.error(
+                                "Unhandled callback exception: %s (%s)",
+                                cb_err,
+                                type(cb_err).__name__,
+                            )
+                    finally:
+                        sem.release()
+
+                async for pb_request in self._transport.subscribe_to_requests(request, token):
+                    command = CommandMessageReceived.decode(pb_request)
+                    self._instrumentor._metrics.record_consumed_message(
+                        "process", subscription.channel
+                    )
+                    await sem.acquire()
+                    task = asyncio.create_task(_run_cmd_callback(command))
+                    pending_tasks.add(task)
+                    task.add_done_callback(pending_tasks.discard)
 
         except Exception as e:
             if error_callback:
@@ -413,6 +638,8 @@ class AsyncClient(NativeAsyncBaseClient):
             else:
                 raise
         finally:
+            if pending_tasks:
+                await asyncio.gather(*pending_tasks, return_exceptions=True)
             await self._unregister_subscription(token)
 
     async def subscribe_queries_with_callback(
@@ -421,29 +648,111 @@ class AsyncClient(NativeAsyncBaseClient):
         callback: AsyncQueryCallback,
         error_callback: AsyncErrorCallback | None = None,
         cancellation_token: AsyncCancellationToken | None = None,
+        *,
+        max_concurrent_callbacks: int = 1,
     ) -> None:
         """Subscribe to queries with an async callback.
 
         This method runs until cancelled and doesn't yield queries.
+        By default, callbacks are invoked sequentially. Set
+        ``max_concurrent_callbacks`` to allow concurrent processing.
 
         Args:
             subscription: Subscription configuration
             callback: Async callback for each query
             error_callback: Optional async callback for errors
             cancellation_token: Optional token to cancel subscription
+            max_concurrent_callbacks: Maximum number of callbacks that may
+                execute concurrently. Default ``1`` (sequential). Must be
+                >= 1 and <= 1000.
+
+        Raises:
+            ValueError: If ``max_concurrent_callbacks`` < 1 or > 1000.
+
+        Cancellation:
+            Pass an ``AsyncCancellationToken`` to cancel the subscription.
+            When cancelled, in-flight callbacks are awaited before return.
         """
+        if max_concurrent_callbacks < 1:
+            raise ValueError("max_concurrent_callbacks must be >= 1")
+        if max_concurrent_callbacks > 1000:
+            raise ValueError(
+                "max_concurrent_callbacks must be <= 1000 "
+                "(prevents accidental resource exhaustion)"
+            )
+
         self._ensure_connected()
         assert self._transport is not None
 
         token = cancellation_token or AsyncCancellationToken()
         await self._register_subscription(token)
 
+        pending_tasks: set[asyncio.Task] = set()  # type: ignore[type-arg]
+
         try:
             request = subscription.encode(self._config.client_id or "")
 
-            async for pb_request in self._transport.subscribe_to_requests(request, token):
-                query = QueryMessageReceived.decode(pb_request)
-                await callback(query)
+            if max_concurrent_callbacks == 1:
+                async for pb_request in self._transport.subscribe_to_requests(request, token):
+                    start = time.perf_counter()
+                    error_type_val = None
+                    tags_dict = dict(pb_request.Tags) if hasattr(pb_request, "Tags") else {}
+                    carrier = KubeMQTagsCarrier(tags_dict)
+                    parent_ctx = carrier.extract()
+                    links = []
+                    link = create_link_from_context(parent_ctx)
+                    if link is not None:
+                        links.append(link)
+                    with self._instrumentor.start_span(
+                        "process", subscription.channel, links=links or None
+                    ) as span:
+                        try:
+                            query = QueryMessageReceived.decode(pb_request)
+                            await callback(query)
+                            self._instrumentor._metrics.record_consumed_message(
+                                "process", subscription.channel
+                            )
+                        except Exception as proc_err:
+                            error_type_val = error_code_to_error_type(
+                                getattr(proc_err, "code", None)
+                            )
+                            self._instrumentor.record_error(span, proc_err, error_type_val)
+                            raise
+                        finally:
+                            duration = time.perf_counter() - start
+                            self._instrumentor._metrics.record_operation_duration(
+                                duration, "process", subscription.channel, error_type_val
+                            )
+            else:
+                sem = asyncio.Semaphore(max_concurrent_callbacks)
+
+                async def _run_query_callback(qry: QueryMessageReceived) -> None:
+                    try:
+                        await callback(qry)
+                    except Exception as cb_err:
+                        if error_callback:
+                            try:
+                                await error_callback(cb_err)
+                            except Exception:
+                                pass
+                        elif self._logger:
+                            self._logger.error(
+                                "Unhandled callback exception: %s (%s)",
+                                cb_err,
+                                type(cb_err).__name__,
+                            )
+                    finally:
+                        sem.release()
+
+                async for pb_request in self._transport.subscribe_to_requests(request, token):
+                    query = QueryMessageReceived.decode(pb_request)
+                    self._instrumentor._metrics.record_consumed_message(
+                        "process", subscription.channel
+                    )
+                    await sem.acquire()
+                    task = asyncio.create_task(_run_query_callback(query))
+                    pending_tasks.add(task)
+                    task.add_done_callback(pending_tasks.discard)
 
         except Exception as e:
             if error_callback:
@@ -451,6 +760,8 @@ class AsyncClient(NativeAsyncBaseClient):
             else:
                 raise
         finally:
+            if pending_tasks:
+                await asyncio.gather(*pending_tasks, return_exceptions=True)
             await self._unregister_subscription(token)
 
 
