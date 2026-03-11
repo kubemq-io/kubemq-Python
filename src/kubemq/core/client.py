@@ -22,7 +22,9 @@ from kubemq.core.exceptions import (
 from kubemq.core.types import ServerInfo
 
 if TYPE_CHECKING:
+    from kubemq._internal.transport.state import AnyStateCallback
     from kubemq.common.async_cancellation_token import AsyncCancellationToken
+    from kubemq.core.types import ConnectionState
     from kubemq.transport.async_transport import AsyncTransport
     from kubemq.transport.transport import Transport
 
@@ -511,6 +513,10 @@ class NativeAsyncBaseClient(ABC):  # noqa: B024
             )
 
         self._transport: AsyncTransport | None = None
+
+        from kubemq._internal.retry import RetryExecutor
+        self._retry_executor = RetryExecutor(self._config.retry_policy)
+
         self._logger: Any = _resolve_logger(self._config, self.__class__.__name__)
         self._instrumentor = _create_instrumentor(self._config, self._logger)
         self._closed = False
@@ -583,6 +589,35 @@ class NativeAsyncBaseClient(ABC):  # noqa: B024
         """
         if self._transport is not None:
             self._transport.set_token(token)
+
+    @property
+    def connection_state(self) -> ConnectionState:
+        """Current connection lifecycle state."""
+        from kubemq.core.types import ConnectionState
+
+        if self._transport is None:
+            return ConnectionState.IDLE
+        return self._transport.connection_state
+
+    def on_connected(self, callback: AnyStateCallback) -> None:
+        """Register callback for CONNECTING -> READY transition."""
+        if self._transport is not None:
+            self._transport.on_connected(callback)
+
+    def on_disconnected(self, callback: AnyStateCallback) -> None:
+        """Register callback for READY -> RECONNECTING transition."""
+        if self._transport is not None:
+            self._transport.on_disconnected(callback)
+
+    def on_reconnecting(self, callback: AnyStateCallback) -> None:
+        """Register callback for any -> RECONNECTING transition."""
+        if self._transport is not None:
+            self._transport.on_reconnecting(callback)
+
+    def on_reconnected(self, callback: AnyStateCallback) -> None:
+        """Register callback for RECONNECTING -> READY transition."""
+        if self._transport is not None:
+            self._transport.on_reconnected(callback)
 
     async def close(self) -> None:
         """Close client with graceful callback drain.

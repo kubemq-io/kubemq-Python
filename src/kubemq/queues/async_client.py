@@ -254,7 +254,12 @@ class AsyncClient(NativeAsyncBaseClient):
                     )
                     span.set_attribute(MESSAGING_MESSAGE_ID, message.id)
                     span.set_attribute(MESSAGING_MESSAGE_BODY_SIZE, len(message.body))
-                result = await self._transport.send_queue_message(pb_message)
+                result = await self._retry_executor.execute(
+                    "SendQueueMessage",
+                    self._transport.send_queue_message,
+                    pb_message,
+                    channel=message.channel,
+                )
                 self._instrumentor._metrics.record_sent_message("send", message.channel)
                 return QueueSendResult.decode(result)
             except ValidationError as e:

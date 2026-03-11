@@ -36,6 +36,8 @@ from .interceptors import (
 from .server_info import ServerInfo
 
 if TYPE_CHECKING:
+    from kubemq._internal.transport.state import AnyStateCallback
+
     from ..common.async_cancellation_token import AsyncCancellationToken
 
 
@@ -76,6 +78,26 @@ class AsyncTransport:
         self._token_holder = TokenHolder(config.auth_token)
         self._token_manager: Optional[TokenManager] = None
 
+        # Connection state machine and reconnection (lazy imports to avoid circular deps)
+        from kubemq._internal.transport.state import ConnectionStateManager
+
+        self._state_manager = ConnectionStateManager(logger=self._logger)
+        self._reconnection_manager = None
+        if config.auto_reconnect:
+            from kubemq._internal.retry import BackoffCalculator
+            from kubemq._internal.transport.reconnect import ReconnectConfig, ReconnectionManager
+
+            rc = ReconnectConfig(
+                max_reconnect_attempts=config.max_reconnect_attempts,
+                initial_reconnect_delay_ms=config.reconnect_initial_delay_ms,
+                max_reconnect_delay_ms=config.reconnect_max_delay_ms,
+                reconnect_buffer_size=config.reconnect_buffer_size,
+            )
+            backoff = BackoffCalculator(config.retry_policy)
+            self._reconnection_manager = ReconnectionManager(
+                config=rc, backoff=backoff, logger=self._logger,
+            )
+
         # Track active streams for graceful shutdown
         self._active_streams: set[grpc.aio.Call] = set()
         self._streams_lock = asyncio.Lock()
@@ -92,6 +114,10 @@ class AsyncTransport:
         """
         if self._connected:
             return
+
+        from kubemq.core.types import ConnectionState
+
+        self._state_manager.transition_to(ConnectionState.CONNECTING)
 
         # Initialize TokenManager if credential provider exists
         if self._config.credential_provider and self._token_manager is None:
@@ -150,14 +176,16 @@ class AsyncTransport:
                 self._logger.warning(
                     "Connection verification timed out, channel created but unverified"
                 )
-                # Channel exists, just unverified - keep connected
             except Exception as e:
                 self._connected = False
+                self._state_manager.transition_to(ConnectionState.CLOSED)
                 await self._cleanup_channel()
                 raise KubeMQConnectionError(
                     f"Failed to connect to {self._config.address}: {e}",
                     cause=e,
                 ) from e
+
+        self._state_manager.transition_to(ConnectionState.READY)
 
     def _build_interceptors(self) -> list[grpc.aio.ClientInterceptor]:
         """Build all required interceptors.
@@ -320,6 +348,46 @@ class AsyncTransport:
         return channel
 
     # =========================================================================
+    # Connection Error Detection & Reconnection
+    # =========================================================================
+
+    def _is_connection_error(self, error: grpc.aio.AioRpcError) -> bool:
+        """Return True if the gRPC error indicates a lost connection."""
+        return error.code() in (
+            grpc.StatusCode.UNAVAILABLE,
+            grpc.StatusCode.ABORTED,
+        )
+
+    async def _on_connection_lost(self) -> None:
+        """Trigger reconnection when a connection error is detected."""
+        if self._closing:
+            return
+        from kubemq.core.types import ConnectionState
+
+        self._state_manager.transition_to(ConnectionState.RECONNECTING)
+        self._connected = False
+        if self._reconnection_manager and not self._reconnection_manager.is_reconnecting:
+            await self._reconnection_manager.start_reconnection(
+                connect_fn=self._reconnect,
+            )
+
+    async def _reconnect(self) -> None:
+        """Create a fresh channel and verify it with a ping.
+
+        Passed as ``connect_fn`` to ``ReconnectionManager.start_reconnection``.
+        """
+        from kubemq.core.types import ConnectionState
+
+        old_channel = self._channel
+        self._channel = await self._create_channel_for_reconnect()
+        self._stub = kubemq_pb2_grpc.kubemqStub(self._channel)
+        await self._stub.Ping(pb.Empty())
+        if old_channel:
+            await old_channel.close()
+        self._connected = True
+        self._state_manager.transition_to(ConnectionState.READY)
+
+    # =========================================================================
     # Basic Operations
     # =========================================================================
 
@@ -394,6 +462,9 @@ class AsyncTransport:
                         call.cancel()
             self._active_streams.clear()
 
+        if self._reconnection_manager:
+            await self._reconnection_manager.cancel()
+
         if self._token_manager:
             await self._token_manager.close()
 
@@ -402,6 +473,11 @@ class AsyncTransport:
         self._connected = False
         self._closing = False
         self._draining = False
+
+        from kubemq.core.types import ConnectionState
+
+        self._state_manager.transition_to(ConnectionState.CLOSED)
+        self._state_manager.close()
         self._logger.debug("Shutdown complete")
 
     async def _wait_for_stream(self, call: grpc.aio.Call) -> None:
@@ -429,6 +505,28 @@ class AsyncTransport:
             raise KubeMQClientClosedError("Transport is closing")
         if not self._connected:
             raise KubeMQConnectionError("Transport is not connected")
+
+    @property
+    def connection_state(self) -> ConnectionState:
+        """Current connection lifecycle state."""
+        from kubemq.core.types import ConnectionState
+        return self._state_manager.state
+
+    def on_connected(self, callback: AnyStateCallback) -> None:
+        """Register callback for CONNECTING -> READY transition."""
+        self._state_manager.on_connected(callback)
+
+    def on_disconnected(self, callback: AnyStateCallback) -> None:
+        """Register callback for READY -> RECONNECTING transition."""
+        self._state_manager.on_disconnected(callback)
+
+    def on_reconnecting(self, callback: AnyStateCallback) -> None:
+        """Register callback for any -> RECONNECTING transition."""
+        self._state_manager.on_reconnecting(callback)
+
+    def on_reconnected(self, callback: AnyStateCallback) -> None:
+        """Register callback for RECONNECTING -> READY transition."""
+        self._state_manager.on_reconnected(callback)
 
     async def _register_stream(self, call: grpc.aio.Call) -> None:
         """Register an active stream for tracking."""
@@ -471,6 +569,8 @@ class AsyncTransport:
                 f"Send event timed out after {self._config.default_timeout_seconds}s"
             ) from e
         except grpc.aio.AioRpcError as e:
+            if self._is_connection_error(e):
+                await self._on_connection_lost()
             raise from_grpc_error(e) from e
 
     # =========================================================================
@@ -507,6 +607,8 @@ class AsyncTransport:
         except asyncio.TimeoutError as e:
             raise KubeMQTimeoutError(f"Request timed out after {timeout}s") from e
         except grpc.aio.AioRpcError as e:
+            if self._is_connection_error(e):
+                await self._on_connection_lost()
             raise from_grpc_error(e) from e
 
     async def send_response(self, response: pb.Response) -> None:
@@ -528,6 +630,8 @@ class AsyncTransport:
         except asyncio.TimeoutError as e:
             raise KubeMQTimeoutError("Send response timed out") from e
         except grpc.aio.AioRpcError as e:
+            if self._is_connection_error(e):
+                await self._on_connection_lost()
             raise from_grpc_error(e) from e
 
     # =========================================================================
@@ -646,6 +750,8 @@ class AsyncTransport:
                 f"Queue send timed out after {self._config.default_timeout_seconds}s"
             ) from e
         except grpc.aio.AioRpcError as e:
+            if self._is_connection_error(e):
+                await self._on_connection_lost()
             raise from_grpc_error(e) from e
 
     async def send_queue_messages_batch(
@@ -676,6 +782,8 @@ class AsyncTransport:
                 f"Queue batch send timed out after {self._config.default_timeout_seconds}s"
             ) from e
         except grpc.aio.AioRpcError as e:
+            if self._is_connection_error(e):
+                await self._on_connection_lost()
             raise from_grpc_error(e) from e
 
     async def receive_queue_messages(
@@ -706,6 +814,8 @@ class AsyncTransport:
         except asyncio.TimeoutError as e:
             raise KubeMQTimeoutError("Queue receive timed out") from e
         except grpc.aio.AioRpcError as e:
+            if self._is_connection_error(e):
+                await self._on_connection_lost()
             raise from_grpc_error(e) from e
 
     async def ack_all_queue_messages(
@@ -734,6 +844,8 @@ class AsyncTransport:
         except asyncio.TimeoutError as e:
             raise KubeMQTimeoutError("Ack all timed out") from e
         except grpc.aio.AioRpcError as e:
+            if self._is_connection_error(e):
+                await self._on_connection_lost()
             raise from_grpc_error(e) from e
 
     # =========================================================================
@@ -837,6 +949,8 @@ class AsyncTransport:
         except asyncio.TimeoutError as e:
             raise KubeMQTimeoutError("Queue info request timed out") from e
         except grpc.aio.AioRpcError as e:
+            if self._is_connection_error(e):
+                await self._on_connection_lost()
             raise from_grpc_error(e) from e
 
     # =========================================================================
