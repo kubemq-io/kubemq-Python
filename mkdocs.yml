@@ -1,0 +1,77 @@
+site_name: KubeMQ Python SDK
+site_description: Production-grade Python client for KubeMQ message broker
+site_url: https://kubemq-io.github.io/kubemq-Python/
+repo_url: https://github.com/kubemq-io/kubemq-Python
+repo_name: kubemq-io/kubemq-Python
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - content.code.copy
+    - content.tabs.link
+    - navigation.sections
+    - navigation.expand
+    - search.highlight
+    - search.suggest
+
+nav:
+  - Home: index.md
+  - Getting Started:
+    - Quick Start: quickstart.md
+    - Installation: installation.md
+  - User Guide:
+    - Events (Pub/Sub): guide/events.md
+    - Events Store: guide/events-store.md
+    - Queues: guide/queues.md
+    - Commands (RPC): guide/commands.md
+    - Queries (RPC): guide/queries.md
+    - Configuration: guide/configuration.md
+    - Error Handling: guide/error-handling.md
+    - TLS & Authentication: guide/security.md
+  - API Reference:
+    - PubSub: api/pubsub.md
+    - Queues: api/queues.md
+    - Commands & Queries: api/cq.md
+    - Configuration: api/config.md
+    - Exceptions: api/exceptions.md
+    - Types: api/types.md
+  - Troubleshooting: troubleshooting.md
+  - "Migration Guide (v3 \u2192 v4)": migration-v3-to-v4.md
+  - Changelog: changelog.md
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [src]
+          options:
+            show_source: true
+            show_root_heading: true
+            show_category_heading: true
+            members_order: source
+            docstring_style: google
+            merge_init_into_class: true
+            show_signature_annotations: true
+
+markdown_extensions:
+  - admonition
+  - pymdownx.highlight
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - toc:
+      permalink: true
