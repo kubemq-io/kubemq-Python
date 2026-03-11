@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import logging
+import time
 import uuid
 from collections.abc import AsyncIterator, Awaitable
 from typing import (
@@ -10,9 +12,14 @@ from typing import (
     Callable,
 )
 
+from kubemq._internal.retry import BackoffCalculator
+from kubemq._internal.telemetry import KubeMQTagsCarrier, error_code_to_error_type
 from kubemq.common.async_cancellation_token import AsyncCancellationToken
 from kubemq.core.client import NativeAsyncBaseClient
 from kubemq.core.config import ClientConfig
+from pydantic import ValidationError
+
+from kubemq.core.exceptions import KubeMQHandlerError, KubeMQMessageError, KubeMQValidationError
 from kubemq.grpc import kubemq_pb2 as pb
 from kubemq.queues.queues_message import QueueMessage
 from kubemq.queues.queues_message_received import QueueMessageReceived
@@ -20,6 +27,8 @@ from kubemq.queues.queues_send_result import QueueSendResult
 
 if TYPE_CHECKING:
     from kubemq.transport.async_transport import AsyncTransport
+
+_logger = logging.getLogger("kubemq.queues.async_client")
 
 # Type aliases for callbacks
 AsyncMessageCallback = Callable[[QueueMessageReceived], Awaitable[None]]
@@ -177,6 +186,9 @@ class AsyncClient(NativeAsyncBaseClient):
             for msg in response.messages:
                 print(msg.body)
             await response.ack_all()
+
+    Thread Safety:
+        Safe to share across asyncio tasks within a single event loop.
     """
 
     def __init__(
@@ -223,13 +235,41 @@ class AsyncClient(NativeAsyncBaseClient):
         Returns:
             QueueSendResult with send confirmation
         """
-        self._ensure_connected()
-        assert self._transport is not None
+        self._validate_message_size(message.body)
+        start = time.perf_counter()
+        error_type_val = None
+        with self._instrumentor.start_span("send", message.channel) as span:
+            try:
+                self._ensure_connected()
+                assert self._transport is not None
 
-        # Encode to protobuf
-        pb_message = message.encode_message(self._config.client_id or "")
-        result = await self._transport.send_queue_message(pb_message)
-        return QueueSendResult.decode(result)
+                pb_message = message.encode_message(self._config.client_id or "")
+                tags_dict = dict(pb_message.Tags)
+                KubeMQTagsCarrier(tags_dict).inject()
+                pb_message.Tags.update(tags_dict)
+                if span.is_recording():
+                    from kubemq._internal.semconv import (
+                        MESSAGING_MESSAGE_BODY_SIZE,
+                        MESSAGING_MESSAGE_ID,
+                    )
+                    span.set_attribute(MESSAGING_MESSAGE_ID, message.id)
+                    span.set_attribute(MESSAGING_MESSAGE_BODY_SIZE, len(message.body))
+                result = await self._transport.send_queue_message(pb_message)
+                self._instrumentor._metrics.record_sent_message("send", message.channel)
+                return QueueSendResult.decode(result)
+            except ValidationError as e:
+                error_type_val = "validation"
+                self._instrumentor.record_error(span, e, error_type_val)
+                raise KubeMQValidationError(str(e), is_retryable=False) from e
+            except Exception as e:
+                error_type_val = error_code_to_error_type(getattr(e, "code", None))
+                self._instrumentor.record_error(span, e, error_type_val)
+                raise
+            finally:
+                duration = time.perf_counter() - start
+                self._instrumentor._metrics.record_operation_duration(
+                    duration, "send", message.channel, error_type_val
+                )
 
     async def send_queue_messages_batch(
         self,
@@ -298,54 +338,64 @@ class AsyncClient(NativeAsyncBaseClient):
             The simple receive RPC doesn't support auto_ack at the protocol level.
             If auto_ack is True, messages are acknowledged after being received.
         """
-        self._ensure_connected()
-        assert self._transport is not None
-        client_id = self._config.client_id or ""
+        start = time.perf_counter()
+        error_type_val = None
+        with self._instrumentor.start_span("receive", channel) as span:
+            try:
+                self._ensure_connected()
+                assert self._transport is not None
+                client_id = self._config.client_id or ""
 
-        request = pb.ReceiveQueueMessagesRequest()
-        request.RequestID = str(uuid.uuid4())
-        request.ClientID = client_id
-        request.Channel = channel
-        request.MaxNumberOfMessages = max_messages
-        request.WaitTimeSeconds = wait_timeout_seconds
-        request.IsPeak = False
-        # Note: ReceiveQueueMessagesRequest doesn't have AutoAck field
-        # auto_ack is handled manually below
+                request = pb.ReceiveQueueMessagesRequest()
+                request.RequestID = str(uuid.uuid4())
+                request.ClientID = client_id
+                request.Channel = channel
+                request.MaxNumberOfMessages = max_messages
+                request.WaitTimeSeconds = wait_timeout_seconds
+                request.IsPeak = False
 
-        response = await self._transport.receive_queue_messages(request)
+                response = await self._transport.receive_queue_messages(request)
 
-        # Convert to simplified poll response
-        messages = [
-            QueueMessageReceived.decode(
-                msg,
-                "",  # transaction_id not in simple receive
-                True,  # transaction complete
-                client_id,
-                None,
-                visibility_seconds=visibility_seconds,
-                is_auto_acked=auto_ack,
-            )
-            for msg in response.Messages
-        ]
+                messages = [
+                    QueueMessageReceived.decode(
+                        msg,
+                        "",
+                        True,
+                        client_id,
+                        None,
+                        visibility_seconds=visibility_seconds,
+                        is_auto_acked=auto_ack,
+                    )
+                    for msg in response.Messages
+                ]
 
-        poll_response = AsyncQueuesPollResponse(
-            ref_request_id=response.RequestID,
-            transaction_id="",
-            messages=messages,
-            error=response.Error,
-            is_error=response.IsError,
-            is_transaction_completed=auto_ack,
-            active_offsets=[],
-            receiver_client_id=client_id,
-            visibility_seconds=visibility_seconds,
-            is_auto_acked=auto_ack,
-            transport=self._transport,
-        )
+                for _ in messages:
+                    self._instrumentor._metrics.record_consumed_message("receive", channel)
 
-        # If auto_ack requested, acknowledge all messages now
-        # Note: Simple receive already removes messages from queue,
-        # so this is just marking the response as auto-acked
-        return poll_response
+                poll_response = AsyncQueuesPollResponse(
+                    ref_request_id=response.RequestID,
+                    transaction_id="",
+                    messages=messages,
+                    error=response.Error,
+                    is_error=response.IsError,
+                    is_transaction_completed=auto_ack,
+                    active_offsets=[],
+                    receiver_client_id=client_id,
+                    visibility_seconds=visibility_seconds,
+                    is_auto_acked=auto_ack,
+                    transport=self._transport,
+                )
+
+                return poll_response
+            except Exception as e:
+                error_type_val = error_code_to_error_type(getattr(e, "code", None))
+                self._instrumentor.record_error(span, e, error_type_val)
+                raise
+            finally:
+                duration = time.perf_counter() - start
+                self._instrumentor._metrics.record_operation_duration(
+                    duration, "receive", channel, error_type_val
+                )
 
     async def peek_queue_messages(
         self,
@@ -417,9 +467,11 @@ class AsyncClient(NativeAsyncBaseClient):
         visibility_seconds: int = 0,
         cancellation_token: AsyncCancellationToken | None = None,
     ) -> AsyncIterator[AsyncQueuesPollResponse]:
-        """Subscribe to queue messages using bidirectional streaming.
+        """Subscribe to queue messages with exponential backoff on errors.
 
         This method continuously polls for messages and yields responses.
+        Transient errors trigger exponential backoff; successful receives
+        reset the backoff counter.
 
         Args:
             channel: Queue channel to subscribe to
@@ -437,6 +489,9 @@ class AsyncClient(NativeAsyncBaseClient):
         token = cancellation_token or AsyncCancellationToken()
         await self._register_subscription(token)
 
+        backoff = BackoffCalculator(self._config.retry_policy)
+        attempt = 0
+
         try:
             while not token.is_cancelled:
                 try:
@@ -448,14 +503,17 @@ class AsyncClient(NativeAsyncBaseClient):
                         visibility_seconds=visibility_seconds,
                     )
 
+                    attempt = 0
                     if not response.is_empty():
                         yield response
 
                 except Exception as e:
                     if token.is_cancelled:
                         break
-                    self._logger.warning(f"Error receiving messages: {e}")
-                    await asyncio.sleep(self._config.reconnect_interval_seconds)
+                    _logger.warning("Error receiving messages: %s", e)
+                    delay = backoff.delay_seconds(attempt)
+                    attempt += 1
+                    await asyncio.sleep(delay)
 
         finally:
             await self._unregister_subscription(token)
@@ -472,7 +530,8 @@ class AsyncClient(NativeAsyncBaseClient):
     ) -> None:
         """Process queue messages with an async callback.
 
-        This method continuously processes messages until cancelled.
+        Per-message handler errors are isolated and reported via error_callback
+        without terminating the processing loop.
 
         Args:
             channel: Queue channel to process from
@@ -500,11 +559,21 @@ class AsyncClient(NativeAsyncBaseClient):
             for message in response.messages:
                 try:
                     await callback(message)
-                except Exception as e:
+                except Exception as handler_err:
+                    handler_error = KubeMQHandlerError(
+                        f"Message handler raised {type(handler_err).__name__}: {handler_err}",
+                        cause=handler_err,
+                        operation="MessageHandler",
+                        channel=channel,
+                    )
                     if error_callback:
-                        await error_callback(e)
+                        try:
+                            await error_callback(handler_error)
+                        except Exception:
+                            _logger.exception("Error in error_callback itself")
+                    else:
+                        _logger.error("Unhandled handler error: %s", handler_error)
 
-            # Acknowledge if not auto-acked
             if not auto_ack and not response.is_transaction_completed:
                 try:
                     await response.ack_all()
@@ -540,7 +609,11 @@ class AsyncClient(NativeAsyncBaseClient):
         response = await self._transport.ack_all_queue_messages(request)
 
         if response.IsError:
-            raise Exception(response.Error)
+            raise KubeMQMessageError(
+                response.Error,
+                operation="AckAllQueueMessages",
+                channel=channel,
+            )
 
         return response.AffectedMessages
 

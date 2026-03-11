@@ -10,6 +10,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from kubemq._internal.auth import TokenHolder
 from kubemq.transport.interceptors import (
     AsyncStreamStreamAuthInterceptor,
     AsyncStreamUnaryAuthInterceptor,
@@ -26,14 +27,16 @@ class TestInjectAuthMetadata:
 
     def test_injects_auth_token_to_empty_metadata(self):
         """Test injecting auth token when metadata is None."""
-        result = _inject_auth_metadata(None, "my-token")
+        holder = TokenHolder("my-token")
+        result = _inject_auth_metadata(None, holder)
 
         assert result == (("authorization", "my-token"),)
 
     def test_injects_auth_token_to_existing_metadata(self):
         """Test injecting auth token with existing metadata."""
         existing = (("key1", "value1"), ("key2", "value2"))
-        result = _inject_auth_metadata(existing, "my-token")
+        holder = TokenHolder("my-token")
+        result = _inject_auth_metadata(existing, holder)
 
         assert len(result) == 3
         assert ("key1", "value1") in result
@@ -42,28 +45,32 @@ class TestInjectAuthMetadata:
 
     def test_returns_empty_tuple_when_no_token_and_no_metadata(self):
         """Test returns empty tuple when no token and no metadata."""
-        result = _inject_auth_metadata(None, None)
+        holder = TokenHolder(None)
+        result = _inject_auth_metadata(None, holder)
 
         assert result == ()
 
     def test_returns_existing_metadata_when_no_token(self):
         """Test returns existing metadata unchanged when no token."""
         existing = (("key1", "value1"),)
-        result = _inject_auth_metadata(existing, None)
+        holder = TokenHolder(None)
+        result = _inject_auth_metadata(existing, holder)
 
         assert result == existing
 
     def test_returns_existing_metadata_when_empty_token(self):
         """Test returns existing metadata when token is empty string."""
         existing = (("key1", "value1"),)
-        result = _inject_auth_metadata(existing, "")
+        holder = TokenHolder("")
+        result = _inject_auth_metadata(existing, holder)
 
         assert result == existing
 
     def test_returns_existing_metadata_when_whitespace_token(self):
         """Test returns existing metadata when token is whitespace."""
         existing = (("key1", "value1"),)
-        result = _inject_auth_metadata(existing, "   ")
+        holder = TokenHolder("   ")
+        result = _inject_auth_metadata(existing, holder)
 
         assert result == existing
 
@@ -71,17 +78,18 @@ class TestInjectAuthMetadata:
 class TestAuthInterceptors:
     """Tests for AuthInterceptors sync class."""
 
-    def test_init_stores_auth_token(self):
-        """Test initialization stores auth token."""
-        interceptor = AuthInterceptors("test-token")
+    def test_init_stores_token_holder(self):
+        """Test initialization stores token holder."""
+        holder = TokenHolder("test-token")
+        interceptor = AuthInterceptors(holder)
 
-        assert interceptor.auth_token == "test-token"
+        assert interceptor._token_holder.token == "test-token"
 
     def test_intercept_call_adds_auth_to_metadata(self):
         """Test _intercept_call adds authorization to metadata."""
-        interceptor = AuthInterceptors("test-token")
+        holder = TokenHolder("test-token")
+        interceptor = AuthInterceptors(holder)
 
-        # Create mock client call details
         ClientCallDetails = namedtuple(
             "ClientCallDetails", ["method", "timeout", "metadata", "credentials"]
         )
@@ -105,7 +113,8 @@ class TestAuthInterceptors:
 
     def test_intercept_call_preserves_existing_metadata(self):
         """Test _intercept_call preserves existing metadata."""
-        interceptor = AuthInterceptors("test-token")
+        holder = TokenHolder("test-token")
+        interceptor = AuthInterceptors(holder)
 
         ClientCallDetails = namedtuple(
             "ClientCallDetails", ["method", "timeout", "metadata", "credentials"]
@@ -129,7 +138,8 @@ class TestAuthInterceptors:
 
     def test_intercept_call_skips_empty_token(self):
         """Test _intercept_call skips empty token."""
-        interceptor = AuthInterceptors("")
+        holder = TokenHolder("")
+        interceptor = AuthInterceptors(holder)
 
         ClientCallDetails = namedtuple(
             "ClientCallDetails", ["method", "timeout", "metadata", "credentials"]
@@ -152,7 +162,7 @@ class TestAuthInterceptors:
 
     def test_intercept_unary_unary(self):
         """Test intercept_unary_unary delegates to _intercept_call."""
-        interceptor = AuthInterceptors("token")
+        interceptor = AuthInterceptors(TokenHolder("token"))
 
         with patch.object(interceptor, "_intercept_call", return_value="result") as mock:
             result = interceptor.intercept_unary_unary("cont", "details", "request")
@@ -162,7 +172,7 @@ class TestAuthInterceptors:
 
     def test_intercept_unary_stream(self):
         """Test intercept_unary_stream delegates to _intercept_call."""
-        interceptor = AuthInterceptors("token")
+        interceptor = AuthInterceptors(TokenHolder("token"))
 
         with patch.object(interceptor, "_intercept_call", return_value="result") as mock:
             result = interceptor.intercept_unary_stream("cont", "details", "request")
@@ -172,7 +182,7 @@ class TestAuthInterceptors:
 
     def test_intercept_stream_unary(self):
         """Test intercept_stream_unary delegates to _intercept_call."""
-        interceptor = AuthInterceptors("token")
+        interceptor = AuthInterceptors(TokenHolder("token"))
 
         with patch.object(interceptor, "_intercept_call", return_value="result") as mock:
             result = interceptor.intercept_stream_unary("cont", "details", "request_iter")
@@ -182,7 +192,7 @@ class TestAuthInterceptors:
 
     def test_intercept_stream_stream(self):
         """Test intercept_stream_stream delegates to _intercept_call."""
-        interceptor = AuthInterceptors("token")
+        interceptor = AuthInterceptors(TokenHolder("token"))
 
         with patch.object(interceptor, "_intercept_call", return_value="result") as mock:
             result = interceptor.intercept_stream_stream("cont", "details", "request_iter")
@@ -194,16 +204,18 @@ class TestAuthInterceptors:
 class TestAuthInterceptorsAsync:
     """Tests for AuthInterceptorsAsync class."""
 
-    def test_init_stores_auth_token(self):
-        """Test initialization stores auth token."""
-        interceptor = AuthInterceptorsAsync("async-token")
+    def test_init_stores_token_holder(self):
+        """Test initialization stores token holder."""
+        holder = TokenHolder("async-token")
+        interceptor = AuthInterceptorsAsync(holder)
 
-        assert interceptor.auth_token == "async-token"
+        assert interceptor._token_holder.token == "async-token"
 
     @pytest.mark.asyncio
     async def test_intercept_call_adds_auth_to_metadata(self):
         """Test _intercept_call adds authorization to metadata."""
-        interceptor = AuthInterceptorsAsync("async-token")
+        holder = TokenHolder("async-token")
+        interceptor = AuthInterceptorsAsync(holder)
 
         ClientCallDetails = namedtuple(
             "ClientCallDetails", ["method", "timeout", "metadata", "credentials"]
@@ -229,7 +241,7 @@ class TestAuthInterceptorsAsync:
     @pytest.mark.asyncio
     async def test_intercept_unary_unary(self):
         """Test async intercept_unary_unary."""
-        interceptor = AuthInterceptorsAsync("token")
+        interceptor = AuthInterceptorsAsync(TokenHolder("token"))
 
         with patch.object(
             interceptor, "_intercept_call", new_callable=AsyncMock, return_value="result"
@@ -242,7 +254,7 @@ class TestAuthInterceptorsAsync:
     @pytest.mark.asyncio
     async def test_intercept_unary_stream(self):
         """Test async intercept_unary_stream."""
-        interceptor = AuthInterceptorsAsync("token")
+        interceptor = AuthInterceptorsAsync(TokenHolder("token"))
 
         with patch.object(
             interceptor, "_intercept_call", new_callable=AsyncMock, return_value="result"
@@ -255,7 +267,7 @@ class TestAuthInterceptorsAsync:
     @pytest.mark.asyncio
     async def test_intercept_stream_unary(self):
         """Test async intercept_stream_unary."""
-        interceptor = AuthInterceptorsAsync("token")
+        interceptor = AuthInterceptorsAsync(TokenHolder("token"))
 
         with patch.object(
             interceptor, "_intercept_call", new_callable=AsyncMock, return_value="result"
@@ -268,7 +280,7 @@ class TestAuthInterceptorsAsync:
     @pytest.mark.asyncio
     async def test_intercept_stream_stream(self):
         """Test async intercept_stream_stream."""
-        interceptor = AuthInterceptorsAsync("token")
+        interceptor = AuthInterceptorsAsync(TokenHolder("token"))
 
         with patch.object(
             interceptor, "_intercept_call", new_callable=AsyncMock, return_value="result"
@@ -282,22 +294,17 @@ class TestAuthInterceptorsAsync:
 class TestAsyncUnaryUnaryAuthInterceptor:
     """Tests for AsyncUnaryUnaryAuthInterceptor."""
 
-    def test_init_stores_auth_token(self):
-        """Test initialization stores auth token."""
-        interceptor = AsyncUnaryUnaryAuthInterceptor("unary-token")
+    def test_init_stores_token_holder(self):
+        """Test initialization stores token holder."""
+        holder = TokenHolder("unary-token")
+        interceptor = AsyncUnaryUnaryAuthInterceptor(holder)
 
-        assert interceptor._auth_token == "unary-token"
-
-    def test_init_defaults_to_none(self):
-        """Test initialization defaults token to None."""
-        interceptor = AsyncUnaryUnaryAuthInterceptor()
-
-        assert interceptor._auth_token is None
+        assert interceptor._token_holder.token == "unary-token"
 
     @pytest.mark.asyncio
     async def test_intercept_unary_unary_injects_auth(self):
         """Test intercept_unary_unary injects authorization."""
-        interceptor = AsyncUnaryUnaryAuthInterceptor("inject-token")
+        interceptor = AsyncUnaryUnaryAuthInterceptor(TokenHolder("inject-token"))
 
         mock_details = MagicMock()
         mock_details.method = "/test/Ping"
@@ -324,16 +331,17 @@ class TestAsyncUnaryUnaryAuthInterceptor:
 class TestAsyncUnaryStreamAuthInterceptor:
     """Tests for AsyncUnaryStreamAuthInterceptor."""
 
-    def test_init_stores_auth_token(self):
-        """Test initialization stores auth token."""
-        interceptor = AsyncUnaryStreamAuthInterceptor("stream-token")
+    def test_init_stores_token_holder(self):
+        """Test initialization stores token holder."""
+        holder = TokenHolder("stream-token")
+        interceptor = AsyncUnaryStreamAuthInterceptor(holder)
 
-        assert interceptor._auth_token == "stream-token"
+        assert interceptor._token_holder.token == "stream-token"
 
     @pytest.mark.asyncio
     async def test_intercept_unary_stream_injects_auth(self):
         """Test intercept_unary_stream injects authorization."""
-        interceptor = AsyncUnaryStreamAuthInterceptor("stream-token")
+        interceptor = AsyncUnaryStreamAuthInterceptor(TokenHolder("stream-token"))
 
         mock_details = MagicMock()
         mock_details.method = "/test/Subscribe"
@@ -359,16 +367,17 @@ class TestAsyncUnaryStreamAuthInterceptor:
 class TestAsyncStreamUnaryAuthInterceptor:
     """Tests for AsyncStreamUnaryAuthInterceptor."""
 
-    def test_init_stores_auth_token(self):
-        """Test initialization stores auth token."""
-        interceptor = AsyncStreamUnaryAuthInterceptor("batch-token")
+    def test_init_stores_token_holder(self):
+        """Test initialization stores token holder."""
+        holder = TokenHolder("batch-token")
+        interceptor = AsyncStreamUnaryAuthInterceptor(holder)
 
-        assert interceptor._auth_token == "batch-token"
+        assert interceptor._token_holder.token == "batch-token"
 
     @pytest.mark.asyncio
     async def test_intercept_stream_unary_injects_auth(self):
         """Test intercept_stream_unary injects authorization."""
-        interceptor = AsyncStreamUnaryAuthInterceptor("batch-token")
+        interceptor = AsyncStreamUnaryAuthInterceptor(TokenHolder("batch-token"))
 
         mock_details = MagicMock()
         mock_details.method = "/test/SendBatch"
@@ -398,16 +407,17 @@ class TestAsyncStreamUnaryAuthInterceptor:
 class TestAsyncStreamStreamAuthInterceptor:
     """Tests for AsyncStreamStreamAuthInterceptor."""
 
-    def test_init_stores_auth_token(self):
-        """Test initialization stores auth token."""
-        interceptor = AsyncStreamStreamAuthInterceptor("bidi-token")
+    def test_init_stores_token_holder(self):
+        """Test initialization stores token holder."""
+        holder = TokenHolder("bidi-token")
+        interceptor = AsyncStreamStreamAuthInterceptor(holder)
 
-        assert interceptor._auth_token == "bidi-token"
+        assert interceptor._token_holder.token == "bidi-token"
 
     @pytest.mark.asyncio
     async def test_intercept_stream_stream_injects_auth(self):
         """Test intercept_stream_stream injects authorization."""
-        interceptor = AsyncStreamStreamAuthInterceptor("bidi-token")
+        interceptor = AsyncStreamStreamAuthInterceptor(TokenHolder("bidi-token"))
 
         mock_details = MagicMock()
         mock_details.method = "/test/QueueStream"
@@ -435,7 +445,7 @@ class TestAsyncStreamStreamAuthInterceptor:
     @pytest.mark.asyncio
     async def test_intercept_stream_stream_with_no_token(self):
         """Test intercept_stream_stream with no auth token."""
-        interceptor = AsyncStreamStreamAuthInterceptor(None)
+        interceptor = AsyncStreamStreamAuthInterceptor(TokenHolder(None))
 
         mock_details = MagicMock()
         mock_details.method = "/test/QueueStream"

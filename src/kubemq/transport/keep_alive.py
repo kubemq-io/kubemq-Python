@@ -6,12 +6,16 @@ class KeepAliveConfig(BaseModel):
     Represents the configuration for keep alive functionality.
     """
 
-    enabled: bool = Field(default=False, description="Specifies if keep alive is enabled")
+    enabled: bool = Field(default=True, description="Specifies if keep alive is enabled")
     ping_interval_in_seconds: int = Field(
-        default=0, description="The interval at which ping requests are sent in seconds"
+        default=10, description="The interval at which ping requests are sent in seconds"
     )
     ping_timeout_in_seconds: int = Field(
-        default=0, description="The timeout for ping requests in seconds"
+        default=5, description="The timeout for ping requests in seconds"
+    )
+    permit_without_calls: bool = Field(
+        default=True,
+        description="Allow keep-alive pings even when there are no active calls",
     )
 
     @field_validator("ping_interval_in_seconds", "ping_timeout_in_seconds")

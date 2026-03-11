@@ -1,55 +1,190 @@
-# KubeMQ Python SDK 
+# KubeMQ Python SDK
 
-KubeMQ is an enterprise-grade message queue and broker for containers, designed for any workload and architecture running in Kubernetes.
-This library is Python implementation of KubeMQ client connection.
+[![PyPI version](https://img.shields.io/pypi/v/kubemq.svg)](https://pypi.org/project/kubemq/)
+[![CI](https://github.com/kubemq-io/kubemq-Python/actions/workflows/ci.yml/badge.svg)](https://github.com/kubemq-io/kubemq-Python/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/kubemq-io/kubemq-Python/branch/v4/graph/badge.svg)](https://codecov.io/gh/kubemq-io/kubemq-Python)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-## Install KubeMQ Community Edition
-Please visit [KubeMQ Community](https://github.com/kubemq-io/kubemq-community) for intallation steps.
+## Description
 
-## Examples - Cookbook Recipes
-Please visit our cookbook [repository](https://github.com/kubemq-io/python-sdk-cookbook)
+KubeMQ is an enterprise-grade message broker for containers, designed for any
+workload and architecture running in Kubernetes. This SDK provides a
+production-ready Python client supporting all KubeMQ messaging patterns:
+Events (pub/sub), Events Store (persistent pub/sub), Queues (with ack/reject),
+Commands, and Queries (RPC).
 
-## Install Python SDK
-### Prerequisites
+## Installation
 
-KubeMQ-SDK-Python works with **Python 3.2** or newer.
+Requires **Python 3.11+**.
 
-### Installing
- 
-The recommended way to use the SDK for Python in your project is to consume it from pip.
-
-```
+```bash
 pip install kubemq
 ```
 
-This package uses setuptools for the installation if needed please run:
-```
-python3 -m pip install --upgrade pip setuptools wheel
-```
+For optional features:
 
-### Building from source
-
-Once you check out the code from GitHub, you can install the package locally with:
-
-```
-$ pip install .
+```bash
+pip install kubemq[docs]    # API reference generation
+pip install kubemq[otel]    # OpenTelemetry integration
 ```
 
-You can also install the package with a symlink, 
-so that changes to the source files will be immediately available:
+## Quick Start
 
+> **Prerequisites:** Python 3.11+, KubeMQ server running at `localhost:50000`
+> ([install KubeMQ](https://github.com/kubemq-io/kubemq-community))
+
+### Send and Receive Events
+
+**Send an event:**
+
+```python
+from kubemq import PubSubClient, EventMessage
+
+with PubSubClient(address="localhost:50000") as client:
+    client.publish_event(
+        EventMessage(channel="quickstart", body=b"Hello KubeMQ!")
+    )
+    print("Event sent!")
 ```
-$ pip install -e .
+
+**Subscribe to events:**
+
+```python
+import time
+from kubemq import PubSubClient, EventsSubscription, CancellationToken
+
+def on_event(event):
+    print(f"Received: {event.body.decode('utf-8')}")
+
+with PubSubClient(address="localhost:50000") as client:
+    client.subscribe_to_events(
+        subscription=EventsSubscription(
+            channel="quickstart",
+            on_receive_event_callback=on_event,
+            on_error_callback=lambda e: print(f"Error: {e}"),
+        ),
+        cancel=CancellationToken(),
+    )
+    time.sleep(60)  # Keep listening
 ```
 
-Installation:
-$ pip install kubemq
+See also: [Queues Quick Start](https://github.com/kubemq-io/kubemq-Python/blob/v4/docs/quickstart.md#queues) |
+[RPC Quick Start](https://github.com/kubemq-io/kubemq-Python/blob/v4/docs/quickstart.md#rpc-commands--queries)
 
-## Learn KubeMQ
-Visit our [Extensive KubeMQ Documentation](https://docs.kubemq.io/).
+## Messaging Patterns
 
-## Support
-if you encounter any issues, please open an issue here,
-In addition, you can reach us for support by:
-- [**Email**](mailto://support@kubemq.io)
-- [**Slack**](https://kubmq.slack.com)
+| Pattern | Delivery Guarantee | Use When | Example Use Case |
+|---------|--------------------|----------|------------------|
+| [Events](#events) | At-most-once | Fire-and-forget broadcasting to multiple subscribers | Real-time notifications, log streaming |
+| [Events Store](#events-store) | At-least-once (persistent) | Subscribers must not miss messages, even if offline | Audit trails, event sourcing, replay |
+| [Queues](#queues) | At-least-once (with ack) | Work must be processed exactly by one consumer with acknowledgment | Job processing, task distribution |
+| [Commands](#commands) | At-most-once (request/reply) | You need a response confirming the action was executed | Device control, configuration changes |
+| [Queries](#queries) | At-most-once (request/reply) | You need to retrieve data from a responder | Data lookups, service-to-service reads |
+
+### Events
+
+Fire-and-forget pub/sub. Use `PubSubClient` (sync) or `AsyncPubSubClient` (async).
+[View examples →](https://github.com/kubemq-io/kubemq-Python/tree/v4/examples/pubsub)
+
+### Events Store
+
+Persistent pub/sub with replay. Subscribers can start from a sequence number,
+timestamp, or receive only new messages.
+[View examples →](https://github.com/kubemq-io/kubemq-Python/tree/v4/examples/pubsub)
+
+### Queues
+
+Pull-based message queues with acknowledgment, reject, requeue, dead-letter
+queues, delayed delivery, and visibility timeout.
+[View examples →](https://github.com/kubemq-io/kubemq-Python/tree/v4/examples/queues)
+
+### Commands
+
+Request/reply where the sender expects confirmation of execution (no response payload).
+[View examples →](https://github.com/kubemq-io/kubemq-Python/tree/v4/examples/cq)
+
+### Queries
+
+Request/reply where the sender expects a data response.
+[View examples →](https://github.com/kubemq-io/kubemq-Python/tree/v4/examples/cq)
+
+## Configuration
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `address` | `str` | `"localhost:50000"` | KubeMQ server gRPC address |
+| `client_id` | `str` | hostname | Unique client identifier |
+| `auth_token` | `str` | `""` | Authentication token |
+| `tls` | `TLSConfig` | disabled | TLS configuration (cert, key, CA files) |
+| `max_send_size` | `int` | `104857600` | Maximum send message size in bytes |
+| `max_receive_size` | `int` | `104857600` | Maximum receive message size in bytes |
+| `auto_reconnect` | `bool` | `True` | Auto-reconnect on connection loss |
+| `reconnect_interval_seconds` | `int` | `1` | Seconds between reconnect attempts |
+| `log_level` | `int \| None` | `None` (no logging) | Python logging level |
+
+All clients accept these options as constructor arguments:
+
+```python
+from kubemq import PubSubClient, TLSConfig
+
+client = PubSubClient(
+    address="kubemq-server:50000",
+    client_id="my-service",
+    auth_token="your-token",
+    tls=TLSConfig(
+        enabled=True,
+        cert_file="/path/to/cert.pem",
+        key_file="/path/to/key.pem",
+        ca_file="/path/to/ca.pem",
+    ),
+)
+```
+
+## Error Handling
+
+All SDK errors extend `KubeMQError`:
+
+```python
+from kubemq import (
+    PubSubClient, EventMessage,
+    KubeMQError, KubeMQConnectionError, KubeMQTimeoutError,
+)
+
+try:
+    with PubSubClient(address="localhost:50000") as client:
+        client.publish_event(
+            EventMessage(channel="ch1", body=b"hello")
+        )
+except KubeMQConnectionError as e:
+    print(f"Connection failed: {e}")
+except KubeMQTimeoutError as e:
+    print(f"Operation timed out: {e}")
+except KubeMQError as e:
+    print(f"KubeMQ error: {e}")
+```
+
+See the [Troubleshooting Guide](https://github.com/kubemq-io/kubemq-Python/blob/v4/docs/troubleshooting.md)
+for solutions to common errors.
+
+## Troubleshooting
+
+| Problem | Solution |
+|---------|----------|
+| `Connection refused` | Ensure KubeMQ is running: `docker run -p 50000:50000 kubemq/kubemq-community` |
+| `Authentication failed` | Verify `auth_token` matches server configuration |
+| `Channel not found` | Create the channel first or enable auto-create on the server |
+| `Timeout / deadline exceeded` | Increase `timeout_in_seconds` or check network latency |
+| `No messages received` | Verify subscriber is connected *before* sender publishes |
+
+→ [Full Troubleshooting Guide](https://github.com/kubemq-io/kubemq-Python/blob/v4/docs/troubleshooting.md) (11+ entries)
+
+## Contributing
+
+Contributions are welcome! See [CONTRIBUTING.md](https://github.com/kubemq-io/kubemq-Python/blob/v4/CONTRIBUTING.md)
+for development setup, coding standards, and pull request guidelines.
+
+## License
+
+This project is licensed under the MIT License — see the
+[LICENSE](https://github.com/kubemq-io/kubemq-Python/blob/v4/LICENSE) file for details.

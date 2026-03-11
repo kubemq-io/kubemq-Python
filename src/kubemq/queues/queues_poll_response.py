@@ -57,6 +57,10 @@ class QueuesPollResponse(BaseModel):
             # Acknowledge all messages
             response.ack_all()
         ```
+
+    Thread Safety:
+        Safe to read from multiple threads. Internal lock protects
+        ack/reject operations.
     """
 
     model_config = ConfigDict(arbitrary_types_allowed=True)

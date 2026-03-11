@@ -13,7 +13,7 @@ class Connection(BaseModel):
 
     address: str = Field(default="")
     client_id: str = Field(default="")
-    auth_token: str = Field(default="")
+    auth_token: str = Field(default="", repr=False)
     max_send_size: int = Field(default=DEFAULT_MAX_SEND_SIZE)
     max_receive_size: int = Field(default=DEFAULT_MAX_RCV_SIZE)
     disable_auto_reconnect: bool = Field(default=False)

@@ -184,8 +184,8 @@ class TestEventStoreMessageEncode:
 class TestEventStoreMessageModelDump:
     """Tests for EventStoreMessage model_dump."""
 
-    def test_model_dump_converts_body_to_hex(self):
-        """Test model_dump converts body bytes to hex string."""
+    def test_model_dump_returns_body_as_bytes(self):
+        """Test model_dump returns body as standard bytes (custom hex override removed)."""
         event = EventStoreMessage(
             channel="test-channel",
             body=b"\x00\x01\x02\x03",
@@ -193,7 +193,7 @@ class TestEventStoreMessageModelDump:
 
         dump = event.model_dump()
 
-        assert dump["body"] == "00010203"
+        assert dump["body"] == b"\x00\x01\x02\x03"
 
 
 class TestEventMessageReceivedCreation:

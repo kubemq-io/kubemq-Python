@@ -9,15 +9,20 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import AsyncIterator
-from typing import TYPE_CHECKING
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Optional
 
 import grpc
 import grpc.aio
 
+from kubemq._internal.auth import TokenHolder, TokenManager
+from kubemq._internal.compat import check_server_compatibility
 from kubemq.grpc import kubemq_pb2 as pb, kubemq_pb2_grpc
 
 from ..core.config import ClientConfig
 from ..core.exceptions import (
+    KubeMQAuthenticationError,
+    KubeMQClientClosedError,
     KubeMQConnectionError,
     KubeMQTimeoutError,
     from_grpc_error,
@@ -66,7 +71,10 @@ class AsyncTransport:
         self._stub: kubemq_pb2_grpc.kubemqStub | None = None
         self._connected = False
         self._closing = False
+        self._draining = False
         self._logger = logging.getLogger(f"kubemq.{self.__class__.__name__}")
+        self._token_holder = TokenHolder(config.auth_token)
+        self._token_manager: Optional[TokenManager] = None
 
         # Track active streams for graceful shutdown
         self._active_streams: set[grpc.aio.Call] = set()
@@ -85,6 +93,15 @@ class AsyncTransport:
         if self._connected:
             return
 
+        # Initialize TokenManager if credential provider exists
+        if self._config.credential_provider and self._token_manager is None:
+            self._token_manager = TokenManager(
+                provider=self._config.credential_provider,
+                token_holder=self._token_holder,
+                credential_timeout=self._config.credential_timeout,
+            )
+            await self._token_manager.get_token()
+
         # Build interceptors for all call types
         interceptors = self._build_interceptors()
 
@@ -92,8 +109,15 @@ class AsyncTransport:
         options = self._build_channel_options()
 
         # Create channel
-        if self._config.tls.enabled:
-            credentials = self._get_ssl_credentials()
+        tls_effective = self._config._resolve_tls_enabled()
+
+        if tls_effective:
+            if self._config.tls.insecure_skip_verify:
+                self._logger.warning(
+                    "certificate verification is disabled — "
+                    "this is insecure and should not be used in production"
+                )
+            credentials = self._build_ssl_credentials()
             self._channel = grpc.aio.secure_channel(
                 self._config.address,
                 credentials,
@@ -101,6 +125,11 @@ class AsyncTransport:
                 interceptors=interceptors,
             )
         else:
+            self._logger.warning(
+                "Using insecure connection to %s — TLS is disabled. "
+                "Set tls=TLSConfig(enabled=True, ...) for encrypted communication.",
+                self._config.address,
+            )
             self._channel = grpc.aio.insecure_channel(
                 self._config.address,
                 options=options,
@@ -115,7 +144,8 @@ class AsyncTransport:
         # Verify connection
         if verify:
             try:
-                await asyncio.wait_for(self.ping(), timeout=5.0)
+                server_info = await asyncio.wait_for(self.ping(), timeout=5.0)
+                check_server_compatibility(server_info.version, self._logger)
             except asyncio.TimeoutError:
                 self._logger.warning(
                     "Connection verification timed out, channel created but unverified"
@@ -130,21 +160,29 @@ class AsyncTransport:
                 ) from e
 
     def _build_interceptors(self) -> list[grpc.aio.ClientInterceptor]:
-        """Build all required interceptors."""
-        auth_token = self._config.auth_token
+        """Build all required interceptors.
+
+        All interceptors share the same TokenHolder so token rotation
+        via set_token() takes effect on the next gRPC call.
+        """
         return [
-            AsyncUnaryUnaryAuthInterceptor(auth_token),
-            AsyncUnaryStreamAuthInterceptor(auth_token),
-            AsyncStreamUnaryAuthInterceptor(auth_token),
-            AsyncStreamStreamAuthInterceptor(auth_token),
+            AsyncUnaryUnaryAuthInterceptor(self._token_holder),
+            AsyncUnaryStreamAuthInterceptor(self._token_holder),
+            AsyncStreamUnaryAuthInterceptor(self._token_holder),
+            AsyncStreamStreamAuthInterceptor(self._token_holder),
         ]
 
-    def _build_channel_options(self) -> list[tuple]:
+    def _build_channel_options(self) -> list[tuple[str, Any]]:
         """Build gRPC channel options."""
-        options = [
+        options: list[tuple[str, Any]] = [
             ("grpc.max_send_message_length", self._config.max_send_size),
             ("grpc.max_receive_message_length", self._config.max_receive_size),
         ]
+
+        if self._config.tls.server_name_override:
+            options.append(
+                ("grpc.ssl_target_name_override", self._config.tls.server_name_override)
+            )
 
         if self._config.keep_alive.enabled:
             options.extend(
@@ -166,28 +204,120 @@ class AsyncTransport:
 
         return options
 
-    def _get_ssl_credentials(self) -> grpc.ChannelCredentials:
-        """Get SSL credentials for TLS connection."""
+    def _build_ssl_credentials(self) -> grpc.ChannelCredentials:
+        """Build SSL credentials from TLSConfig, supporting both file paths and PEM bytes.
+
+        PEM bytes fields take precedence over file paths (mutual exclusivity
+        is enforced by TLSConfig validation). For file-based credentials,
+        files are re-read on each call to support cert rotation on reconnect.
+        """
         tls = self._config.tls
 
-        root_certs = None
-        if tls.ca_file:
-            with open(tls.ca_file, "rb") as f:
-                root_certs = f.read()
+        root_certs = tls.ca_pem
+        if root_certs is None and tls.ca_file:
+            root_certs = Path(tls.ca_file).read_bytes()
 
-        private_key = None
-        certificate_chain = None
-        if tls.cert_file and tls.key_file:
-            with open(tls.key_file, "rb") as f:
-                private_key = f.read()
-            with open(tls.cert_file, "rb") as f:
-                certificate_chain = f.read()
+        private_key = tls.key_pem
+        if private_key is None and tls.key_file:
+            private_key = Path(tls.key_file).read_bytes()
+
+        certificate_chain = tls.cert_pem
+        if certificate_chain is None and tls.cert_file:
+            certificate_chain = Path(tls.cert_file).read_bytes()
 
         return grpc.ssl_channel_credentials(
             root_certificates=root_certs,
             private_key=private_key,
             certificate_chain=certificate_chain,
         )
+
+    def set_token(self, token: str) -> None:
+        """Update the auth token without reconnecting.
+
+        The new token takes effect on the next gRPC call.
+        Thread-safe: can be called from any thread.
+        """
+        self._token_holder.token = token
+
+    async def _handle_unauthenticated(self, error: KubeMQAuthenticationError) -> bool:
+        """Handle UNAUTHENTICATED by refreshing credentials.
+
+        Returns True if refresh succeeded and the caller should retry.
+        """
+        if self._token_manager is None:
+            return False
+        try:
+            await self._token_manager.invalidate()
+            await self._token_manager.get_token()
+            return True
+        except Exception:
+            return False
+
+    async def _create_channel_for_reconnect(self) -> grpc.aio.Channel:
+        """Create a new gRPC channel with fresh TLS credentials.
+
+        Called by ReconnectionManager on each reconnection attempt.
+        Re-reads certificate files from disk to support cert-manager rotation.
+        Refreshes auth token via TokenManager if configured.
+        """
+        if self._token_manager:
+            await self._token_manager.get_token()
+
+        interceptors = self._build_interceptors()
+        options = self._build_channel_options()
+
+        tls_effective = self._config._resolve_tls_enabled()
+
+        if tls_effective:
+            if self._config.tls.insecure_skip_verify:
+                self._logger.warning(
+                    "certificate verification is disabled — "
+                    "this is insecure and should not be used in production"
+                )
+
+            try:
+                self._logger.debug(
+                    "Reloading TLS credentials from source cert_source=%s",
+                    "file" if self._config.tls.cert_file else "pem_bytes",
+                )
+                credentials = self._build_ssl_credentials()
+                self._logger.debug("TLS credentials reloaded successfully")
+            except FileNotFoundError as e:
+                self._logger.error("Certificate file not found during reconnection: %s", e)
+                raise KubeMQConnectionError(
+                    f"Certificate file not found during reconnection: {e}",
+                    cause=e,
+                    is_retryable=True,
+                ) from e
+            except PermissionError as e:
+                self._logger.error("Certificate file not readable during reconnection: %s", e)
+                raise KubeMQConnectionError(
+                    f"Certificate file permission denied during reconnection: {e}",
+                    cause=e,
+                    is_retryable=True,
+                ) from e
+            except OSError as e:
+                self._logger.error("Certificate file I/O error during reconnection: %s", e)
+                raise KubeMQConnectionError(
+                    f"Certificate file I/O error during reconnection: {e}",
+                    cause=e,
+                    is_retryable=True,
+                ) from e
+
+            channel = grpc.aio.secure_channel(
+                self._config.address,
+                credentials,
+                options=options,
+                interceptors=interceptors,
+            )
+        else:
+            channel = grpc.aio.insecure_channel(
+                self._config.address,
+                options=options,
+                interceptors=interceptors,
+            )
+
+        return channel
 
     # =========================================================================
     # Basic Operations
@@ -214,26 +344,72 @@ class AsyncTransport:
         except grpc.aio.AioRpcError as e:
             raise from_grpc_error(e) from e
 
-    async def close(self) -> None:
-        """Close connection gracefully with active stream cleanup."""
-        if not self._connected or self._closing:
+    async def close(self, *, drain_timeout: float | None = None) -> None:
+        """Close connection with optional drain of in-flight operations.
+
+        Args:
+            drain_timeout: Maximum seconds to wait for in-flight operations
+                          to complete before forcing close. Uses config default
+                          if not specified.
+
+        Behaviour:
+        1. Set _draining flag — new operations raise KubeMQClientClosedError
+        2. Wait for active streams to complete (up to drain_timeout)
+        3. Force-cancel remaining streams
+        4. Close gRPC channel
+        """
+        if self._closing:
             return
 
-        self._closing = True
-        self._logger.debug("Starting graceful shutdown")
+        effective_timeout = (
+            drain_timeout
+            if drain_timeout is not None
+            else self._config.drain_timeout
+        )
 
-        # Cancel all active streams
+        self._closing = True
+        self._draining = True
+        self._logger.debug(
+            "Starting graceful shutdown drain_timeout=%.1fs",
+            effective_timeout,
+        )
+
+        # Wait for active streams, then force-cancel remaining
         async with self._streams_lock:
-            for call in self._active_streams:
-                call.cancel()
+            if self._active_streams:
+                pending = [
+                    self._wait_for_stream(call)
+                    for call in self._active_streams
+                ]
+                try:
+                    await asyncio.wait_for(
+                        asyncio.gather(*pending, return_exceptions=True),
+                        timeout=effective_timeout,
+                    )
+                except asyncio.TimeoutError:
+                    self._logger.debug(
+                        "Drain timeout reached, force-cancelling streams"
+                    )
+                    for call in self._active_streams:
+                        call.cancel()
             self._active_streams.clear()
 
-        # Close channel
+        if self._token_manager:
+            await self._token_manager.close()
+
         await self._cleanup_channel()
 
         self._connected = False
         self._closing = False
+        self._draining = False
         self._logger.debug("Shutdown complete")
+
+    async def _wait_for_stream(self, call: grpc.aio.Call) -> None:
+        """Wait for a single gRPC stream call to complete."""
+        try:
+            await call
+        except Exception:
+            pass
 
     async def _cleanup_channel(self) -> None:
         """Clean up the gRPC channel."""
@@ -248,11 +424,11 @@ class AsyncTransport:
         return self._connected and not self._closing
 
     def _ensure_connected(self) -> None:
-        """Ensure transport is connected."""
+        """Ensure transport is connected and not draining/closing."""
+        if self._closing or self._draining:
+            raise KubeMQClientClosedError("Transport is closing")
         if not self._connected:
             raise KubeMQConnectionError("Transport is not connected")
-        if self._closing:
-            raise KubeMQConnectionError("Transport is closing")
 
     async def _register_stream(self, call: grpc.aio.Call) -> None:
         """Register an active stream for tracking."""

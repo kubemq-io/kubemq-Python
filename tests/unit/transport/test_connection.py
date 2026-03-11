@@ -251,14 +251,16 @@ class TestConnectionWithKeepAliveConfig:
     """Tests for Connection with KeepAliveConfig."""
 
     def test_default_keep_alive_config(self):
-        """Test default keep alive config is created."""
+        """Test default keep alive config is GS-compliant (enabled)."""
         conn = Connection(
             address="localhost:50000",
             client_id="test-client",
         )
 
         assert conn.keep_alive is not None
-        assert conn.keep_alive.enabled is False
+        assert conn.keep_alive.enabled is True
+        assert conn.keep_alive.ping_interval_in_seconds == 10
+        assert conn.keep_alive.ping_timeout_in_seconds == 5
 
     def test_custom_keep_alive_config(self):
         """Test custom keep alive config can be set."""

@@ -3,12 +3,22 @@
 A Python client library for KubeMQ message broker.
 Supports PubSub (events/events_store), Queues, and Commands/Queries patterns.
 
+Public API Contract:
+    All types listed in ``__all__`` are the stable public API.
+    Import directly: ``from kubemq import ClientConfig, PubSubClient``
+
+    Importing from subpackages (e.g., ``from kubemq.core.config import ClientConfig``)
+    is NOT part of the public API contract and may break in future versions.
+
+    Modules under ``kubemq._internal`` are private implementation details
+    and must not be imported by user code.
+
 Sync Example:
     # PubSub client (sync)
     from kubemq import PubSubClient, EventMessage
 
     with PubSubClient(address="localhost:50000") as client:
-        client.send_events_message(EventMessage(
+        client.publish_event(EventMessage(
             channel="my-channel",
             body=b"Hello, World!"
         ))
@@ -18,7 +28,7 @@ Async Example (recommended for async applications):
     from kubemq import AsyncPubSubClient, EventMessage
 
     async with AsyncPubSubClient(address="localhost:50000") as client:
-        await client.send_event(EventMessage(
+        await client.publish_event(EventMessage(
             channel="my-channel",
             body=b"Hello, World!"
         ))
@@ -45,6 +55,11 @@ Async Example (recommended for async applications):
 
 from __future__ import annotations
 
+from importlib.metadata import version as _metadata_version
+
+# Logging implementations
+from kubemq._internal.logging import NoOpLogger, StdLibLoggerAdapter
+
 # Async cancellation token
 from kubemq.common.async_cancellation_token import AsyncCancellationToken
 
@@ -61,21 +76,38 @@ from kubemq.common.channel_stats import (
 # Core configuration
 from kubemq.core.config import (
     ClientConfig,
+    JitterType,
     KeepAliveConfig,
+    OperationTimeouts,
+    RetryPolicy,
     TLSConfig,
+    resolve_timeout,
 )
 
 # Core exceptions
 from kubemq.core.exceptions import (
+    ERROR_CLASSIFICATION,
+    ErrorCategory,
+    ErrorCode,
     KubeMQAuthenticationError,
+    KubeMQBufferFullError,
+    KubeMQCancellationError,
     KubeMQChannelError,
     KubeMQCircuitOpenError,
+    KubeMQClientClosedError,
+    KubeMQConfigurationError,
     KubeMQConnectionError,
+    KubeMQConnectionNotReadyError,
     KubeMQError,
+    KubeMQHandlerError,
     KubeMQMessageError,
+    KubeMQStreamBrokenError,
     KubeMQTimeoutError,
     KubeMQTransactionError,
+    KubeMQTransportError,
     KubeMQValidationError,
+    classify_error,
+    classify_tls_error,
     from_grpc_error,
 )
 
@@ -90,9 +122,14 @@ from kubemq.core.health import (
 
 # Core types
 from kubemq.core.types import (
+    AsyncCredentialProvider,
+    ConnectionState,
+    CredentialProvider,
+    Logger,
     ServerInfo,
     StartPosition,
     SubscribeType,
+    TransportProtocol,
 )
 from kubemq.cq import Client as CQClient
 from kubemq.cq.async_client import AsyncClient as AsyncCQClient
@@ -130,13 +167,21 @@ from kubemq.queues.queues_message_received import QueueMessageReceived
 from kubemq.queues.queues_poll_response import QueuesPollResponse
 from kubemq.queues.queues_send_result import QueueSendResult
 
-# Version
-__version__ = "4.0.0"
+# Version — single source of truth from pyproject.toml via installed metadata
+__version__: str
+try:
+    __version__ = _metadata_version("kubemq")
+except Exception:
+    __version__ = "0.0.0.dev0"
 
 __all__ = [
     # Version
     "__version__",
-    # Core exceptions
+    # Core exceptions and error types
+    "ErrorCode",
+    "ErrorCategory",
+    "ERROR_CLASSIFICATION",
+    "classify_error",
     "KubeMQError",
     "KubeMQConnectionError",
     "KubeMQAuthenticationError",
@@ -145,16 +190,37 @@ __all__ = [
     "KubeMQChannelError",
     "KubeMQMessageError",
     "KubeMQTransactionError",
+    "KubeMQConfigurationError",
     "KubeMQCircuitOpenError",
+    "KubeMQClientClosedError",
+    "KubeMQConnectionNotReadyError",
+    "KubeMQBufferFullError",
+    "KubeMQCancellationError",
+    "KubeMQTransportError",
+    "KubeMQHandlerError",
+    "KubeMQStreamBrokenError",
+    "classify_tls_error",
     "from_grpc_error",
     # Core configuration
     "TLSConfig",
     "KeepAliveConfig",
     "ClientConfig",
+    "JitterType",
+    "RetryPolicy",
+    "OperationTimeouts",
+    "resolve_timeout",
     # Core types
+    "ConnectionState",
     "SubscribeType",
     "StartPosition",
     "ServerInfo",
+    "CredentialProvider",
+    "AsyncCredentialProvider",
+    "Logger",
+    "TransportProtocol",
+    # Logging implementations
+    "NoOpLogger",
+    "StdLibLoggerAdapter",
     # Sync domain clients
     "PubSubClient",
     "QueuesClient",

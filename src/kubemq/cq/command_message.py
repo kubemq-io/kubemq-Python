@@ -1,20 +1,40 @@
+from __future__ import annotations
+
+import sys
 import uuid
 from typing import Optional
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from kubemq.grpc import Request as pbCommand
 
+if sys.version_info >= (3, 11):
+    from typing import Self
+else:
+    from typing_extensions import Self
+
 
 class CommandMessage(BaseModel):
+    """A command message for request-response patterns.
+
+    Instances are immutable after construction. Use ``with_updates()``
+    or ``model_copy(update={...})`` to create modified copies.
+
+    Thread Safety:
+        Instances are immutable (frozen) and safe to read from multiple
+        threads. However, reusing the same instance for multiple send
+        operations is not recommended — create a new instance per send
+        to ensure unique message IDs.
+    """
+
+    model_config = ConfigDict(arbitrary_types_allowed=True, frozen=True)
+
     id: Optional[str] = Field(default_factory=lambda: str(uuid.uuid4()))
     channel: str
     metadata: Optional[str] = None
     body: bytes = Field(default=b"")
     tags: dict[str, str] = Field(default_factory=dict)
     timeout_in_seconds: int = Field(gt=0)
-
-    model_config = {"arbitrary_types_allowed": True}
 
     @field_validator("channel")
     def channel_must_exist(cls, v: str) -> str:
@@ -42,6 +62,17 @@ class CommandMessage(BaseModel):
         for key, value in self.tags.items():
             pb_command.Tags[key] = value
         return pb_command
+
+    def with_updates(self, **kwargs) -> Self:
+        """Create a new message with updated values.
+
+        Since message instances are immutable, this creates a copy
+        with the specified fields overridden.
+
+        Returns:
+            A new instance of the same type with updated fields.
+        """
+        return self.model_copy(update=kwargs)
 
     def __repr__(self) -> str:
         return (

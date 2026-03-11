@@ -26,6 +26,10 @@ class CancellationToken:
         cancel: Set the cancellation event.
         is_set: Check if cancellation has been requested (deprecated, use is_cancelled).
         is_cancelled: Check if cancellation has been requested.
+
+    Thread Safety:
+        This class is thread-safe. ``cancel()`` and ``is_cancelled``
+        can be called from any thread.
     """
 
     def __init__(self):

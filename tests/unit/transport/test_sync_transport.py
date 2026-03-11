@@ -50,7 +50,8 @@ class TestGetCallOptions:
 
     def test_basic_options_without_keepalive(self):
         """Test basic options are set without keep-alive."""
-        connection = Connection(address="localhost:50000")
+        keep_alive = KeepAliveConfig(enabled=False)
+        connection = Connection(address="localhost:50000", keep_alive=keep_alive)
 
         options = _get_call_options(connection)
 
@@ -58,7 +59,7 @@ class TestGetCallOptions:
         options_dict = dict(options)
         assert "grpc.max_send_message_length" in options_dict
         assert "grpc.max_receive_message_length" in options_dict
-        # Keep-alive options should NOT be present
+        # Keep-alive options should NOT be present when explicitly disabled
         assert "grpc.keepalive_time_ms" not in options_dict
 
     def test_options_with_keepalive_enabled(self):

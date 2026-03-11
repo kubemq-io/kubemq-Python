@@ -18,6 +18,8 @@ from kubemq.grpc import (
 from kubemq.queues.queues_send_result import QueueSendResult
 from kubemq.transport import Connection, Transport
 
+DEFAULT_SEND_QUEUE_SIZE = 10_000
+
 
 class UpstreamSender:
     """
@@ -57,6 +59,8 @@ class UpstreamSender:
         logger: logging.Logger,
         connection: Connection,
         send_timeout: float = 2.0,
+        *,
+        max_queue_size: int = DEFAULT_SEND_QUEUE_SIZE,
     ):
         """Initialize a new UpstreamSender.
 
@@ -64,10 +68,8 @@ class UpstreamSender:
             transport: The transport object for channel management
             logger: The logger for logging messages
             connection: The connection to the server
-            queue_size: Maximum size of the sending queue (0 for unlimited)
-            queue_timeout: Timeout in seconds for queue polling
-            request_sleep_interval: Sleep interval in seconds between requests (0 to disable)
             send_timeout: Timeout in seconds for waiting for a send response
+            max_queue_size: Maximum size of the sending queue.
         """
         self.transport = transport
         self.clientStub = transport.kubemq_client()
@@ -76,7 +78,9 @@ class UpstreamSender:
         self.logger = logger
         self.lock = threading.Lock()
         self.response_tracking = {}
-        self.sending_queue = queue.Queue()
+        self.sending_queue: queue.Queue[QueuesUpstreamRequest | None] = queue.Queue(
+            maxsize=max_queue_size
+        )
         self.allow_new_messages = True
         self.send_timeout = send_timeout
         threading.Thread(target=self._send_queue_stream, args=(), daemon=True).start()
@@ -113,7 +117,27 @@ class UpstreamSender:
                     response_result,
                     message_id,
                 )
-            self.sending_queue.put(queue_upstream_request)
+            maxsize = self.sending_queue.maxsize
+            if maxsize > 0:
+                current = self.sending_queue.qsize()
+                utilization = current / maxsize
+                if utilization >= 0.9:
+                    self.logger.warning(
+                        "Send queue at %.0f%% capacity (%d/%d)",
+                        utilization * 100,
+                        current,
+                        maxsize,
+                    )
+            try:
+                self.sending_queue.put_nowait(queue_upstream_request)
+            except queue.Full:
+                from kubemq.core.exceptions import KubeMQBufferFullError
+
+                raise KubeMQBufferFullError(
+                    "Queue send queue is full. The server may be slow or "
+                    "disconnected. Reduce send rate or increase max_send_queue_size.",
+                    buffer_size=self.sending_queue.maxsize,
+                ) from None
             response_result.wait(self.send_timeout)
             response: QueuesUpstreamResponse | None = response_container.get("response")
             with self.lock:

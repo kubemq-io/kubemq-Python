@@ -3,15 +3,22 @@
 from __future__ import annotations
 
 import asyncio
-import logging
 import threading
+import time
 from abc import ABC
 from types import TracebackType
-from typing import TYPE_CHECKING, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
 
+from kubemq._internal.logging import NOOP_LOGGER, StdLibLoggerAdapter
+from kubemq._internal.telemetry import KubeMQInstrumentor, KubeMQMetrics
 from kubemq.core.compat import run_in_thread
 from kubemq.core.config import ClientConfig
-from kubemq.core.exceptions import KubeMQConnectionError, from_grpc_error
+from kubemq.core.exceptions import (
+    KubeMQClientClosedError,
+    KubeMQConnectionError,
+    KubeMQValidationError,
+    from_grpc_error,
+)
 from kubemq.core.types import ServerInfo
 
 if TYPE_CHECKING:
@@ -24,6 +31,42 @@ AT = TypeVar("AT", bound="AsyncBaseClient")
 NAT = TypeVar("NAT", bound="NativeAsyncBaseClient")
 
 
+def _resolve_logger(config: ClientConfig, class_name: str) -> Any:
+    """Resolve the logger to use based on ClientConfig.
+
+    Priority:
+        1. config.logger (user-injected Logger Protocol instance)
+        2. StdLibLoggerAdapter (when config.log_level is set — backward compat)
+        3. NOOP_LOGGER (default — zero overhead)
+    """
+    if config.logger is not None:
+        return config.logger
+    if config.log_level is not None:
+        return StdLibLoggerAdapter(
+            name=f"kubemq.{class_name}",
+            level=config.log_level,
+        )
+    return NOOP_LOGGER
+
+
+def _create_instrumentor(config: ClientConfig, logger: Any) -> KubeMQInstrumentor:
+    """Create a KubeMQInstrumentor and attach KubeMQMetrics."""
+    instrumentor = KubeMQInstrumentor(
+        client_id=config.client_id or "",
+        address=config.address,
+        tracer_provider=config.tracer_provider,
+        meter_provider=config.meter_provider,
+        logger=logger,
+    )
+    instrumentor._metrics = KubeMQMetrics(
+        meter=instrumentor._meter,
+        max_channel_cardinality=config.max_channel_cardinality,
+        channel_allowlist=set(config.channel_allowlist),
+        logger=logger,
+    )
+    return instrumentor
+
+
 class BaseClient(ABC):  # noqa: B024
     """Abstract base class for synchronous KubeMQ clients.
 
@@ -34,6 +77,17 @@ class BaseClient(ABC):  # noqa: B024
     - Thread-safe resource management
 
     Subclasses must implement domain-specific methods.
+
+    Thread Safety:
+        A single client instance uses one gRPC channel and is safe to share
+        across threads. Create one client and reuse it; do not create a new
+        client per operation.
+
+        Example — shared client across threads::
+
+            client = PubSubClient(address="localhost:50000")
+            for _ in range(10):
+                threading.Thread(target=worker, args=(client,)).start()
     """
 
     def __init__(
@@ -66,16 +120,13 @@ class BaseClient(ABC):  # noqa: B024
             )
 
         self._transport: Transport | None = None
-        self._logger = logging.getLogger(f"kubemq.{self.__class__.__name__}")
+        self._logger: Any = _resolve_logger(self._config, self.__class__.__name__)
+        self._instrumentor = _create_instrumentor(self._config, self._logger)
         self._lock = threading.RLock()
         self._closed = False
         self._shutdown_event = threading.Event()
-
-        # Set up logging level
-        if self._config.log_level is not None:
-            self._logger.setLevel(self._config.log_level)
-        else:
-            self._logger.setLevel(logging.CRITICAL + 1)  # Effectively disabled
+        self._subscription_threads: list[threading.Thread] = []
+        self._subscription_threads_lock = threading.Lock()
 
         # Initialize transport
         self._initialize()
@@ -120,8 +171,32 @@ class BaseClient(ABC):  # noqa: B024
             self._logger.error(f"Ping failed: {e}")
             raise from_grpc_error(e) from e
 
+    def set_token(self, token: str) -> None:
+        """Update the auth token for all subsequent requests.
+
+        Takes effect immediately on the next gRPC call — no reconnection required.
+        Thread-safe: can be called from any thread.
+
+        Args:
+            token: The new auth token string.
+        """
+        if self._transport is not None:
+            self._transport.set_token(token)
+
+    def _register_subscription_thread(self, thread: threading.Thread) -> None:
+        """Register a subscription thread for shutdown tracking."""
+        with self._subscription_threads_lock:
+            self._subscription_threads = [
+                t for t in self._subscription_threads if t.is_alive()
+            ]
+            self._subscription_threads.append(thread)
+
     def close(self) -> None:
         """Close the client and release all resources.
+
+        Waits for in-flight subscription callbacks to complete up to
+        ``callback_completion_timeout`` (default 30s), then forces
+        shutdown of remaining threads.
 
         This method is idempotent - calling it multiple times is safe.
         """
@@ -134,6 +209,30 @@ class BaseClient(ABC):  # noqa: B024
             self._logger.debug(f"Closing connection to {self._config.address}")
             self._cleanup_resources()
 
+            callback_timeout = getattr(
+                self._config, "callback_completion_timeout", 30.0
+            )
+            with self._subscription_threads_lock:
+                threads_to_join = list(self._subscription_threads)
+                self._subscription_threads.clear()
+
+        if threads_to_join:
+            self._logger.debug(
+                "Waiting for %d subscription threads to drain",
+                len(threads_to_join),
+            )
+            deadline = time.monotonic() + callback_timeout
+            for thread in threads_to_join:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    self._logger.warning(
+                        "Callback drain timeout (%.1fs) reached",
+                        callback_timeout,
+                    )
+                    break
+                thread.join(timeout=remaining)
+
+        with self._lock:
             if self._transport:
                 try:
                     self._transport.close()
@@ -149,15 +248,30 @@ class BaseClient(ABC):  # noqa: B024
         This is called before the transport is closed.
         """
 
+    def _validate_message_size(self, body: bytes) -> None:
+        """Validate message body size against config.max_send_size.
+
+        Raises:
+            KubeMQValidationError: If body exceeds max_send_size.
+        """
+        max_size = self._config.max_send_size
+        if max_size > 0 and len(body) > max_size:
+            raise KubeMQValidationError(
+                f"Message body size ({len(body)} bytes) exceeds maximum "
+                f"send size ({max_size} bytes). "
+                f"Reduce message size or increase max_send_size in ClientConfig.",
+                is_retryable=False,
+            )
+
     def _ensure_connected(self) -> None:
         """Ensure the client is connected.
 
         Raises:
-            RuntimeError: If the client is closed
+            KubeMQClientClosedError: If the client is closed
             KubeMQConnectionError: If not connected
         """
         if self._closed:
-            raise RuntimeError("Client is closed")
+            raise KubeMQClientClosedError("Client is closed")
         if not self.is_connected:
             raise KubeMQConnectionError("Client is not connected to server")
 
@@ -186,6 +300,17 @@ class AsyncBaseClient(ABC):  # noqa: B024
 
     Note: This class uses thread-based async wrappers for the transport layer.
     Phase 4 will implement native async gRPC support.
+
+    Thread Safety:
+        A single client instance uses one gRPC channel and is safe to share
+        across tasks. Create one client and reuse it; do not create a new
+        client per operation.
+
+        Example — shared async client across tasks::
+
+            async with AsyncPubSubClient(address="localhost:50000") as client:
+                tasks = [process(client) for _ in range(10)]
+                await asyncio.gather(*tasks)
     """
 
     def __init__(
@@ -219,15 +344,10 @@ class AsyncBaseClient(ABC):  # noqa: B024
             )
 
         self._transport: Transport | None = None
-        self._logger = logging.getLogger(f"kubemq.{self.__class__.__name__}")
+        self._logger: Any = _resolve_logger(self._config, self.__class__.__name__)
+        self._instrumentor = _create_instrumentor(self._config, self._logger)
         self._closed = False
-        self._close_lock = asyncio.Lock()  # Thread safety for async close
-
-        # Set up logging level
-        if self._config.log_level is not None:
-            self._logger.setLevel(self._config.log_level)
-        else:
-            self._logger.setLevel(logging.CRITICAL + 1)
+        self._close_lock = asyncio.Lock()
 
     async def connect(self) -> None:
         """Connect to the KubeMQ server.
@@ -310,11 +430,11 @@ class AsyncBaseClient(ABC):  # noqa: B024
         """Ensure the client is connected.
 
         Raises:
-            RuntimeError: If the client is closed
+            KubeMQClientClosedError: If the client is closed
             KubeMQConnectionError: If not connected
         """
         if self._closed:
-            raise RuntimeError("Client is closed")
+            raise KubeMQClientClosedError("Client is closed")
         if not self.is_connected:
             raise KubeMQConnectionError("Client is not connected to server")
 
@@ -347,6 +467,17 @@ class NativeAsyncBaseClient(ABC):  # noqa: B024
 
     Note: This is the Phase 4 implementation. For backward compatibility
     with thread-wrapped async, use AsyncBaseClient.
+
+    Thread Safety:
+        A single client instance uses one gRPC channel and is safe to share
+        across tasks. Create one client and reuse it; do not create a new
+        client per operation.
+
+        Example — shared async client across tasks::
+
+            async with AsyncPubSubClient(address="localhost:50000") as client:
+                tasks = [process(client) for _ in range(10)]
+                await asyncio.gather(*tasks)
     """
 
     def __init__(
@@ -380,7 +511,8 @@ class NativeAsyncBaseClient(ABC):  # noqa: B024
             )
 
         self._transport: AsyncTransport | None = None
-        self._logger = logging.getLogger(f"kubemq.{self.__class__.__name__}")
+        self._logger: Any = _resolve_logger(self._config, self.__class__.__name__)
+        self._instrumentor = _create_instrumentor(self._config, self._logger)
         self._closed = False
         self._closing = False
         self._connect_lock = asyncio.Lock()
@@ -388,12 +520,7 @@ class NativeAsyncBaseClient(ABC):  # noqa: B024
         # Track active subscriptions for cleanup
         self._active_subscriptions: set[AsyncCancellationToken] = set()
         self._subscriptions_lock = asyncio.Lock()
-
-        # Set up logging level
-        if self._config.log_level is not None:
-            self._logger.setLevel(self._config.log_level)
-        else:
-            self._logger.setLevel(logging.CRITICAL + 1)
+        self._subscription_tasks: set[asyncio.Task] = set()  # type: ignore[type-arg]
 
     async def connect(self) -> None:
         """Connect to the KubeMQ server using native async transport.
@@ -411,7 +538,7 @@ class NativeAsyncBaseClient(ABC):  # noqa: B024
             if self._transport is not None:
                 return
             if self._closed:
-                raise RuntimeError("Client is closed and cannot be reconnected")
+                raise KubeMQClientClosedError("Client is closed and cannot be reconnected")
 
             try:
                 self._transport = AsyncTransport(self._config)
@@ -445,14 +572,27 @@ class NativeAsyncBaseClient(ABC):  # noqa: B024
         assert self._transport is not None  # guaranteed by _ensure_connected
         return await self._transport.ping()
 
+    def set_token(self, token: str) -> None:
+        """Update the auth token for all subsequent requests.
+
+        Takes effect immediately on the next gRPC call — no reconnection required.
+        Thread-safe: can be called from any thread or coroutine.
+
+        Args:
+            token: The new auth token string.
+        """
+        if self._transport is not None:
+            self._transport.set_token(token)
+
     async def close(self) -> None:
-        """Close client with graceful shutdown.
+        """Close client with graceful callback drain.
 
         Shutdown sequence:
-        1. Stop accepting new operations
-        2. Cancel all active subscriptions
-        3. Wait for in-flight operations (with timeout)
-        4. Close transport
+            1. Set ``_closing`` flag — new operations raise ``KubeMQClientClosedError``.
+            2. Cancel all subscription tokens (stops new message delivery).
+            3. Wait for in-flight callbacks up to ``callback_completion_timeout`` (default 30s).
+            4. Force-cancel remaining callback tasks after timeout.
+            5. Close transport (which handles its own drain per SPEC-CONN-4).
 
         This method is idempotent - calling it multiple times is safe.
         """
@@ -463,13 +603,44 @@ class NativeAsyncBaseClient(ABC):  # noqa: B024
             self._closing = True
             self._logger.debug("Starting client shutdown")
 
-            # 1. Cancel all subscriptions
+            callback_timeout = getattr(
+                self._config, "callback_completion_timeout", 30.0
+            )
+
+            # 1. Cancel all subscription tokens (stops new message delivery)
             async with self._subscriptions_lock:
                 for token in self._active_subscriptions:
                     token.cancel()
-                self._active_subscriptions.clear()
 
-            # 2. Close transport (handles its own stream cleanup)
+            # 2. Wait for subscription tasks to complete (callback drain)
+            async with self._subscriptions_lock:
+                tasks = list(self._subscription_tasks)
+
+            if tasks:
+                self._logger.debug(
+                    "Waiting for %d subscription tasks to drain callbacks",
+                    len(tasks),
+                )
+                done, pending = await asyncio.wait(
+                    tasks, timeout=callback_timeout
+                )
+                if pending:
+                    self._logger.warning(
+                        "Callback drain timeout (%.1fs) reached, "
+                        "%d tasks still pending — cancelling",
+                        callback_timeout,
+                        len(pending),
+                    )
+                    for task in pending:
+                        task.cancel()
+                    await asyncio.gather(*pending, return_exceptions=True)
+
+            # 3. Clear subscriptions and tasks
+            async with self._subscriptions_lock:
+                self._active_subscriptions.clear()
+                self._subscription_tasks.clear()
+
+            # 4. Close transport (handles its own stream drain per SPEC-CONN-4)
             if self._transport:
                 await self._transport.close()
                 self._transport = None
@@ -478,17 +649,32 @@ class NativeAsyncBaseClient(ABC):  # noqa: B024
             self._closing = False
             self._logger.debug("Client shutdown complete")
 
+    def _validate_message_size(self, body: bytes) -> None:
+        """Validate message body size against config.max_send_size.
+
+        Raises:
+            KubeMQValidationError: If body exceeds max_send_size.
+        """
+        max_size = self._config.max_send_size
+        if max_size > 0 and len(body) > max_size:
+            raise KubeMQValidationError(
+                f"Message body size ({len(body)} bytes) exceeds maximum "
+                f"send size ({max_size} bytes). "
+                f"Reduce message size or increase max_send_size in ClientConfig.",
+                is_retryable=False,
+            )
+
     def _ensure_connected(self) -> None:
         """Ensure client is connected and not closing.
 
         Raises:
-            RuntimeError: If the client is closed or closing
+            KubeMQClientClosedError: If the client is closed or closing
             KubeMQConnectionError: If not connected
         """
         if self._closed:
-            raise RuntimeError("Client is closed")
+            raise KubeMQClientClosedError("Client is closed")
         if self._closing:
-            raise RuntimeError("Client is shutting down")
+            raise KubeMQClientClosedError("Client is shutting down")
         if not self.is_connected:
             raise KubeMQConnectionError("Client is not connected to server")
 
@@ -515,6 +701,15 @@ class NativeAsyncBaseClient(ABC):  # noqa: B024
         """
         async with self._subscriptions_lock:
             self._active_subscriptions.discard(token)
+
+    def _register_subscription_task(self, task: asyncio.Task) -> None:  # type: ignore[type-arg]
+        """Register an asyncio.Task for shutdown tracking."""
+        self._subscription_tasks.add(task)
+        task.add_done_callback(self._subscription_tasks.discard)
+
+    def _unregister_subscription_task(self, task: asyncio.Task) -> None:  # type: ignore[type-arg]
+        """Remove a subscription task from tracking."""
+        self._subscription_tasks.discard(task)
 
     async def __aenter__(self: NAT) -> NAT:
         """Enter async context manager and connect."""

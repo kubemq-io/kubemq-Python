@@ -1,10 +1,10 @@
 [project]
 name = "kubemq"
-version = "4.0.0-dev"
-description = "KubeMQ Python SDK - Production-grade messaging"
+version = "4.0.0.dev0"
+description = "KubeMQ Python SDK - Production-grade messaging with async support, pub/sub, queues, and commands/queries"
 readme = "README.md"
 license = { text = "MIT" }
-requires-python = ">=3.9"
+requires-python = ">=3.11"
 authors = [
     { name = "KubeMQ", email = "info@kubemq.io" }
 ]
@@ -12,9 +12,8 @@ classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
@@ -24,14 +23,19 @@ classifiers = [
 ]
 keywords = ["kubemq", "messaging", "queue", "pubsub", "grpc"]
 
+# Dependency justification (per GS REQ-CQ-4):
+# - grpcio: Required — gRPC transport runtime
+# - protobuf: Required — message serialization
+# - pydantic: Justified — config/message model validation, used extensively
+# - PyJWT: Justified — JWT token decoding for auth_token verification
+# Total non-excluded: 4 ≤ 5 limit
+# Note: typing_extensions and tomli removed — stdlib equivalents
+# available in Python 3.11+ (typing, tomllib).
 dependencies = [
-    "grpcio>=1.51.0",  # Required for complete grpc.aio interceptor support (Phase 4)
-    "grpcio-tools>=1.51.0",
-    "protobuf>=4.21.0",
-    "pydantic>=2.0.0",
-    "PyJWT>=2.6.0",
-    "typing_extensions>=4.0.0; python_version < '3.10'",
-    "tomli>=2.0.0; python_version < '3.11'",
+    "grpcio>=1.51.0,<2.0.0",
+    "protobuf>=4.21.0,<6.0.0",
+    "pydantic>=2.0.0,<3.0.0",
+    "PyJWT>=2.6.0,<3.0.0",
 ]
 
 [project.optional-dependencies]
@@ -47,6 +51,9 @@ docs = [
     "mkdocs-material>=9.0.0",
     "mkdocstrings[python]>=0.24.0",
 ]
+otel = [
+    "opentelemetry-api>=1.20,<2",
+]
 
 # ==============================================================================
 # Development Dependencies
@@ -55,11 +62,13 @@ docs = [
 dev = [
     "pytest>=8.0.0",
     "pytest-asyncio>=0.23.0",
+    "pytest-benchmark>=4.0.0",
     "pytest-cov>=4.0.0",
     "pytest-timeout>=2.0.0",
     "pytest-mock>=3.12.0",
     "pre-commit>=4.0.0",
     "hypothesis>=6.0.0",
+    "grpcio-tools>=1.51.0",
 ]
 lint = [
     "ruff>=0.8.0",
@@ -77,9 +86,10 @@ security = [
 
 [project.urls]
 Homepage = "https://kubemq.io"
-Documentation = "https://github.com/kubemq-io/kubemq-Python/docs"
+Documentation = "https://docs.kubemq.io"
 Repository = "https://github.com/kubemq-io/kubemq-Python"
-Changelog = "https://github.com/kubemq-io/kubemq-Python/blob/master/CHANGELOG.md"
+Changelog = "https://github.com/kubemq-io/kubemq-Python/blob/v4/CHANGELOG.md"
+Issues = "https://github.com/kubemq-io/kubemq-Python/issues"
 
 [build-system]
 requires = ["hatchling"]
@@ -93,15 +103,18 @@ include = [
     "/src/kubemq",
     "/tests",
     "/protos",
+    "/CHANGELOG.md",
+    "/CONTRIBUTING.md",
+    "/LICENSE",
 ]
 
 # ==============================================================================
 # Linting & Formatting (ruff)
 # ==============================================================================
 [tool.ruff]
-target-version = "py39"
+target-version = "py311"
 line-length = 100
-exclude = [".git", ".venv", "__pycache__"]
+exclude = [".git", ".venv", "__pycache__", "src/kubemq/grpc/kubemq_pb2.py", "src/kubemq/grpc/kubemq_pb2_grpc.py"]
 
 [tool.ruff.lint]
 extend-select = [
@@ -117,15 +130,23 @@ extend-select = [
     "Q",      # flake8-quotes
     "RUF100", # unused noqa comments
     "C90",    # mccabe complexity
+    "D",      # pydocstyle (Google convention)
 ]
 ignore = [
     "E501",   # line too long (handled by formatter)
     "B008",   # do not perform function calls in argument defaults
     "ARG001", # Unused function argument
     "ARG002", # Unused method argument
+    "D100",   # module docstrings not required for every module
+    "D104",   # package __init__.py docstrings already handled
+    "D105",   # magic method docstrings not required
+    "D107",   # __init__ docstrings not required (class docstring suffices)
 ]
 mccabe = { max-complexity = 15 }
 flake8-quotes = { inline-quotes = "double", multiline-quotes = "double" }
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
 
 [tool.ruff.lint.isort]
 combine-as-imports = true
@@ -136,14 +157,16 @@ indent-style = "space"
 
 [tool.ruff.lint.per-file-ignores]
 "**/__init__.py" = ["F401"]
-"tests/**" = ["ARG001", "ARG002", "ARG005", "B017", "B018", "B904", "SIM105", "SIM117"]
+"tests/**" = ["ARG001", "ARG002", "ARG005", "B017", "B018", "B904", "SIM105", "SIM117", "D"]
+"examples/**" = ["D"]
+"src/kubemq/grpc/**" = ["D"]
 "src/**" = ["ARG001", "ARG002"]
 
 # ==============================================================================
 # Type Checking
 # ==============================================================================
 [tool.basedpyright]
-pythonVersion = "3.9"
+pythonVersion = "3.11"
 typeCheckingMode = "standard"
 reportMissingTypeStubs = false
 reportUnnecessaryIsInstance = false
@@ -168,10 +191,25 @@ project-excludes = [
 search-path = ["."]
 
 [tool.mypy]
-python_version = "3.9"
-ignore_missing_imports = true
+python_version = "3.11"
+strict = true
 warn_unused_ignores = true
 warn_redundant_casts = true
+warn_return_any = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+no_implicit_optional = true
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "kubemq.grpc.*"
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = "kubemq.transport.*"
+disallow_untyped_defs = true
+warn_return_any = false
 
 # ==============================================================================
 # Security Scanning (bandit)
@@ -185,7 +223,7 @@ skips = ["B101"]
 # ==============================================================================
 [tool.pytest.ini_options]
 pythonpath = ["."]
-testpaths = ["tests"]
+testpaths = ["tests/unit", "tests/characterization"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
@@ -197,6 +235,7 @@ addopts = [
     "--tb=short",
     "--maxfail=5",
     "--durations=10",
+    "--timeout=30",
 ]
 filterwarnings = [
     "ignore::DeprecationWarning",
@@ -207,18 +246,20 @@ markers = [
     "integration: Integration tests (requires KubeMQ server)",
     "slow: Slow tests",
     "characterization: Characterization tests for existing behavior",
+    "benchmark: Performance benchmarks (requires KubeMQ server)",
 ]
 
 [tool.coverage.run]
 source = ["src/kubemq"]
 branch = true
 omit = [
-    "src/kubemq/grpc/kubemq_pb2.py",      # Auto-generated protobuf
-    "src/kubemq/grpc/kubemq_pb2_grpc.py", # Auto-generated gRPC
-    "src/kubemq/grpc/client.py",          # Legacy development script
+    "src/kubemq/grpc/*",
 ]
 
 [tool.coverage.report]
+fail_under = 40
+show_missing = true
+skip_covered = false
 exclude_lines = [
     "pragma: no cover",
     "if TYPE_CHECKING:",
@@ -226,3 +267,6 @@ exclude_lines = [
     "raise NotImplementedError",
     "@abstractmethod",
 ]
+
+[tool.coverage.xml]
+output = "coverage.xml"

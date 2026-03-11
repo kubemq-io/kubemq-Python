@@ -78,14 +78,13 @@ class TestQueueMessageBehavior:
 class TestQueuesClientInitializationBehavior:
     """Characterization tests for Queues Client initialization."""
 
-    def test_client_requires_address(self):
-        """Capture: Client raises error without address.
+    def test_client_defaults_address_when_empty(self):
+        """Capture: Client defaults empty address to localhost:50000.
 
-        Note: The error type depends on when validation occurs - could be
-        ValueError from Connection or ValidationError from Client.
+        Changed from raising ValueError — address now defaults per GS spec.
         """
-        with pytest.raises((ValidationError, ValueError)):
-            Client(address="")
+        client = Client(address="")
+        assert client._config.address == "localhost:50000"
 
     def test_client_accepts_send_timeout(self):
         """Capture: Client accepts send_timeout parameter."""
