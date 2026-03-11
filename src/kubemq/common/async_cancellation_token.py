@@ -42,6 +42,10 @@ class AsyncCancellationToken:
         linked = AsyncCancellationToken.create_linked(token1, token2)
 
         token1.cancel()  # linked is now cancelled
+
+    Thread Safety:
+        Safe to use across asyncio tasks. ``cancel()`` can be called
+        from any thread or coroutine.
     """
 
     def __init__(self, parent: AsyncCancellationToken | None = None) -> None:
@@ -171,6 +175,11 @@ class CancellationTokenBridge:
         sync_token.cancel()  # Will trigger async cancellation
 
         await bridge.stop_monitoring()
+
+    Thread Safety:
+        Bridges sync/async cancellation. The sync token can be
+        cancelled from any thread; the async token is monitored
+        within the event loop.
     """
 
     def __init__(

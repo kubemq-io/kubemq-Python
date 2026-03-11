@@ -1,37 +1,43 @@
 """gRPC interceptors for authentication.
 
 This module provides both sync and async interceptors for adding
-authentication metadata to gRPC calls.
+authentication metadata to gRPC calls. All interceptors read the
+token from a shared TokenHolder instance, enabling runtime token
+rotation without reconnection.
 """
 
 from __future__ import annotations
 
 from collections.abc import AsyncIterable
-from typing import Any, Callable
+from typing import TYPE_CHECKING, Any, Callable
 
 import grpc
 import grpc.aio
 from grpc import ClientCallDetails
 
+if TYPE_CHECKING:
+    from kubemq._internal.auth import TokenHolder
+
 
 def _inject_auth_metadata(
     metadata: tuple[tuple[str, str], ...] | None,
-    auth_token: str | None,
+    token_holder: TokenHolder,
 ) -> tuple[tuple[str, str], ...]:
-    """Helper to inject auth token into metadata.
+    """Inject auth token from TokenHolder into gRPC metadata.
 
     Args:
         metadata: Existing metadata tuple or None.
-        auth_token: The auth token to inject.
+        token_holder: Shared mutable token container.
 
     Returns:
-        New metadata tuple with auth token added.
+        New metadata tuple with auth token added (if present).
     """
-    if not auth_token or not auth_token.strip():
+    token = token_holder.token
+    if not token or not token.strip():
         return metadata or ()
 
     existing = list(metadata or [])
-    existing.append(("authorization", auth_token))
+    existing.append(("authorization", token))
     return tuple(existing)
 
 
@@ -48,8 +54,8 @@ class AuthInterceptors(
 ):
     """Sync interceptor that adds auth token to all gRPC calls."""
 
-    def __init__(self, auth_token: str):
-        self.auth_token = auth_token
+    def __init__(self, token_holder: TokenHolder) -> None:
+        self._token_holder = token_holder
 
     def _intercept_call(
         self,
@@ -57,12 +63,11 @@ class AuthInterceptors(
         client_call_details: ClientCallDetails,
         request_or_iterator: Any,
     ) -> Any:
-        metadata = []
-        if client_call_details.metadata is not None:
-            metadata = list(client_call_details.metadata)
+        metadata = list(client_call_details.metadata or [])
 
-        if self.auth_token and self.auth_token.strip():
-            metadata.append(("authorization", f"{self.auth_token}"))
+        token = self._token_holder.token
+        if token and token.strip():
+            metadata.append(("authorization", token))
 
         new_client_call_details = client_call_details._replace(metadata=metadata)  # type: ignore[union-attr]
         response = continuation(new_client_call_details, request_or_iterator)
@@ -98,8 +103,8 @@ class AuthInterceptorsAsync(
     For Phase 4 native async, use the separate interceptor classes below.
     """
 
-    def __init__(self, auth_token: str):
-        self.auth_token = auth_token
+    def __init__(self, token_holder: TokenHolder) -> None:
+        self._token_holder = token_holder
 
     async def _intercept_call(
         self,
@@ -107,12 +112,11 @@ class AuthInterceptorsAsync(
         client_call_details: ClientCallDetails,
         request_or_iterator: Any,
     ) -> Any:
-        metadata = []
-        if client_call_details.metadata is not None:
-            metadata = list(client_call_details.metadata)
+        metadata = list(client_call_details.metadata or [])
 
-        if self.auth_token and self.auth_token.strip():
-            metadata.append(("authorization", f"{self.auth_token}"))
+        token = self._token_holder.token
+        if token and token.strip():
+            metadata.append(("authorization", token))
 
         new_client_call_details = client_call_details._replace(metadata=metadata)  # type: ignore[union-attr]
         response = await continuation(new_client_call_details, request_or_iterator)
@@ -143,8 +147,8 @@ class AsyncUnaryUnaryAuthInterceptor(grpc.aio.UnaryUnaryClientInterceptor):
     Ping, SendEvent, SendRequest, SendResponse, etc.
     """
 
-    def __init__(self, auth_token: str | None = None) -> None:
-        self._auth_token = auth_token
+    def __init__(self, token_holder: TokenHolder) -> None:
+        self._token_holder = token_holder
 
     async def intercept_unary_unary(
         self,
@@ -155,7 +159,7 @@ class AsyncUnaryUnaryAuthInterceptor(grpc.aio.UnaryUnaryClientInterceptor):
         new_details = grpc.aio.ClientCallDetails(
             method=client_call_details.method,
             timeout=client_call_details.timeout,
-            metadata=_inject_auth_metadata(client_call_details.metadata, self._auth_token),
+            metadata=_inject_auth_metadata(client_call_details.metadata, self._token_holder),
             credentials=client_call_details.credentials,
             wait_for_ready=client_call_details.wait_for_ready,
         )
@@ -168,8 +172,8 @@ class AsyncUnaryStreamAuthInterceptor(grpc.aio.UnaryStreamClientInterceptor):
     This interceptor is CRITICAL for SubscribeToEvents, SubscribeToRequests, etc.
     """
 
-    def __init__(self, auth_token: str | None = None) -> None:
-        self._auth_token = auth_token
+    def __init__(self, token_holder: TokenHolder) -> None:
+        self._token_holder = token_holder
 
     async def intercept_unary_stream(
         self,
@@ -180,7 +184,7 @@ class AsyncUnaryStreamAuthInterceptor(grpc.aio.UnaryStreamClientInterceptor):
         new_details = grpc.aio.ClientCallDetails(
             method=client_call_details.method,
             timeout=client_call_details.timeout,
-            metadata=_inject_auth_metadata(client_call_details.metadata, self._auth_token),
+            metadata=_inject_auth_metadata(client_call_details.metadata, self._token_holder),
             credentials=client_call_details.credentials,
             wait_for_ready=client_call_details.wait_for_ready,
         )
@@ -190,8 +194,8 @@ class AsyncUnaryStreamAuthInterceptor(grpc.aio.UnaryStreamClientInterceptor):
 class AsyncStreamUnaryAuthInterceptor(grpc.aio.StreamUnaryClientInterceptor):
     """Async interceptor for stream-unary calls (queue send batch)."""
 
-    def __init__(self, auth_token: str | None = None) -> None:
-        self._auth_token = auth_token
+    def __init__(self, token_holder: TokenHolder) -> None:
+        self._token_holder = token_holder
 
     async def intercept_stream_unary(
         self,
@@ -202,7 +206,7 @@ class AsyncStreamUnaryAuthInterceptor(grpc.aio.StreamUnaryClientInterceptor):
         new_details = grpc.aio.ClientCallDetails(
             method=client_call_details.method,
             timeout=client_call_details.timeout,
-            metadata=_inject_auth_metadata(client_call_details.metadata, self._auth_token),
+            metadata=_inject_auth_metadata(client_call_details.metadata, self._token_holder),
             credentials=client_call_details.credentials,
             wait_for_ready=client_call_details.wait_for_ready,
         )
@@ -215,8 +219,8 @@ class AsyncStreamStreamAuthInterceptor(grpc.aio.StreamStreamClientInterceptor):
     This interceptor is CRITICAL for QueuesUpstream and QueuesDownstream.
     """
 
-    def __init__(self, auth_token: str | None = None) -> None:
-        self._auth_token = auth_token
+    def __init__(self, token_holder: TokenHolder) -> None:
+        self._token_holder = token_holder
 
     async def intercept_stream_stream(
         self,
@@ -227,7 +231,7 @@ class AsyncStreamStreamAuthInterceptor(grpc.aio.StreamStreamClientInterceptor):
         new_details = grpc.aio.ClientCallDetails(
             method=client_call_details.method,
             timeout=client_call_details.timeout,
-            metadata=_inject_auth_metadata(client_call_details.metadata, self._auth_token),
+            metadata=_inject_auth_metadata(client_call_details.metadata, self._token_holder),
             credentials=client_call_details.credentials,
             wait_for_ready=client_call_details.wait_for_ready,
         )

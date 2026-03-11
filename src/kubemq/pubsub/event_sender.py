@@ -10,6 +10,8 @@ from kubemq.common import decode_grpc_error
 from kubemq.grpc import Event, Result
 from kubemq.transport import Connection, Transport
 
+DEFAULT_SEND_QUEUE_SIZE = 10_000
+
 
 class EventSender:
     """
@@ -40,6 +42,8 @@ class EventSender:
         shutdown_event: threading.Event,
         logger: logging.Logger,
         connection: Connection,
+        *,
+        max_queue_size: int = DEFAULT_SEND_QUEUE_SIZE,
     ):
         self.clientStub = transport.kubemq_client()
         self.connection = connection
@@ -47,7 +51,7 @@ class EventSender:
         self.logger = logger
         self.lock = threading.Lock()
         self.response_tracking = {}
-        self.sending_queue = queue.Queue()
+        self.sending_queue: queue.Queue[Event] = queue.Queue(maxsize=max_queue_size)
         self.allow_new_messages = True
         threading.Thread(target=self.send_events_stream, args=(), daemon=True).start()
 
@@ -56,7 +60,27 @@ class EventSender:
             raise ConnectionError("Client is not connected to the server and cannot send messages.")
 
         if not event.Store:
-            self.sending_queue.put(event)
+            maxsize = self.sending_queue.maxsize
+            if maxsize > 0:
+                current = self.sending_queue.qsize()
+                utilization = current / maxsize
+                if utilization >= 0.9:
+                    self.logger.warning(
+                        "Send queue at %.0f%% capacity (%d/%d)",
+                        utilization * 100,
+                        current,
+                        maxsize,
+                    )
+            try:
+                self.sending_queue.put_nowait(event)
+            except queue.Full:
+                from kubemq.core.exceptions import KubeMQBufferFullError
+
+                raise KubeMQBufferFullError(
+                    "Event send queue is full. The server may be slow or "
+                    "disconnected. Reduce send rate or increase max_send_queue_size.",
+                    buffer_size=self.sending_queue.maxsize,
+                ) from None
             return None
         response_event = threading.Event()
         response_container = {}

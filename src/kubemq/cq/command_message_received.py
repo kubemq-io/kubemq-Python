@@ -6,6 +6,13 @@ from kubemq.grpc import Request as pbRequest
 
 
 class CommandMessageReceived(BaseModel):
+    """Received command message from a subscription.
+
+    Thread Safety:
+        Instances are safe to read from multiple threads or asyncio
+        tasks after receipt. Do not modify fields after receiving.
+    """
+
     id: str = Field(default="")
     from_client_id: str = Field(default="")
     timestamp: datetime = Field(default_factory=datetime.now)
@@ -15,7 +22,7 @@ class CommandMessageReceived(BaseModel):
     reply_channel: str = Field(default="")
     tags: dict[str, str] = Field(default_factory=dict)
 
-    model_config = {"arbitrary_types_allowed": True}
+    model_config = {"arbitrary_types_allowed": True, "frozen": True}
 
     @classmethod
     def decode(cls, command_receive: pbRequest) -> "CommandMessageReceived":

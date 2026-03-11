@@ -1,3 +1,9 @@
+"""Legacy common module — import from kubemq package directly.
+
+All public types are available from ``import kubemq`` or ``from kubemq import ...``.
+Direct imports from ``kubemq.common.*`` are deprecated and may be removed in v5.0.
+"""
+
 from .async_cancellation_token import AsyncCancellationToken, CancellationTokenBridge
 from .cancellation_token import CancellationToken
 from .channel_stats import (

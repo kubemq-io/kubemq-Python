@@ -8,6 +8,8 @@ from grpc import Channel
 from grpc._cython.cygrpc import ChannelCredentials
 
 import kubemq.grpc.kubemq_pb2_grpc as kubemq_pb2_grpc
+from kubemq._internal.auth import TokenHolder
+from kubemq._internal.compat import check_server_compatibility
 from kubemq.grpc import Empty
 from kubemq.transport.channel_manager import ChannelManager
 from kubemq.transport.connection import Connection
@@ -87,15 +89,29 @@ class SyncTransport:
         self._is_connected: bool = False
         self._logger = logging.getLogger("KubeMQ")
         self._channel_manager: ChannelManager | None = None
+        self._token_holder = TokenHolder(self._opts.auth_token or None)
 
     def initialize(self) -> "SyncTransport":
         try:
+            if not self._opts.tls.enabled:
+                self._logger.warning(
+                    "Using insecure connection to %s — TLS is disabled. "
+                    "Set tls=TLSConfig(enabled=True, ...) for encrypted communication.",
+                    self._opts.address,
+                )
             # Initialize the channel manager
-            self._channel_manager = ChannelManager(self._opts, self._logger)
+            self._channel_manager = ChannelManager(
+                self._opts, self._logger, token_holder=self._token_holder
+            )
             self._client = self._channel_manager.get_client()
             with self._is_connected_lock:
                 self._is_connected = True
             self._initialize_async()
+            try:
+                server_info = self.ping()
+                check_server_compatibility(server_info.version, self._logger)
+            except Exception:
+                self._logger.debug("Could not verify server version during initialization")
         except Exception as ex:
             with self._is_connected_lock:
                 self._is_connected = False
@@ -103,7 +119,7 @@ class SyncTransport:
         return self
 
     def _initialize_async(self) -> None:
-        auth_interceptor_async: AuthInterceptorsAsync = AuthInterceptorsAsync(self._opts.auth_token)
+        auth_interceptor_async: AuthInterceptorsAsync = AuthInterceptorsAsync(self._token_holder)
         interceptors_async: Sequence[grpc.aio.ClientInterceptor] = [auth_interceptor_async]
         if self._opts.tls.enabled:
             try:
@@ -165,6 +181,14 @@ class SyncTransport:
         self._logger.error("Channel manager not initialized, cannot recreate channel")
         raise ConnectionError("Channel manager not initialized, cannot recreate channel")
 
+    def set_token(self, token: str) -> None:
+        """Update the auth token without reconnecting.
+
+        The new token takes effect on the next gRPC call.
+        Thread-safe: can be called from any thread.
+        """
+        self._token_holder.token = token
+
     async def close_async(self) -> None:
         """Close the transport asynchronously."""
         if self._channel_manager:
@@ -192,8 +216,11 @@ class SyncTransport:
                 self._async_channel = None
                 self._async_client = None
             except RuntimeError:
-                # Not in async context - safe to use run_until_complete
-                asyncio.get_event_loop().run_until_complete(self._async_channel.close())
+                loop = asyncio.new_event_loop()
+                try:
+                    loop.run_until_complete(self._async_channel.close())
+                finally:
+                    loop.close()
                 self._async_channel = None
                 self._async_client = None
 

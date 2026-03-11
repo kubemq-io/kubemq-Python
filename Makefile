@@ -1,6 +1,6 @@
 .PHONY: help all clean test install-dependencies install-git-hooks format format-check lint lint-check \
         typecheck-fast typecheck-strict typecheck-all security-check \
-        test-unit test-unit-cov test-integration test-all quality quality-check
+        test-unit test-unit-cov test-integration test-all quality quality-check benchmark
 
 # ==============================================================================
 # HELP
@@ -40,6 +40,7 @@ help:
 	@echo "  test-unit-cov         Run unit tests with coverage (60% min)"
 	@echo "  test-integration      Run integration tests"
 	@echo "  test-all              Run all tests (unit + integration)"
+	@echo "  benchmark             Run performance benchmarks (requires KUBEMQ_BENCHMARK_ADDRESS)"
 
 # ==============================================================================
 # STANDARD TARGETS
@@ -132,6 +133,17 @@ test-integration:
 	uv run pytest tests/integration/
 
 test-all: test-unit test-integration
+
+benchmark:  ## Run performance benchmarks (requires KUBEMQ_BENCHMARK_ADDRESS)
+	@echo "▶ Running performance benchmarks..."
+	KUBEMQ_BENCHMARK_ADDRESS=$${KUBEMQ_BENCHMARK_ADDRESS:-localhost:50000} \
+	uv run pytest tests/benchmarks/ \
+		-v \
+		--benchmark-enable \
+		--benchmark-sort=mean \
+		--benchmark-save=baseline \
+		--benchmark-save-data \
+		-m "benchmark and integration"
 
 # ==============================================================================
 # COMBINED TARGETS

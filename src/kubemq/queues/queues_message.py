@@ -12,8 +12,7 @@ from kubemq.grpc import (
 
 
 class QueueMessage(BaseModel):
-    """
-    A class representing a message in a KubeMQ queue.
+    """A class representing a message in a KubeMQ queue.
 
     This class encapsulates all the properties of a message that can be sent to a KubeMQ queue.
     It provides methods for validation, encoding to protobuf format, and creating messages
@@ -28,6 +27,11 @@ class QueueMessage(BaseModel):
         delay_in_seconds: Time in seconds to delay the message before it becomes available.
         expiration_in_seconds: Time in seconds after which the message expires.
         attempts_before_dead_letter_queue: Maximum number of receive attempts before moving to DLQ.
+
+    Thread Safety:
+        This class is **not** thread-safe. Create a new instance for
+        each send operation. Do not share instances across threads or
+        asyncio tasks.
         dead_letter_queue: The queue where messages are moved after max receive attempts.
 
     Examples:

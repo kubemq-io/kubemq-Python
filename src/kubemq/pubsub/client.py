@@ -9,16 +9,27 @@ from pathlib import Path
 
 import grpc
 
+from kubemq._internal.retry import BackoffCalculator
+from kubemq._internal.telemetry import KubeMQTagsCarrier, create_link_from_context, error_code_to_error_type
 from kubemq.common.cancellation_token import CancellationToken
 from kubemq.common.channel_stats import PubSubChannel
 from kubemq.common.helpers import decode_grpc_error
+from pydantic import ValidationError
+
+from kubemq.core.exceptions import (
+    KubeMQHandlerError,
+    KubeMQStreamBrokenError,
+    KubeMQValidationError,
+    from_grpc_error as convert_grpc_error,
+)
 from kubemq.common.requests import (
     create_channel_request,
     delete_channel_request,
     list_pubsub_channels,
 )
 from kubemq.core import BaseClient, ClientConfig
-from kubemq.core.compat import deprecated_async_method, run_in_thread
+from kubemq._internal.deprecation import deprecated, deprecated_async
+from kubemq.core.compat import run_in_thread
 from kubemq.core.config import KeepAliveConfig, TLSConfig
 from kubemq.pubsub.event_message import EventMessage
 from kubemq.pubsub.event_message_received import EventMessageReceived
@@ -62,6 +73,10 @@ class Client(BaseClient):
             client.send_events_message(...)
         finally:
             client.close()
+
+    Thread Safety:
+        This class is thread-safe. Share across threads. One instance
+        per application recommended.
     """
 
     def __init__(
@@ -167,7 +182,7 @@ class Client(BaseClient):
         if self._transport is not None:
             await self._transport.close_async()
 
-    @deprecated_async_method("AsyncPubSubClient.ping")
+    @deprecated_async(replacement="AsyncPubSubClient.ping()", since="4.0.0", removal="5.0.0")
     async def ping_async(self) -> ServerInfo:
         """Asynchronous version of ping().
 
@@ -197,33 +212,134 @@ class Client(BaseClient):
                     self._shutdown_event,
                     self._logger,
                     self.connection,
+                    max_queue_size=self._config.max_send_queue_size,
                 )
             return self._event_sender
 
-    # Event methods
+    # Event methods — GS-aligned verbs
+
+    def _publish_event_impl(self, message: EventMessage) -> None:
+        """Internal implementation for event publishing."""
+        self._validate_message_size(message.body)
+        start = time.perf_counter()
+        error_type_val = None
+        with self._instrumentor.start_span("publish", message.channel) as span:
+            try:
+                pb_event = message.encode(self._config.client_id or "")
+                tags_dict = dict(pb_event.Tags)
+                KubeMQTagsCarrier(tags_dict).inject()
+                pb_event.Tags.update(tags_dict)
+                if span.is_recording():
+                    from kubemq._internal.semconv import (
+                        MESSAGING_MESSAGE_BODY_SIZE,
+                        MESSAGING_MESSAGE_ID,
+                    )
+                    span.set_attribute(MESSAGING_MESSAGE_ID, message.id)
+                    span.set_attribute(MESSAGING_MESSAGE_BODY_SIZE, len(message.body))
+                sender = self._get_event_sender()
+                sender.send(pb_event)
+                self._instrumentor._metrics.record_sent_message("publish", message.channel)
+            except ValidationError as e:
+                error_type_val = "validation"
+                self._instrumentor.record_error(span, e, error_type_val)
+                raise KubeMQValidationError(str(e), is_retryable=False) from e
+            except Exception as e:
+                error_type_val = error_code_to_error_type(getattr(e, "code", None))
+                self._instrumentor.record_error(span, e, error_type_val)
+                raise
+            finally:
+                duration = time.perf_counter() - start
+                self._instrumentor._metrics.record_operation_duration(
+                    duration, "publish", message.channel, error_type_val
+                )
+
+    def publish_event(self, message: EventMessage) -> None:
+        """Publish an event message (fire-and-forget).
+
+        Args:
+            message: The event message to publish.
+        """
+        self._publish_event_impl(message)
+
+    @deprecated(replacement="publish_event()", since="4.0.0", removal="5.0.0")
     def send_events_message(self, message: EventMessage) -> None:
         """Send an event message.
+
+        Deprecated:
+            Use ``publish_event()`` instead. Will be removed in v5.0.
 
         Args:
             message: The event message to send
         """
-        sender = self._get_event_sender()
-        sender.send(message.encode(self._config.client_id or ""))
+        self._publish_event_impl(message)
 
-    @deprecated_async_method("AsyncPubSubClient.send_event")
+    @deprecated_async(replacement="AsyncPubSubClient.publish_event()", since="4.0.0", removal="5.0.0")
     async def send_events_message_async(self, message: EventMessage) -> None:
         """Send an event message asynchronously.
 
         Deprecated:
-            Use `AsyncPubSubClient.send_event()` for native async support.
+            Use ``AsyncPubSubClient.publish_event()`` for native async support.
 
         Args:
             message: The event message to send
         """
-        await run_in_thread(self.send_events_message, message)
+        await run_in_thread(self._publish_event_impl, message)
 
+    def _publish_event_store_impl(self, message: EventStoreMessage) -> EventSendResult:
+        """Internal implementation for event store publishing."""
+        self._validate_message_size(message.body)
+        start = time.perf_counter()
+        error_type_val = None
+        with self._instrumentor.start_span("publish", message.channel) as span:
+            try:
+                pb_event = message.encode(self._config.client_id or "")
+                tags_dict = dict(pb_event.Tags)
+                KubeMQTagsCarrier(tags_dict).inject()
+                pb_event.Tags.update(tags_dict)
+                if span.is_recording():
+                    from kubemq._internal.semconv import (
+                        MESSAGING_MESSAGE_BODY_SIZE,
+                        MESSAGING_MESSAGE_ID,
+                    )
+                    span.set_attribute(MESSAGING_MESSAGE_ID, message.id)
+                    span.set_attribute(MESSAGING_MESSAGE_BODY_SIZE, len(message.body))
+                sender = self._get_event_sender()
+                result = sender.send(pb_event)
+                self._instrumentor._metrics.record_sent_message("publish", message.channel)
+                if result is not None:
+                    return EventSendResult().decode(result)
+                return EventSendResult()
+            except ValidationError as e:
+                error_type_val = "validation"
+                self._instrumentor.record_error(span, e, error_type_val)
+                raise KubeMQValidationError(str(e), is_retryable=False) from e
+            except Exception as e:
+                error_type_val = error_code_to_error_type(getattr(e, "code", None))
+                self._instrumentor.record_error(span, e, error_type_val)
+                raise
+            finally:
+                duration = time.perf_counter() - start
+                self._instrumentor._metrics.record_operation_duration(
+                    duration, "publish", message.channel, error_type_val
+                )
+
+    def publish_event_store(self, message: EventStoreMessage) -> EventSendResult:
+        """Publish a persistent event store message.
+
+        Args:
+            message: The event store message to publish.
+
+        Returns:
+            EventSendResult with the send operation result.
+        """
+        return self._publish_event_store_impl(message)
+
+    @deprecated(replacement="publish_event_store()", since="4.0.0", removal="5.0.0")
     def send_events_store_message(self, message: EventStoreMessage) -> EventSendResult:
         """Send an event store message.
+
+        Deprecated:
+            Use ``publish_event_store()`` instead. Will be removed in v5.0.
 
         Args:
             message: The event store message to send
@@ -231,19 +347,14 @@ class Client(BaseClient):
         Returns:
             EventSendResult with the send operation result
         """
-        sender = self._get_event_sender()
-        result = sender.send(message.encode(self._config.client_id or ""))
-        if result is not None:
-            return EventSendResult().decode(result)
-        # Return empty result if no response (shouldn't happen for store messages)
-        return EventSendResult()
+        return self._publish_event_store_impl(message)
 
-    @deprecated_async_method("AsyncPubSubClient.send_event_store")
+    @deprecated_async(replacement="AsyncPubSubClient.publish_event_store()", since="4.0.0", removal="5.0.0")
     async def send_events_store_message_async(self, message: EventStoreMessage) -> EventSendResult:
         """Send an event store message asynchronously.
 
         Deprecated:
-            Use `AsyncPubSubClient.send_event_store()` for native async support.
+            Use ``AsyncPubSubClient.publish_event_store()`` for native async support.
 
         Args:
             message: The event store message to send
@@ -251,7 +362,7 @@ class Client(BaseClient):
         Returns:
             EventSendResult with the send operation result
         """
-        return await run_in_thread(self.send_events_store_message, message)
+        return await run_in_thread(self._publish_event_store_impl, message)
 
     # Channel management methods
     def create_events_channel(self, channel: str) -> bool | None:
@@ -405,6 +516,19 @@ class Client(BaseClient):
         Args:
             subscription: The subscription configuration
             cancel: Optional cancellation token
+
+        Cancellation:
+            Pass a ``CancellationToken`` to cancel the subscription from
+            another thread. When cancelled, the subscription loop exits
+            cleanly without raising an exception. The background thread
+            terminates and resources are released.
+
+        Callback Concurrency:
+            Messages are delivered sequentially to the subscription's
+            ``on_receive_message`` callback. Only one callback executes
+            at a time per subscription. If you need concurrent processing,
+            dispatch work to a ``concurrent.futures.ThreadPoolExecutor``
+            within your callback.
         """
         self._subscribe(subscription, cancel)
 
@@ -416,6 +540,16 @@ class Client(BaseClient):
         Args:
             subscription: The subscription configuration
             cancel: Optional cancellation token
+
+        Cancellation:
+            Pass a ``CancellationToken`` to cancel the subscription from
+            another thread. When cancelled, the subscription loop exits
+            cleanly without raising an exception.
+
+        Callback Concurrency:
+            Messages are delivered sequentially to the subscription's
+            ``on_receive_message`` callback. Only one callback executes
+            at a time per subscription.
         """
         self._subscribe(subscription, cancel)
 
@@ -432,30 +566,31 @@ class Client(BaseClient):
         cancel_token_event = cancel.event
         transport = self._transport  # Capture for lambda
         client_id = self._config.client_id or ""
+        channel = subscription.channel
         args: tuple = ()
         if isinstance(subscription, EventsStoreSubscription):
             args = (
-                lambda: transport.kubemq_client().SubscribeToEvents(
-                    subscription.encode(client_id)
-                ),
+                lambda: transport.kubemq_client().SubscribeToEvents(subscription.encode(client_id)),
                 lambda message: subscription.raise_on_receive_message(
                     EventStoreMessageReceived().decode(message)
                 ),
                 lambda error: subscription.raise_on_error(error),
                 cancel_token_event,
+                channel,
             )
         if isinstance(subscription, EventsSubscription):
             args = (
-                lambda: transport.kubemq_client().SubscribeToEvents(
-                    subscription.encode(client_id)
-                ),
+                lambda: transport.kubemq_client().SubscribeToEvents(subscription.encode(client_id)),
                 lambda message: subscription.raise_on_receive_message(
                     EventMessageReceived().decode(message)
                 ),
                 lambda error: subscription.raise_on_error(error),
                 cancel_token_event,
+                channel,
             )
-        threading.Thread(target=self._subscribe_task, args=args, daemon=True).start()
+        thread = threading.Thread(target=self._subscribe_task, args=args, daemon=True)
+        self._register_subscription_thread(thread)
+        thread.start()
 
     def _subscribe_task(
         self,
@@ -463,22 +598,76 @@ class Client(BaseClient):
         decode_callable,
         error_callable,
         cancel_token: threading.Event,
+        channel: str = "",
     ) -> None:
-        """Background subscription task."""
+        """Background subscription task with exponential backoff on stream breaks."""
+        backoff = BackoffCalculator(self._config.retry_policy)
+        attempt = 0
+
         while not cancel_token.is_set() and not self._shutdown_event.is_set():
             try:
                 response = stream_callable()
                 for message in response:
                     if cancel_token.is_set():
                         break
-                    decode_callable(message)
+                    attempt = 0
+                    start = time.perf_counter()
+                    error_type_val = None
+                    tags_dict = dict(message.Tags) if hasattr(message, "Tags") else {}
+                    carrier = KubeMQTagsCarrier(tags_dict)
+                    parent_ctx = carrier.extract()
+                    links = []
+                    link = create_link_from_context(parent_ctx)
+                    if link is not None:
+                        links.append(link)
+                    with self._instrumentor.start_span(
+                        "process", channel, links=links or None
+                    ) as span:
+                        try:
+                            decode_callable(message)
+                            self._instrumentor._metrics.record_consumed_message(
+                                "process", channel
+                            )
+                        except Exception as handler_err:
+                            error_type_val = error_code_to_error_type(
+                                getattr(handler_err, "code", None)
+                            )
+                            self._instrumentor.record_error(
+                                span, handler_err, error_type_val
+                            )
+                            handler_error = KubeMQHandlerError(
+                                f"Message handler raised {type(handler_err).__name__}: {handler_err}",
+                                cause=handler_err,
+                                operation="MessageHandler",
+                            )
+                            error_callable(str(handler_error))
+                        finally:
+                            duration = time.perf_counter() - start
+                            self._instrumentor._metrics.record_operation_duration(
+                                duration, "process", channel, error_type_val
+                            )
             except grpc.RpcError as e:
-                error_callable(decode_grpc_error(e))
-                time.sleep(self._config.reconnect_interval_seconds)
+                sdk_error = convert_grpc_error(e, operation="Subscribe")
+                stream_error = KubeMQStreamBrokenError(
+                    f"Stream broken: {sdk_error.message}",
+                    operation=sdk_error.operation,
+                    channel=sdk_error.channel,
+                    cause=e,
+                )
+                error_callable(str(stream_error))
+
+                if not sdk_error.is_retryable:
+                    break
+
+                delay = backoff.delay_seconds(attempt)
+                attempt += 1
+                cancel_token.wait(timeout=delay)
                 continue
             except Exception as e:
                 error_callable(decode_grpc_error(e))
-                time.sleep(self._config.reconnect_interval_seconds)
+                delay = backoff.delay_seconds(attempt)
+                attempt += 1
+                cancel_token.wait(timeout=delay)
                 continue
 
     # Async subscription methods
@@ -527,28 +716,27 @@ class Client(BaseClient):
         cancel_token_event = cancel.event
         transport = self._transport  # Capture for lambda
         client_id = self._config.client_id or ""
+        channel = subscription.channel
         args: tuple = ()
         if isinstance(subscription, EventsStoreSubscription):
             args = (
-                lambda: transport.kubemq_client().SubscribeToEvents(
-                    subscription.encode(client_id)
-                ),
+                lambda: transport.kubemq_client().SubscribeToEvents(subscription.encode(client_id)),
                 lambda message: subscription.raise_on_receive_message_async(
                     EventStoreMessageReceived().decode(message)
                 ),
                 lambda error: subscription.raise_on_error_async(error),
                 cancel_token_event,
+                channel,
             )
         if isinstance(subscription, EventsSubscription):
             args = (
-                lambda: transport.kubemq_client().SubscribeToEvents(
-                    subscription.encode(client_id)
-                ),
+                lambda: transport.kubemq_client().SubscribeToEvents(subscription.encode(client_id)),
                 lambda message: subscription.raise_on_receive_message_async(
                     EventMessageReceived().decode(message)
                 ),
                 lambda error: subscription.raise_on_error_async(error),
                 cancel_token_event,
+                channel,
             )
         return asyncio.create_task(self._subscribe_task_async(*args))  # type: ignore[arg-type]
 
@@ -558,28 +746,77 @@ class Client(BaseClient):
         decode_callable,
         error_callable,
         cancel_token: threading.Event,
+        channel: str = "",
     ):
-        """Async version of subscription task that supports async callbacks."""
+        """Async version of subscription task with exponential backoff."""
+        backoff = BackoffCalculator(self._config.retry_policy)
+        attempt = 0
+
         while not cancel_token.is_set() and not self._shutdown_event.is_set():
             try:
-                # Run the gRPC stream creation and iteration in a thread to avoid blocking
                 response = await asyncio.to_thread(stream_callable)
 
-                # Process messages from the stream
                 while not cancel_token.is_set() and not self._shutdown_event.is_set():
                     try:
-                        # Read next message from stream in a thread to avoid blocking
                         message = await asyncio.to_thread(next, response)
-                        # Await the decode callable which handles both sync and async callbacks
-                        await decode_callable(message)
+                        attempt = 0
+                        start = time.perf_counter()
+                        error_type_val = None
+                        tags_dict = dict(message.Tags) if hasattr(message, "Tags") else {}
+                        carrier = KubeMQTagsCarrier(tags_dict)
+                        parent_ctx = carrier.extract()
+                        links = []
+                        link = create_link_from_context(parent_ctx)
+                        if link is not None:
+                            links.append(link)
+                        with self._instrumentor.start_span(
+                            "process", channel, links=links or None
+                        ) as span:
+                            try:
+                                await decode_callable(message)
+                                self._instrumentor._metrics.record_consumed_message(
+                                    "process", channel
+                                )
+                            except Exception as handler_err:
+                                error_type_val = error_code_to_error_type(
+                                    getattr(handler_err, "code", None)
+                                )
+                                self._instrumentor.record_error(
+                                    span, handler_err, error_type_val
+                                )
+                                handler_error = KubeMQHandlerError(
+                                    f"Message handler raised {type(handler_err).__name__}: {handler_err}",
+                                    cause=handler_err,
+                                    operation="MessageHandler",
+                                )
+                                await error_callable(str(handler_error))
+                            finally:
+                                duration = time.perf_counter() - start
+                                self._instrumentor._metrics.record_operation_duration(
+                                    duration, "process", channel, error_type_val
+                                )
                     except StopIteration:
-                        # Stream ended, break inner loop to reconnect
                         break
             except grpc.RpcError as e:
-                await error_callable(decode_grpc_error(e))
-                await asyncio.sleep(self._config.reconnect_interval_seconds)
+                sdk_error = convert_grpc_error(e, operation="Subscribe")
+                stream_error = KubeMQStreamBrokenError(
+                    f"Stream broken: {sdk_error.message}",
+                    operation=sdk_error.operation,
+                    channel=sdk_error.channel,
+                    cause=e,
+                )
+                await error_callable(str(stream_error))
+
+                if not sdk_error.is_retryable:
+                    break
+
+                delay = backoff.delay_seconds(attempt)
+                attempt += 1
+                await asyncio.sleep(delay)
                 continue
             except Exception as e:
                 await error_callable(decode_grpc_error(e))
-                await asyncio.sleep(self._config.reconnect_interval_seconds)
+                delay = backoff.delay_seconds(attempt)
+                attempt += 1
+                await asyncio.sleep(delay)
                 continue

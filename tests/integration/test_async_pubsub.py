@@ -30,18 +30,6 @@ pytestmark = pytest.mark.integration
 KUBEMQ_ADDRESS = "localhost:50000"
 
 
-@pytest.fixture
-def unique_channel() -> str:
-    """Generate a unique channel name for test isolation."""
-    return f"test-channel-{uuid.uuid4().hex[:8]}"
-
-
-@pytest.fixture
-def unique_client_id() -> str:
-    """Generate a unique client ID."""
-    return f"test-client-{uuid.uuid4().hex[:8]}"
-
-
 class TestAsyncPubSubClientConnection:
     """Integration tests for connection handling."""
 

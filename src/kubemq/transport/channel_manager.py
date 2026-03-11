@@ -1,6 +1,9 @@
+from __future__ import annotations
+
 import logging
 import threading
 import time
+from typing import TYPE_CHECKING
 
 import grpc
 
@@ -9,6 +12,9 @@ from kubemq.grpc import Empty
 from kubemq.transport.connection import Connection
 from kubemq.transport.interceptors import AuthInterceptors
 from kubemq.transport.tls_config import TlsConfig
+
+if TYPE_CHECKING:
+    from kubemq._internal.auth import TokenHolder
 
 
 def _get_ssl_credentials(tls_config: TlsConfig):
@@ -50,7 +56,12 @@ class ChannelManager:
     This class coordinates channel access and recreation across multiple components.
     """
 
-    def __init__(self, connection: Connection, logger: logging.Logger):
+    def __init__(
+        self,
+        connection: Connection,
+        logger: logging.Logger,
+        token_holder: TokenHolder | None = None,
+    ) -> None:
         self._opts = connection.complete()
         self._connection = connection
         self._channel = None
@@ -59,13 +70,24 @@ class ChannelManager:
         self.connection_state = ConnectionState()
         self.logger = logger
         self._registered_clients = []
+        self._token_holder = token_holder
         self._initialize_channel()
+
+    def _build_auth_interceptor(self) -> AuthInterceptors:
+        """Build an auth interceptor using TokenHolder if available."""
+        if self._token_holder is not None:
+            return AuthInterceptors(self._token_holder)
+        from kubemq._internal.auth import TokenHolder as _TH
+
+        holder = _TH(self._opts.auth_token or None)
+        self._token_holder = holder
+        return AuthInterceptors(holder)
 
     def _initialize_channel(self):
         """Initialize the gRPC channel and client stub"""
         with self._channel_lock:
             try:
-                auth_interceptor = AuthInterceptors(self._opts.auth_token)
+                auth_interceptor = self._build_auth_interceptor()
                 interceptors = [auth_interceptor]
                 credentials = (
                     _get_ssl_credentials(self._opts.tls) if self._opts.tls.enabled else None
@@ -151,7 +173,7 @@ class ChannelManager:
 
             # Recreate channel with existing credentials and options
             try:
-                auth_interceptor = AuthInterceptors(self._opts.auth_token)
+                auth_interceptor = self._build_auth_interceptor()
                 interceptors = [auth_interceptor]
                 credentials = (
                     _get_ssl_credentials(self._opts.tls) if self._opts.tls.enabled else None

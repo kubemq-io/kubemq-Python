@@ -14,6 +14,8 @@ from kubemq.grpc import (
 )
 from kubemq.transport import Connection, Transport
 
+DEFAULT_RECEIVE_QUEUE_SIZE = 10_000
+
 
 class DownstreamReceiver:
     """
@@ -53,6 +55,8 @@ class DownstreamReceiver:
         logger: logging.Logger,
         connection: Connection,
         timeout_buffer: float = 0.5,
+        *,
+        max_queue_size: int = DEFAULT_RECEIVE_QUEUE_SIZE,
     ):
         """Initialize a new DownstreamReceiver.
 
@@ -60,10 +64,8 @@ class DownstreamReceiver:
             transport: The transport object for channel management
             logger: The logger for logging messages
             connection: The connection to the server
-            queue_size: Maximum size of the request queue (0 for unlimited)
-            queue_timeout: Timeout in seconds for queue polling
-            request_sleep_interval: Sleep interval in seconds between requests (0 to disable)
             timeout_buffer: Timeout buffer in seconds for request timeouts
+            max_queue_size: Maximum size of the request queue.
         """
         self.transport = transport
         self.clientStub = transport.kubemq_client()
@@ -72,7 +74,9 @@ class DownstreamReceiver:
         self.logger = logger
         self.lock = threading.Lock()
         self.response_tracking = {}
-        self.queue = queue.Queue()
+        self.queue: queue.Queue[QueuesDownstreamRequest | None] = queue.Queue(
+            maxsize=max_queue_size
+        )
         self.allow_new_requests = True
         self.timeout_buffer = timeout_buffer
         threading.Thread(target=self._send_queue_stream, args=(), daemon=True).start()
@@ -104,7 +108,27 @@ class DownstreamReceiver:
                     response_container,
                     response_result,
                 )
-            self.queue.put(request)
+            maxsize = self.queue.maxsize
+            if maxsize > 0:
+                current = self.queue.qsize()
+                utilization = current / maxsize
+                if utilization >= 0.9:
+                    self.logger.warning(
+                        "Receive queue at %.0f%% capacity (%d/%d)",
+                        utilization * 100,
+                        current,
+                        maxsize,
+                    )
+            try:
+                self.queue.put_nowait(request)
+            except queue.Full:
+                from kubemq.core.exceptions import KubeMQBufferFullError
+
+                raise KubeMQBufferFullError(
+                    "Queue receive queue is full. The server may be slow or "
+                    "disconnected. Reduce request rate or increase max_send_queue_size.",
+                    buffer_size=self.queue.maxsize,
+                ) from None
             request_wait_timeout = (request.WaitTimeout / 1000) + self.timeout_buffer
             response_result.wait(request_wait_timeout)
             response = response_container.get("response")  # type: QueuesDownstreamResponse | None
@@ -142,7 +166,16 @@ class DownstreamReceiver:
         if not self.allow_new_requests:
             self.logger.error("Receiver is not ready to accept new requests")
             raise ConnectionError("Receiver is not ready to accept new requests")
-        self.queue.put(request)
+        try:
+            self.queue.put_nowait(request)
+        except queue.Full:
+            from kubemq.core.exceptions import KubeMQBufferFullError
+
+            raise KubeMQBufferFullError(
+                "Queue receive queue is full. The server may be slow or "
+                "disconnected. Reduce request rate or increase max_send_queue_size.",
+                buffer_size=self.queue.maxsize,
+            ) from None
 
     def _handle_disconnection(self) -> None:
         """Handle disconnection from the server.

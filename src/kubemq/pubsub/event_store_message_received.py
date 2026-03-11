@@ -6,6 +6,13 @@ from kubemq.grpc import EventReceive as pbEventReceive
 
 
 class EventStoreMessageReceived(BaseModel):
+    """Received event store message from a subscription.
+
+    Thread Safety:
+        Instances are safe to read from multiple threads or asyncio
+        tasks after receipt. Do not modify fields after receiving.
+    """
+
     id: str = ""
     from_client_id: str = ""
     timestamp: datetime = Field(default_factory=lambda: datetime.fromtimestamp(0))
@@ -33,7 +40,7 @@ class EventStoreMessageReceived(BaseModel):
             tags=tags,
         )
 
-    model_config = ConfigDict(arbitrary_types_allowed=True)
+    model_config = ConfigDict(arbitrary_types_allowed=True, frozen=True)
 
     def model_dump(self, **kwargs):
         dump = super().model_dump(**kwargs)

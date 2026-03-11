@@ -7,16 +7,20 @@ import time
 import uuid
 from pathlib import Path
 
+from kubemq._internal.telemetry import KubeMQTagsCarrier, create_link_from_context, error_code_to_error_type
 from kubemq.common import create_channel_request
 from kubemq.common.channel_stats import QueuesChannel
 from kubemq.common.requests import delete_channel_request, list_queues_channels
+from pydantic import ValidationError
+
 from kubemq.core import BaseClient, ClientConfig
-from kubemq.core.compat import deprecated_async_method, run_in_thread
+from kubemq._internal.deprecation import deprecated, deprecated_async
+from kubemq.core.exceptions import KubeMQValidationError
+from kubemq.core.compat import run_in_thread
 from kubemq.core.config import KeepAliveConfig, TLSConfig
 from kubemq.grpc import (
     QueuesDownstreamRequest,
     QueuesDownstreamRequestType,
-    QueuesDownstreamResponse,
     ReceiveQueueMessagesRequest,
 )
 from kubemq.queues.downstream_receiver import DownstreamReceiver
@@ -63,6 +67,10 @@ class Client(BaseClient):
             result = client.send_queues_message(...)
         finally:
             client.close()
+
+    Thread Safety:
+        This class is thread-safe. Share across threads. One instance
+        per application recommended.
     """
 
     def __init__(
@@ -185,7 +193,7 @@ class Client(BaseClient):
         if self._transport is not None:
             await self._transport.close_async()
 
-    @deprecated_async_method("AsyncQueuesClient.ping")
+    @deprecated_async(replacement="AsyncQueuesClient.ping()", since="4.0.0", removal="5.0.0")
     async def ping_async(self) -> ServerInfo:
         """Asynchronous version of ping().
 
@@ -233,6 +241,7 @@ class Client(BaseClient):
                     self._logger,
                     self.connection,
                     send_timeout=self.send_timeout,
+                    max_queue_size=self._config.max_send_queue_size,
                 )
             return self._upstream_sender
 
@@ -246,11 +255,65 @@ class Client(BaseClient):
                     self._transport,
                     self._logger,
                     self.connection,
+                    max_queue_size=self._config.max_send_queue_size,
                 )
             return self._downstream_receiver
 
+    def _send_queue_message_impl(self, message: QueueMessage) -> QueueSendResult:
+        """Internal implementation for sending a queue message."""
+        self._validate_message_size(message.body)
+        start = time.perf_counter()
+        error_type_val = None
+        with self._instrumentor.start_span("send", message.channel) as span:
+            try:
+                sender = self._get_upstream_sender()
+                pb_message = message.encode_message(self._config.client_id or "")
+                tags_dict = dict(pb_message.Tags)
+                KubeMQTagsCarrier(tags_dict).inject()
+                pb_message.Tags.update(tags_dict)
+                if span.is_recording():
+                    from kubemq._internal.semconv import (
+                        MESSAGING_MESSAGE_BODY_SIZE,
+                        MESSAGING_MESSAGE_ID,
+                    )
+                    span.set_attribute(MESSAGING_MESSAGE_ID, message.id)
+                    span.set_attribute(MESSAGING_MESSAGE_BODY_SIZE, len(message.body))
+                result = sender.send(pb_message)
+                self._instrumentor._metrics.record_sent_message("send", message.channel)
+                if result is None:
+                    return QueueSendResult(is_error=True, error="Send failed - no response")
+                return result
+            except ValidationError as e:
+                error_type_val = "validation"
+                self._instrumentor.record_error(span, e, error_type_val)
+                raise KubeMQValidationError(str(e), is_retryable=False) from e
+            except Exception as e:
+                error_type_val = error_code_to_error_type(getattr(e, "code", None))
+                self._instrumentor.record_error(span, e, error_type_val)
+                raise
+            finally:
+                duration = time.perf_counter() - start
+                self._instrumentor._metrics.record_operation_duration(
+                    duration, "send", message.channel, error_type_val
+                )
+
+    def send_queue_message(self, message: QueueMessage) -> QueueSendResult:
+        """Send a message to a queue.
+
+        Args:
+            message: The message to send.
+
+        Returns:
+            QueueSendResult with the result of the send operation.
+        """
+        return self._send_queue_message_impl(message)
+
+    @deprecated(replacement="send_queue_message()", since="4.0.0", removal="5.0.0")
     def send_queues_message(self, message: QueueMessage) -> QueueSendResult:
         """Send a message to the queues.
+
+        Deprecated:
+            Use ``send_queue_message()`` instead. Will be removed in v5.0.
 
         Args:
             message: The message to send
@@ -258,19 +321,14 @@ class Client(BaseClient):
         Returns:
             QueueSendResult with the result of the send operation
         """
-        sender = self._get_upstream_sender()
-        pb_message = message.encode_message(self._config.client_id or "")
-        result = sender.send(pb_message)
-        if result is None:
-            return QueueSendResult(is_error=True, error="Send failed - no response")
-        return result
+        return self._send_queue_message_impl(message)
 
-    @deprecated_async_method("AsyncQueuesClient.send_queue_message")
+    @deprecated_async(replacement="AsyncQueuesClient.send_queue_message()", since="4.0.0", removal="5.0.0")
     async def send_queues_message_async(self, message: QueueMessage) -> QueueSendResult:
         """Send a message to the queues asynchronously.
 
         Deprecated:
-            Use `AsyncQueuesClient.send_queue_message()` for native async support.
+            Use ``AsyncQueuesClient.send_queue_message()`` for native async support.
 
         Args:
             message: The message to send
@@ -278,7 +336,7 @@ class Client(BaseClient):
         Returns:
             QueueSendResult with the result of the send operation
         """
-        return await run_in_thread(self.send_queues_message, message)
+        return await run_in_thread(self._send_queue_message_impl, message)
 
     def create_queues_channel(self, channel: str) -> bool | None:
         """Create a queues channel.
@@ -346,6 +404,79 @@ class Client(BaseClient):
         """
         return await run_in_thread(self.list_queues_channels, channel_search)
 
+    def _receive_queue_messages_impl(
+        self,
+        channel: str | None = None,
+        max_messages: int = 1,
+        wait_timeout_in_seconds: int = 60,
+        auto_ack: bool = False,
+        visibility_seconds: int = 0,
+    ) -> QueuesPollResponse:
+        """Internal implementation for receiving queue messages."""
+        ch = channel or ""
+        start = time.perf_counter()
+        error_type_val = None
+        with self._instrumentor.start_span("receive", ch) as span:
+            try:
+                receiver = self._get_downstream_receiver()
+                client_id = self._config.client_id or ""
+
+                request = QueuesDownstreamRequest()
+                request.RequestID = str(uuid.uuid4())
+                request.ClientID = client_id
+                request.Channel = ch
+                request.MaxItems = max_messages
+                request.WaitTimeout = wait_timeout_in_seconds * 1000
+                request.AutoAck = auto_ack
+                request.RequestTypeData = QueuesDownstreamRequestType.Get
+                kubemq_response = receiver.send(request)
+                if kubemq_response is None:
+                    return QueuesPollResponse()
+                response = QueuesPollResponse().decode(
+                    response=kubemq_response,
+                    receiver_client_id=client_id,
+                    response_handler=receiver.send_without_response,  # type: ignore[arg-type]
+                    request_visibility_seconds=visibility_seconds,
+                )
+                if response.messages:
+                    for _ in response.messages:
+                        self._instrumentor._metrics.record_consumed_message("receive", ch)
+                return response
+            except Exception as e:
+                error_type_val = error_code_to_error_type(getattr(e, "code", None))
+                self._instrumentor.record_error(span, e, error_type_val)
+                raise
+            finally:
+                duration = time.perf_counter() - start
+                self._instrumentor._metrics.record_operation_duration(
+                    duration, "receive", ch, error_type_val
+                )
+
+    def receive_queue_messages(
+        self,
+        channel: str | None = None,
+        max_messages: int = 1,
+        wait_timeout_in_seconds: int = 60,
+        auto_ack: bool = False,
+        visibility_seconds: int = 0,
+    ) -> QueuesPollResponse:
+        """Receive messages from a queue channel.
+
+        Args:
+            channel: The name of the channel to receive messages from.
+            max_messages: Maximum number of messages to receive.
+            wait_timeout_in_seconds: Timeout in seconds to wait for messages.
+            auto_ack: Whether to automatically acknowledge messages.
+            visibility_seconds: Visibility timeout in seconds for received messages.
+
+        Returns:
+            QueuesPollResponse containing the received messages.
+        """
+        return self._receive_queue_messages_impl(
+            channel, max_messages, wait_timeout_in_seconds, auto_ack, visibility_seconds
+        )
+
+    @deprecated(replacement="receive_queue_messages()", since="4.0.0", removal="5.0.0")
     def receive_queues_messages(
         self,
         channel: str | None = None,
@@ -355,6 +486,9 @@ class Client(BaseClient):
         visibility_seconds: int = 0,
     ) -> QueuesPollResponse:
         """Receive messages from a queues channel.
+
+        Deprecated:
+            Use ``receive_queue_messages()`` instead. Will be removed in v5.0.
 
         Args:
             channel: The name of the channel to receive messages from
@@ -366,28 +500,9 @@ class Client(BaseClient):
         Returns:
             QueuesPollResponse containing the received messages
         """
-        receiver = self._get_downstream_receiver()
-        client_id = self._config.client_id or ""
-
-        request = QueuesDownstreamRequest()
-        request.RequestID = str(uuid.uuid4())
-        request.ClientID = client_id
-        request.Channel = channel or ""
-        request.MaxItems = max_messages
-        request.WaitTimeout = wait_timeout_in_seconds * 1000
-        request.AutoAck = auto_ack
-        request.RequestTypeData = QueuesDownstreamRequestType.Get
-        kubemq_response = receiver.send(request)
-        if kubemq_response is None:
-            return QueuesPollResponse()
-        response = QueuesPollResponse().decode(
-            response=kubemq_response,
-            receiver_client_id=client_id,
-            response_handler=receiver.send_without_response,  # type: ignore[arg-type]
-            request_visibility_seconds=visibility_seconds,
+        return self._receive_queue_messages_impl(
+            channel, max_messages, wait_timeout_in_seconds, auto_ack, visibility_seconds
         )
-
-        return response
 
     async def receive_queues_messages_async(
         self,
@@ -398,6 +513,9 @@ class Client(BaseClient):
         visibility_seconds: int = 0,
     ) -> QueuesPollResponse:
         """Receive messages from a queues channel asynchronously.
+
+        Deprecated:
+            Use ``AsyncQueuesClient.receive_queue_messages()`` for native async support.
 
         Args:
             channel: The name of the channel to receive messages from
@@ -410,7 +528,7 @@ class Client(BaseClient):
             QueuesPollResponse containing the received messages
         """
         return await run_in_thread(
-            self.receive_queues_messages,
+            self._receive_queue_messages_impl,
             channel,
             max_messages,
             wait_timeout_in_seconds,
@@ -463,9 +581,7 @@ class Client(BaseClient):
 
         self._logger.debug(f"Waiting messages count: {len(response.Messages)}")
         for message in response.Messages:
-            waiting_messages.messages.append(
-                QueueMessageWaitingPulled.decode(message, client_id)
-            )
+            waiting_messages.messages.append(QueueMessageWaitingPulled.decode(message, client_id))
 
         return waiting_messages
 
@@ -532,9 +648,7 @@ class Client(BaseClient):
 
         self._logger.debug(f"Pulled messages count: {len(response.Messages)}")
         for message in response.Messages:
-            pulled_messages.messages.append(
-                QueueMessageWaitingPulled.decode(message, client_id)
-            )
+            pulled_messages.messages.append(QueueMessageWaitingPulled.decode(message, client_id))
 
         return pulled_messages
 
