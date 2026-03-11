@@ -140,9 +140,12 @@ class AsyncClient(NativeAsyncBaseClient):
                     )
                     span.set_attribute(MESSAGING_MESSAGE_ID, message.id)
                     span.set_attribute(MESSAGING_MESSAGE_BODY_SIZE, len(message.body))
-                response = await self._transport.send_request(
+                response = await self._retry_executor.execute(
+                    "SendCommand",
+                    self._transport.send_request,
                     pb_request,
                     timeout_seconds=message.timeout_in_seconds,
+                    channel=message.channel,
                 )
                 self._instrumentor._metrics.record_sent_message("send", message.channel)
                 return CommandResponseMessage.decode(response)
@@ -238,9 +241,12 @@ class AsyncClient(NativeAsyncBaseClient):
                     )
                     span.set_attribute(MESSAGING_MESSAGE_ID, message.id)
                     span.set_attribute(MESSAGING_MESSAGE_BODY_SIZE, len(message.body))
-                response = await self._transport.send_request(
+                response = await self._retry_executor.execute(
+                    "SendQuery",
+                    self._transport.send_request,
                     pb_request,
                     timeout_seconds=message.timeout_in_seconds,
+                    channel=message.channel,
                 )
                 self._instrumentor._metrics.record_sent_message("send", message.channel)
                 return QueryResponseMessage.decode(response)
@@ -321,7 +327,12 @@ class AsyncClient(NativeAsyncBaseClient):
         with self._instrumentor.start_span("settle", channel) as span:
             try:
                 pb_response = response.encode(self._config.client_id or "")
-                await self._transport.send_response(pb_response)
+                await self._retry_executor.execute(
+                    "SendResponse",
+                    self._transport.send_response,
+                    pb_response,
+                    channel=channel,
+                )
                 self._instrumentor._metrics.record_sent_message("settle", channel)
             except Exception as e:
                 error_type_val = error_code_to_error_type(getattr(e, "code", None))
