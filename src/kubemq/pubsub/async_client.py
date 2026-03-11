@@ -136,7 +136,12 @@ class AsyncClient(NativeAsyncBaseClient):
                     )
                     span.set_attribute(MESSAGING_MESSAGE_ID, message.id)
                     span.set_attribute(MESSAGING_MESSAGE_BODY_SIZE, len(message.body))
-                await self._transport.send_event(pb_event)
+                await self._retry_executor.execute(
+                    "SendEvent",
+                    self._transport.send_event,
+                    pb_event,
+                    channel=message.channel,
+                )
                 self._instrumentor._metrics.record_sent_message("publish", message.channel)
             except ValidationError as e:
                 error_type_val = "validation"
@@ -188,7 +193,12 @@ class AsyncClient(NativeAsyncBaseClient):
                     )
                     span.set_attribute(MESSAGING_MESSAGE_ID, message.id)
                     span.set_attribute(MESSAGING_MESSAGE_BODY_SIZE, len(message.body))
-                result = await self._transport.send_event(pb_event)
+                result = await self._retry_executor.execute(
+                    "SendEventStore",
+                    self._transport.send_event,
+                    pb_event,
+                    channel=message.channel,
+                )
                 self._instrumentor._metrics.record_sent_message("publish", message.channel)
                 return EventSendResult.decode(result)
             except ValidationError as e:
