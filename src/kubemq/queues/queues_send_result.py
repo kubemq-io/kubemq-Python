@@ -65,6 +65,10 @@ class QueueSendResult(BaseModel):
         description="Indicates if there was an error while sending the message",
     )
     error: str | None = Field(default=None, description="The error message if `is_error` is True")
+    ref_channel: str | None = Field(default=None, description="Reference channel from result")
+    ref_topic: str | None = Field(default=None, description="Reference topic from result")
+    ref_partition: int | None = Field(default=None, description="Reference partition from result")
+    ref_hash: str | None = Field(default=None, description="Reference hash from result")
 
     # Utility methods
     def is_successful(self) -> bool:
@@ -158,6 +162,10 @@ class QueueSendResult(BaseModel):
                 ),
                 is_error=result.IsError if result.IsError else False,
                 error=result.Error if result.Error else None,
+                ref_channel=result.RefChannel if getattr(result, "RefChannel", "") else None,
+                ref_topic=result.RefTopic if getattr(result, "RefTopic", "") else None,
+                ref_partition=result.RefPartition if getattr(result, "RefPartition", 0) else None,
+                ref_hash=result.RefHash if getattr(result, "RefHash", "") else None,
             )
         except Exception as e:
             raise ValueError(f"Failed to decode result: {str(e)}") from e
@@ -197,3 +205,31 @@ class QueueSendResult(BaseModel):
             f"is_error={self.is_error}, "
             f"error={self.error!r})"
         )
+
+
+class QueueBatchSendResult(BaseModel):
+    """Result of a batch send operation via gRPC ``SendQueueMessagesBatch``.
+
+    Surfaces the full server response including the aggregate ``have_errors``
+    flag and ``batch_id`` correlation, in addition to per-message results.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    batch_id: str = Field(description="Server-echoed batch tracking ID")
+    results: list[QueueSendResult] = Field(
+        default_factory=list, description="Per-message send results"
+    )
+    have_errors: bool = Field(
+        default=False,
+        description="True if any message in the batch failed",
+    )
+
+    def __len__(self) -> int:
+        return len(self.results)
+
+    def __iter__(self):
+        return iter(self.results)
+
+    def __getitem__(self, index):
+        return self.results[index]

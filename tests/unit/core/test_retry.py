@@ -504,3 +504,86 @@ class TestRetryThrottling:
         call_count = 0
         result2 = await executor.execute("SendEvent", fail_then_succeed)
         assert result2 == "ok"
+
+
+class TestRetryExecutorSyncExtended:
+    """Extended tests for sync retry executor (lines 256-310)."""
+
+    def test_non_retryable_sync_error_immediate(self):
+        policy = RetryPolicy(max_retries=3, initial_backoff_ms=50, max_backoff_ms=1000)
+        executor = RetryExecutor(policy)
+
+        call_count = 0
+
+        def fail_validation():
+            nonlocal call_count
+            call_count += 1
+            raise KubeMQValidationError("bad", code=ErrorCode.VALIDATION_ERROR)
+
+        with pytest.raises(KubeMQValidationError):
+            executor.execute_sync("TestOp", fail_validation)
+        assert call_count == 1
+
+    def test_unknown_error_sync_max_one_retry(self):
+        policy = RetryPolicy(
+            max_retries=5, initial_backoff_ms=50, max_backoff_ms=1000, jitter=JitterType.NONE
+        )
+        executor = RetryExecutor(policy)
+
+        call_count = 0
+
+        def fail_unknown():
+            nonlocal call_count
+            call_count += 1
+            raise KubeMQError("unknown", code=ErrorCode.UNKNOWN, is_retryable=True)
+
+        with pytest.raises(KubeMQError):
+            executor.execute_sync("TestOp", fail_unknown)
+        assert call_count == 2
+
+    def test_sync_unsafe_deadline_not_retried(self):
+        policy = RetryPolicy(max_retries=3, initial_backoff_ms=50, max_backoff_ms=1000)
+        executor = RetryExecutor(policy)
+
+        call_count = 0
+
+        def fail_timeout():
+            nonlocal call_count
+            call_count += 1
+            raise KubeMQTimeoutError("timeout")
+
+        with pytest.raises(KubeMQTimeoutError) as exc_info:
+            executor.execute_sync("SendQueueMessage", fail_timeout)
+        assert call_count == 1
+        assert exc_info.value.is_retryable is False
+
+    def test_sync_non_kubemq_exception_wrapped(self):
+        policy = RetryPolicy(max_retries=1, initial_backoff_ms=50, max_backoff_ms=1000)
+        executor = RetryExecutor(policy)
+
+        def fail_raw():
+            raise RuntimeError("unexpected sync")
+
+        with pytest.raises(KubeMQError) as exc_info:
+            executor.execute_sync("TestOp", fail_raw, channel="ch")
+        assert exc_info.value.operation == "TestOp"
+        assert isinstance(exc_info.value.cause, RuntimeError)
+
+
+class TestRetryExecutorAsyncElapsedContext:
+    """Test retry exhaustion context with elapsed time (line 221-223)."""
+
+    async def test_exhaustion_has_elapsed(self):
+        policy = RetryPolicy(
+            max_retries=1, initial_backoff_ms=50, max_backoff_ms=1000, jitter=JitterType.NONE
+        )
+        executor = RetryExecutor(policy)
+
+        async def always_fail():
+            raise KubeMQConnectionError(
+                "fail", code=ErrorCode.UNAVAILABLE, is_retryable=True
+            )
+
+        with pytest.raises(KubeMQConnectionError) as exc_info:
+            await executor.execute("Op", always_fail)
+        assert "retry_duration_seconds" in exc_info.value.details

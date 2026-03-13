@@ -91,6 +91,7 @@ class TestQueueMessageReceivedDecode:
         pb_message.Attributes.ReRoutedFromQueue = ""
         pb_message.Attributes.ExpirationAt = 0
         pb_message.Attributes.DelayedTo = 0
+        pb_message.Attributes.MD5OfBody = ""
 
         response_handler = MagicMock()
 
@@ -158,6 +159,7 @@ class TestQueueMessageReceivedDecode:
         pb_message.Attributes.ReRoutedFromQueue = ""
         pb_message.Attributes.ExpirationAt = 0
         pb_message.Attributes.DelayedTo = 0
+        pb_message.Attributes.MD5OfBody = ""
 
         response_handler = MagicMock()
 
@@ -436,3 +438,191 @@ class TestQueueMessageReceivedStr:
         assert "sender" in str_repr
         assert "5" in str_repr
         assert "2" in str_repr
+
+
+class TestQueueMessageReceivedExtendVisibility:
+    """Tests for extend_visibility_timer (lines 152-166)."""
+
+    def test_extend_raises_when_timer_expired(self):
+        msg = QueueMessageReceived(
+            id="msg-exp",
+            channel="q",
+            response_handler=MagicMock(),
+        )
+        msg._timer_expired = True
+        msg._visibility_timer = MagicMock()
+        with pytest.raises(ValueError, match="expired"):
+            msg.extend_visibility_timer(10)
+
+    def test_extend_raises_when_completed(self):
+        msg = QueueMessageReceived(
+            id="msg-comp",
+            channel="q",
+            response_handler=MagicMock(),
+        )
+        msg._message_completed = True
+        msg._visibility_timer = MagicMock()
+        with pytest.raises(ValueError, match="already completed"):
+            msg.extend_visibility_timer(10)
+
+    def test_extend_recalculates_timer(self):
+        import time
+        msg = QueueMessageReceived(
+            id="msg-ext",
+            channel="q",
+            response_handler=MagicMock(),
+            visibility_seconds=60,
+        )
+        msg._start_visibility_timer()
+        try:
+            msg.extend_visibility_timer(30)
+            assert msg._visibility_timer is not None
+            assert msg._visibility_timer.is_alive()
+        finally:
+            if msg._visibility_timer:
+                msg._visibility_timer.cancel()
+
+
+class TestQueueMessageReceivedRemainingVisibility:
+    """Tests for get_remaining_visibility_seconds (lines 207-209)."""
+
+    def test_returns_zero_when_expired(self):
+        msg = QueueMessageReceived(id="m1", channel="q")
+        msg._timer_expired = True
+        msg._visibility_timer = MagicMock()
+        assert msg.get_remaining_visibility_seconds() == 0
+
+    def test_returns_zero_when_completed(self):
+        msg = QueueMessageReceived(id="m1", channel="q")
+        msg._message_completed = True
+        msg._visibility_timer = MagicMock()
+        assert msg.get_remaining_visibility_seconds() == 0
+
+    def test_returns_positive_when_active(self):
+        import time
+        msg = QueueMessageReceived(
+            id="m1",
+            channel="q",
+            visibility_seconds=60,
+        )
+        msg._start_visibility_timer()
+        try:
+            remaining = msg.get_remaining_visibility_seconds()
+            assert remaining > 50
+        finally:
+            if msg._visibility_timer:
+                msg._visibility_timer.cancel()
+
+
+class TestQueueMessageReceivedMarkTransaction:
+    """Tests for _mark_transaction_completed (line 326)."""
+
+    def test_mark_transaction_completed(self):
+        msg = QueueMessageReceived(
+            id="m1",
+            channel="q",
+        )
+        msg._mark_transaction_completed()
+        assert msg._message_completed is True
+        assert msg.is_transaction_completed is True
+
+    def test_mark_completed_cancels_timer(self):
+        msg = QueueMessageReceived(
+            id="m1",
+            channel="q",
+            visibility_seconds=60,
+        )
+        msg._start_visibility_timer()
+        assert msg._visibility_timer is not None
+        msg._mark_transaction_completed()
+        assert msg._visibility_timer is None
+
+
+class TestQueueMessageReceivedCancelVisibilityTimer:
+    """Tests for _cancel_visibility_timer (lines 378-379)."""
+
+    def test_cancel_timer_when_exists(self):
+        msg = QueueMessageReceived(
+            id="m1",
+            channel="q",
+            visibility_seconds=60,
+        )
+        msg._start_visibility_timer()
+        assert msg._visibility_timer is not None
+        msg._cancel_visibility_timer()
+        assert msg._visibility_timer is None
+
+    def test_cancel_timer_when_not_set(self):
+        msg = QueueMessageReceived(id="m1", channel="q")
+        msg._cancel_visibility_timer()
+
+
+class TestQueueMessageReceivedOnVisibilityExpired:
+    """Tests for _on_visibility_expired (lines 391-399)."""
+
+    def test_on_visibility_expired_marks_expired_and_rejects(self):
+        response_handler = MagicMock()
+        msg = QueueMessageReceived(
+            id="m1",
+            channel="q",
+            transaction_id="txn-1",
+            receiver_client_id="receiver",
+            response_handler=response_handler,
+            is_auto_acked=False,
+            is_transaction_completed=False,
+        )
+        msg._on_visibility_expired()
+        assert msg._timer_expired is True
+        response_handler.assert_called_once()
+
+    def test_on_visibility_expired_logs_error_on_reject_failure(self):
+        msg = QueueMessageReceived(
+            id="m1",
+            channel="q",
+            response_handler=None,
+        )
+        msg._on_visibility_expired()
+        assert msg._timer_expired is True
+
+
+class TestQueueMessageReceivedDoOperationMessageCompleted:
+    """Test _do_operation when _message_completed is True (line 326)."""
+
+    def test_raises_when_message_already_completed(self):
+        msg = QueueMessageReceived(
+            id="m1",
+            channel="q",
+            transaction_id="txn-1",
+            receiver_client_id="receiver",
+            response_handler=MagicMock(),
+            is_auto_acked=False,
+            is_transaction_completed=False,
+        )
+        msg._message_completed = True
+        with pytest.raises(ValueError, match="already completed"):
+            msg.ack()
+
+
+class TestQueueMessageReceivedMD5OfBody:
+    """GAP-M3: Tests for MD5OfBody field."""
+
+    def test_decode_md5_of_body(self):
+        pb_message = MagicMock()
+        pb_message.MessageID = "msg-md5"
+        pb_message.Channel = "ch"
+        pb_message.Metadata = ""
+        pb_message.Body = b"hello"
+        pb_message.ClientID = "client"
+        pb_message.Tags = {}
+        pb_message.Attributes.Timestamp = 0
+        pb_message.Attributes.Sequence = 1
+        pb_message.Attributes.ReceiveCount = 0
+        pb_message.Attributes.ReRouted = False
+        pb_message.Attributes.ReRoutedFromQueue = ""
+        pb_message.Attributes.ExpirationAt = 0
+        pb_message.Attributes.DelayedTo = 0
+        pb_message.Attributes.MD5OfBody = "5d41402abc4b2a76b9719d911017c592"
+
+        msg = QueueMessageReceived.decode(pb_message, "txn-1", False, "receiver", None)
+
+        assert msg.md5_of_body == "5d41402abc4b2a76b9719d911017c592"

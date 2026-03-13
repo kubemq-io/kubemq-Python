@@ -31,7 +31,7 @@ from kubemq.queues.queues_messages_waiting_pulled import (
     QueueMessageWaitingPulled,
 )
 from kubemq.queues.queues_poll_response import QueuesPollResponse
-from kubemq.queues.queues_send_result import QueueSendResult
+from kubemq.queues.queues_send_result import QueueBatchSendResult, QueueSendResult
 from kubemq.queues.upstream_sender import UpstreamSender
 from kubemq.transport.server_info import ServerInfo
 
@@ -338,6 +338,48 @@ class Client(BaseClient):
         """
         return await run_in_thread(self._send_queue_message_impl, message)
 
+    def send_queue_messages_batch(self, messages: list[QueueMessage]) -> QueueBatchSendResult:
+        """Send multiple queue messages as a server-side batch.
+
+        Uses the gRPC ``SendQueueMessagesBatch`` RPC for atomic batch tracking
+        with ``BatchID`` correlation and aggregate ``HaveErrors`` flag.
+
+        Args:
+            messages: List of messages to send.
+
+        Returns:
+            QueueBatchSendResult with batch_id, have_errors, and per-message results.
+        """
+        self._ensure_connected()
+        assert self._transport is not None
+
+        from kubemq.grpc import QueueMessagesBatchRequest
+
+        batch_id = str(uuid.uuid4())
+        client_id = self._config.client_id or ""
+
+        batch_request = QueueMessagesBatchRequest()
+        batch_request.BatchID = batch_id
+        for msg in messages:
+            self._validate_message_size(msg.body)
+            pb_msg = msg.encode_message(client_id)
+            tags_dict = dict(pb_msg.Tags)
+            KubeMQTagsCarrier(tags_dict).inject()
+            pb_msg.Tags.update(tags_dict)
+            batch_request.Messages.append(pb_msg)
+
+        batch_response = self._transport.kubemq_client().SendQueueMessagesBatch(batch_request)
+
+        results: list[QueueSendResult] = []
+        for pb_result in batch_response.Results:
+            results.append(QueueSendResult.decode(pb_result))
+
+        return QueueBatchSendResult(
+            batch_id=batch_response.BatchID,
+            results=results,
+            have_errors=batch_response.HaveErrors,
+        )
+
     def create_queues_channel(self, channel: str) -> bool | None:
         """Create a queues channel.
 
@@ -411,8 +453,13 @@ class Client(BaseClient):
         wait_timeout_in_seconds: int = 60,
         auto_ack: bool = False,
         visibility_seconds: int = 0,
+        metadata: dict[str, str] | None = None,
     ) -> QueuesPollResponse:
         """Internal implementation for receiving queue messages."""
+        if max_messages < 1 or max_messages > 1024:
+            raise ValueError("max_messages must be between 1 and 1024")
+        if wait_timeout_in_seconds < 0 or wait_timeout_in_seconds > 3600:
+            raise ValueError("wait_timeout_in_seconds must be between 0 and 3600")
         ch = channel or ""
         start = time.perf_counter()
         error_type_val = None
@@ -429,6 +476,9 @@ class Client(BaseClient):
                 request.WaitTimeout = wait_timeout_in_seconds * 1000
                 request.AutoAck = auto_ack
                 request.RequestTypeData = QueuesDownstreamRequestType.Get
+                if metadata:
+                    for k, v in metadata.items():
+                        request.Metadata[k] = v
                 kubemq_response = receiver.send(request)
                 if kubemq_response is None:
                     return QueuesPollResponse()
@@ -459,6 +509,7 @@ class Client(BaseClient):
         wait_timeout_in_seconds: int = 60,
         auto_ack: bool = False,
         visibility_seconds: int = 0,
+        metadata: dict[str, str] | None = None,
     ) -> QueuesPollResponse:
         """Receive messages from a queue channel.
 
@@ -468,12 +519,13 @@ class Client(BaseClient):
             wait_timeout_in_seconds: Timeout in seconds to wait for messages.
             auto_ack: Whether to automatically acknowledge messages.
             visibility_seconds: Visibility timeout in seconds for received messages.
+            metadata: Optional key-value metadata to attach to the downstream request.
 
         Returns:
             QueuesPollResponse containing the received messages.
         """
         return self._receive_queue_messages_impl(
-            channel, max_messages, wait_timeout_in_seconds, auto_ack, visibility_seconds
+            channel, max_messages, wait_timeout_in_seconds, auto_ack, visibility_seconds, metadata
         )
 
     @deprecated(replacement="receive_queue_messages()", since="4.0.0", removal="5.0.0")
@@ -555,10 +607,10 @@ class Client(BaseClient):
         self._logger.debug(f"Get waiting messages from queue: {channel}")
         if channel is None:
             raise ValueError("channel cannot be None.")
-        if max_messages < 1:
-            raise ValueError("max_messages must be greater than 0.")
-        if wait_timeout_in_seconds < 1:
-            raise ValueError("wait_timeout_in_seconds must be greater than 0.")
+        if max_messages < 1 or max_messages > 1024:
+            raise ValueError("max_messages must be between 1 and 1024.")
+        if wait_timeout_in_seconds < 1 or wait_timeout_in_seconds > 3600:
+            raise ValueError("wait_timeout_in_seconds must be between 1 and 3600.")
 
         self._ensure_connected()
         assert self._transport is not None
@@ -574,7 +626,13 @@ class Client(BaseClient):
         )
 
         response = self._transport.kubemq_client().ReceiveQueueMessages(request)
-        waiting_messages = QueueMessagesWaiting(is_error=response.IsError, error=response.Error)
+        waiting_messages = QueueMessagesWaiting(
+            is_error=response.IsError,
+            error=response.Error,
+            messages_received=getattr(response, "MessagesReceived", 0),
+            messages_expired=getattr(response, "MessagesExpired", 0),
+            is_peak=getattr(response, "IsPeak", True),
+        )
 
         if not response.Messages:
             return waiting_messages
@@ -603,6 +661,57 @@ class Client(BaseClient):
         """
         return await run_in_thread(self.waiting, channel, max_messages, wait_timeout_in_seconds)
 
+    def ack_all_queue_messages(self, channel: str, wait_time_seconds: int = 60) -> int:
+        """Acknowledge all messages in a queue.
+
+        Args:
+            channel: Queue channel to ack all messages.
+            wait_time_seconds: How long the server should wait for messages to ack.
+
+        Returns:
+            Number of messages acknowledged.
+        """
+        self._ensure_connected()
+        assert self._transport is not None
+        from kubemq.grpc import AckAllQueueMessagesRequest
+        from kubemq.core.exceptions import KubeMQMessageError
+
+        request = AckAllQueueMessagesRequest()
+        request.RequestID = str(uuid.uuid4())
+        request.ClientID = self._config.client_id or ""
+        request.Channel = channel
+        request.WaitTimeSeconds = wait_time_seconds
+
+        response = self._transport.kubemq_client().AckAllQueueMessages(request)
+
+        if response.IsError:
+            raise KubeMQMessageError(
+                response.Error,
+                operation="AckAllQueueMessages",
+                channel=channel,
+            )
+
+        return response.AffectedMessages
+
+    def queues_info(self, queue_name: str = ""):
+        """Get queue information and statistics.
+
+        Args:
+            queue_name: Optional queue name to filter. Empty string returns all queues.
+
+        Returns:
+            QueuesInfoResponse with queue details.
+        """
+        self._ensure_connected()
+        assert self._transport is not None
+        from kubemq.grpc import QueuesInfoRequest
+
+        request = QueuesInfoRequest()
+        request.RequestID = str(uuid.uuid4())
+        request.QueueName = queue_name
+
+        return self._transport.kubemq_client().QueuesInfo(request)
+
     def pull(
         self, channel: str, max_messages: int, wait_timeout_in_seconds: int
     ) -> QueueMessagesPulled:
@@ -622,10 +731,10 @@ class Client(BaseClient):
         self._logger.debug(f"Pulling messages from queue: {channel}")
         if channel is None:
             raise ValueError("channel cannot be None.")
-        if max_messages < 1:
-            raise ValueError("max_messages must be greater than 0.")
-        if wait_timeout_in_seconds < 1:
-            raise ValueError("wait_timeout_in_seconds must be greater than 0.")
+        if max_messages < 1 or max_messages > 1024:
+            raise ValueError("max_messages must be between 1 and 1024.")
+        if wait_timeout_in_seconds < 1 or wait_timeout_in_seconds > 3600:
+            raise ValueError("wait_timeout_in_seconds must be between 1 and 3600.")
 
         self._ensure_connected()
         assert self._transport is not None
@@ -641,7 +750,13 @@ class Client(BaseClient):
         )
 
         response = self._transport.kubemq_client().ReceiveQueueMessages(request)
-        pulled_messages = QueueMessagesPulled(is_error=response.IsError, error=response.Error)
+        pulled_messages = QueueMessagesPulled(
+            is_error=response.IsError,
+            error=response.Error,
+            messages_received=getattr(response, "MessagesReceived", 0),
+            messages_expired=getattr(response, "MessagesExpired", 0),
+            is_peak=getattr(response, "IsPeak", False),
+        )
 
         if not response.Messages:
             return pulled_messages

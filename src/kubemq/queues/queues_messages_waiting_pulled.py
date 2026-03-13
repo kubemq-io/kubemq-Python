@@ -326,6 +326,9 @@ class QueueMessagesBase(BaseModel):
         default=False, description="Whether an error occurred when retrieving the messages"
     )
     error: str | None = Field(default=None, description="The error message if an error occurred")
+    messages_received: int = Field(default=0, description="Total messages received by server")
+    messages_expired: int = Field(default=0, description="Total messages expired in server")
+    is_peak: bool = Field(default=False, description="Whether this was a peek operation")
 
     def get_messages(self) -> list[QueueMessageWaitingPulled]:
         """

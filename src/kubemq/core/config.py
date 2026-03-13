@@ -151,8 +151,11 @@ class KeepAliveConfig:
     def __post_init__(self) -> None:
         """Validate keep-alive configuration."""
         if self.enabled:
-            if self.ping_interval_in_seconds <= 0:
-                raise ValueError("ping_interval_in_seconds must be positive when enabled")
+            if self.ping_interval_in_seconds < 5:
+                raise ValueError(
+                    "ping_interval_in_seconds must be >= 5 when enabled "
+                    "(server enforces minimum 5s client ping interval)"
+                )
             if self.ping_timeout_in_seconds <= 0:
                 raise ValueError("ping_timeout_in_seconds must be positive when enabled")
 

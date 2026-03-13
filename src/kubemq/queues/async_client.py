@@ -23,7 +23,7 @@ from kubemq.core.exceptions import KubeMQHandlerError, KubeMQMessageError, KubeM
 from kubemq.grpc import kubemq_pb2 as pb
 from kubemq.queues.queues_message import QueueMessage
 from kubemq.queues.queues_message_received import QueueMessageReceived
-from kubemq.queues.queues_send_result import QueueSendResult
+from kubemq.queues.queues_send_result import QueueBatchSendResult, QueueSendResult
 
 if TYPE_CHECKING:
     from kubemq.transport.async_transport import AsyncTransport
@@ -99,6 +99,7 @@ class AsyncQueuesPollResponse:
         self,
         request_type: int,
         re_queue_channel: str = "",
+        metadata: dict[str, str] | None = None,
     ) -> None:
         """Perform an operation on all messages."""
         request = pb.QueuesDownstreamRequest()
@@ -108,6 +109,9 @@ class AsyncQueuesPollResponse:
         request.ReQueueChannel = re_queue_channel
         request.RefTransactionId = self.transaction_id
         request.SequenceRange.extend(self.active_offsets)
+        if metadata:
+            for k, v in metadata.items():
+                request.Metadata[k] = v
 
         # Use the transport's receive method with a single request
         async def single_request() -> AsyncIterator[pb.QueuesDownstreamRequest]:
@@ -136,15 +140,26 @@ class AsyncQueuesPollResponse:
         request_auto_ack: bool = False,
     ) -> AsyncQueuesPollResponse:
         """Create an AsyncQueuesPollResponse from a protobuf response."""
+
+        async def _async_handler(req: pb.QueuesDownstreamRequest) -> None:
+            """Send a per-message ack/reject/requeue via a short-lived downstream stream."""
+
+            async def _single() -> AsyncIterator[pb.QueuesDownstreamRequest]:
+                yield req
+
+            async for _ in transport.queues_downstream(_single()):
+                break
+
         messages = [
             QueueMessageReceived.decode(
                 message,
                 response.TransactionId,
                 response.TransactionComplete,
                 receiver_client_id,
-                None,  # No sync response handler for async
+                None,
                 visibility_seconds=request_visibility_seconds,
                 is_auto_acked=request_auto_ack,
+                async_response_handler=_async_handler,
             )
             for message in response.Messages
         ]
@@ -279,41 +294,45 @@ class AsyncClient(NativeAsyncBaseClient):
     async def send_queue_messages_batch(
         self,
         messages: list[QueueMessage],
-        max_concurrent: int = 100,
-    ) -> list[QueueSendResult]:
-        """Send multiple queue messages with concurrency control.
+    ) -> QueueBatchSendResult:
+        """Send multiple queue messages as a server-side batch.
+
+        Uses the gRPC ``SendQueueMessagesBatch`` RPC for atomic batch tracking
+        with ``BatchID`` correlation and aggregate ``HaveErrors`` flag.
 
         Args:
-            messages: List of messages to send
-            max_concurrent: Maximum concurrent sends
+            messages: List of messages to send.
 
         Returns:
-            List of results for each message
+            QueueBatchSendResult with batch_id, have_errors, and per-message results.
         """
         self._ensure_connected()
+        assert self._transport is not None
 
-        semaphore = asyncio.Semaphore(max_concurrent)
+        batch_id = str(uuid.uuid4())
+        client_id = self._config.client_id or ""
 
-        async def bounded_send(msg: QueueMessage, index: int) -> tuple[int, QueueSendResult]:
-            async with semaphore:
-                try:
-                    result = await self.send_queue_message(msg)
-                    return (index, result)
-                except Exception as e:
-                    return (
-                        index,
-                        QueueSendResult(
-                            id=msg.id,
-                            is_error=True,
-                            error=str(e),
-                        ),
-                    )
+        batch_request = pb.QueueMessagesBatchRequest()
+        batch_request.BatchID = batch_id
+        for msg in messages:
+            self._validate_message_size(msg.body)
+            pb_msg = msg.encode_message(client_id)
+            tags_dict = dict(pb_msg.Tags)
+            KubeMQTagsCarrier(tags_dict).inject()
+            pb_msg.Tags.update(tags_dict)
+            batch_request.Messages.append(pb_msg)
 
-        tasks = [bounded_send(msg, i) for i, msg in enumerate(messages)]
-        indexed_results = await asyncio.gather(*tasks)
+        batch_response = await self._transport.send_queue_messages_batch(batch_request)
 
-        sorted_results = sorted(indexed_results, key=lambda x: x[0])
-        return [result for _, result in sorted_results]
+        results: list[QueueSendResult] = []
+        for pb_result in batch_response.Results:
+            results.append(QueueSendResult.decode(pb_result))
+
+        return QueueBatchSendResult(
+            batch_id=batch_response.BatchID,
+            results=results,
+            have_errors=batch_response.HaveErrors,
+        )
 
     # =========================================================================
     # Receive Operations
@@ -343,6 +362,10 @@ class AsyncClient(NativeAsyncBaseClient):
             The simple receive RPC doesn't support auto_ack at the protocol level.
             If auto_ack is True, messages are acknowledged after being received.
         """
+        if max_messages < 1 or max_messages > 1024:
+            raise ValueError("max_messages must be between 1 and 1024")
+        if wait_timeout_seconds < 0 or wait_timeout_seconds > 3600:
+            raise ValueError("wait_timeout_seconds must be between 0 and 3600")
         start = time.perf_counter()
         error_type_val = None
         with self._instrumentor.start_span("receive", channel) as span:
@@ -418,6 +441,10 @@ class AsyncClient(NativeAsyncBaseClient):
         Returns:
             AsyncQueuesPollResponse with peeked messages
         """
+        if max_messages < 1 or max_messages > 1024:
+            raise ValueError("max_messages must be between 1 and 1024")
+        if wait_timeout_seconds < 0 or wait_timeout_seconds > 3600:
+            raise ValueError("wait_timeout_seconds must be between 0 and 3600")
         self._ensure_connected()
         assert self._transport is not None
         client_id = self._config.client_id or ""
@@ -549,6 +576,10 @@ class AsyncClient(NativeAsyncBaseClient):
         """
         token = cancellation_token or AsyncCancellationToken()
 
+        current_task = asyncio.current_task()
+        if current_task is not None:
+            self._register_subscription_task(current_task)
+
         async for response in self.subscribe_to_queue(
             channel=channel,
             max_messages=max_messages,
@@ -558,7 +589,10 @@ class AsyncClient(NativeAsyncBaseClient):
         ):
             if response.is_error:
                 if error_callback:
-                    await error_callback(Exception(response.error))
+                    try:
+                        await error_callback(Exception(response.error))
+                    except Exception:
+                        _logger.exception("Error in error_callback itself")
                 continue
 
             for message in response.messages:
@@ -593,11 +627,13 @@ class AsyncClient(NativeAsyncBaseClient):
     async def ack_all_queue_messages(
         self,
         channel: str,
+        wait_time_seconds: int = 60,
     ) -> int:
         """Acknowledge all messages in a queue.
 
         Args:
             channel: Queue channel to ack all messages
+            wait_time_seconds: How long the server should wait for messages to ack
 
         Returns:
             Number of messages acknowledged
@@ -609,7 +645,7 @@ class AsyncClient(NativeAsyncBaseClient):
         request.RequestID = str(uuid.uuid4())
         request.ClientID = self._config.client_id or ""
         request.Channel = channel
-        request.WaitTimeSeconds = 60
+        request.WaitTimeSeconds = wait_time_seconds
 
         response = await self._transport.ack_all_queue_messages(request)
 
@@ -621,6 +657,24 @@ class AsyncClient(NativeAsyncBaseClient):
             )
 
         return response.AffectedMessages
+
+    async def queues_info(self, queue_name: str = "") -> pb.QueuesInfoResponse:
+        """Get queue information and statistics.
+
+        Args:
+            queue_name: Optional queue name to filter. Empty string returns all queues.
+
+        Returns:
+            QueuesInfoResponse with queue details.
+        """
+        self._ensure_connected()
+        assert self._transport is not None
+
+        request = pb.QueuesInfoRequest()
+        request.RequestID = str(uuid.uuid4())
+        request.QueueName = queue_name
+
+        return await self._transport.queues_info(request)
 
 
 # Alias for backward compatibility and clearer naming

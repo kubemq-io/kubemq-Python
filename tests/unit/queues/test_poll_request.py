@@ -164,3 +164,52 @@ class TestQueuesPollRequestStr:
 
         assert "QueuesPollRequest(" in repr_str
         assert "repr-queue" in repr_str
+
+
+class TestQueuesPollRequestEncodeVisibility:
+    """Test encode with visibility_seconds validation (line 114)."""
+
+    def test_visibility_seconds_zero_is_valid(self):
+        request = QueuesPollRequest(channel="q", visibility_seconds=0)
+        assert request.visibility_seconds == 0
+
+    def test_frozen_model_prevents_mutation(self):
+        request = QueuesPollRequest(channel="q")
+        with pytest.raises(Exception):
+            request.channel = "changed"
+
+
+class TestQueuesPollRequestUpperBounds:
+    """GAP-M7: Upper bounds validation for poll request fields."""
+
+    def test_max_messages_exceeds_1024_raises(self):
+        with pytest.raises(ValueError):
+            QueuesPollRequest(channel="q", poll_max_messages=1025)
+
+    def test_wait_timeout_exceeds_3600_raises(self):
+        with pytest.raises(ValueError):
+            QueuesPollRequest(channel="q", poll_wait_timeout_in_seconds=3601)
+
+    def test_max_messages_1024_passes(self):
+        req = QueuesPollRequest(channel="q", poll_max_messages=1024)
+        assert req.poll_max_messages == 1024
+
+    def test_wait_timeout_3600_passes(self):
+        req = QueuesPollRequest(channel="q", poll_wait_timeout_in_seconds=3600)
+        assert req.poll_wait_timeout_in_seconds == 3600
+
+
+class TestQueuesPollRequestChannelValidation:
+    """GAP-H1/H2/H3: Channel validation for QueuesPollRequest."""
+
+    def test_wildcard_star_raises(self):
+        with pytest.raises(ValueError, match="wildcard"):
+            QueuesPollRequest(channel="q.*")
+
+    def test_whitespace_raises(self):
+        with pytest.raises(ValueError, match="whitespace"):
+            QueuesPollRequest(channel="q channel")
+
+    def test_trailing_dot_raises(self):
+        with pytest.raises(ValueError, match="end with"):
+            QueuesPollRequest(channel="q.")

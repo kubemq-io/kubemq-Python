@@ -19,19 +19,33 @@ if TYPE_CHECKING:
     from kubemq._internal.auth import TokenHolder
 
 
+_PING_METHOD_SUFFIX = "/Ping"
+
+
+def _is_ping_method(method: str | None) -> bool:
+    """Return True if the RPC method is the Ping health-check (bypasses auth)."""
+    return bool(method and method.endswith(_PING_METHOD_SUFFIX))
+
+
 def _inject_auth_metadata(
     metadata: tuple[tuple[str, str], ...] | None,
     token_holder: TokenHolder,
+    *,
+    method: str | None = None,
 ) -> tuple[tuple[str, str], ...]:
     """Inject auth token from TokenHolder into gRPC metadata.
 
     Args:
         metadata: Existing metadata tuple or None.
         token_holder: Shared mutable token container.
+        method: RPC method path. Ping bypasses authentication.
 
     Returns:
         New metadata tuple with auth token added (if present).
     """
+    if _is_ping_method(method):
+        return metadata or ()
+
     token = token_holder.token
     if not token or not token.strip():
         return metadata or ()
@@ -63,6 +77,10 @@ class AuthInterceptors(
         client_call_details: ClientCallDetails,
         request_or_iterator: Any,
     ) -> Any:
+        method = getattr(client_call_details, "method", None)
+        if _is_ping_method(method):
+            return continuation(client_call_details, request_or_iterator)
+
         metadata = list(client_call_details.metadata or [])
 
         token = self._token_holder.token
@@ -112,6 +130,10 @@ class AuthInterceptorsAsync(
         client_call_details: ClientCallDetails,
         request_or_iterator: Any,
     ) -> Any:
+        method = getattr(client_call_details, "method", None)
+        if _is_ping_method(method):
+            return await continuation(client_call_details, request_or_iterator)
+
         metadata = list(client_call_details.metadata or [])
 
         token = self._token_holder.token
@@ -159,7 +181,9 @@ class AsyncUnaryUnaryAuthInterceptor(grpc.aio.UnaryUnaryClientInterceptor):
         new_details = grpc.aio.ClientCallDetails(
             method=client_call_details.method,
             timeout=client_call_details.timeout,
-            metadata=_inject_auth_metadata(client_call_details.metadata, self._token_holder),
+            metadata=_inject_auth_metadata(
+                client_call_details.metadata, self._token_holder, method=client_call_details.method
+            ),
             credentials=client_call_details.credentials,
             wait_for_ready=client_call_details.wait_for_ready,
         )
@@ -184,7 +208,9 @@ class AsyncUnaryStreamAuthInterceptor(grpc.aio.UnaryStreamClientInterceptor):
         new_details = grpc.aio.ClientCallDetails(
             method=client_call_details.method,
             timeout=client_call_details.timeout,
-            metadata=_inject_auth_metadata(client_call_details.metadata, self._token_holder),
+            metadata=_inject_auth_metadata(
+                client_call_details.metadata, self._token_holder, method=client_call_details.method
+            ),
             credentials=client_call_details.credentials,
             wait_for_ready=client_call_details.wait_for_ready,
         )
@@ -206,7 +232,9 @@ class AsyncStreamUnaryAuthInterceptor(grpc.aio.StreamUnaryClientInterceptor):
         new_details = grpc.aio.ClientCallDetails(
             method=client_call_details.method,
             timeout=client_call_details.timeout,
-            metadata=_inject_auth_metadata(client_call_details.metadata, self._token_holder),
+            metadata=_inject_auth_metadata(
+                client_call_details.metadata, self._token_holder, method=client_call_details.method
+            ),
             credentials=client_call_details.credentials,
             wait_for_ready=client_call_details.wait_for_ready,
         )
@@ -231,7 +259,9 @@ class AsyncStreamStreamAuthInterceptor(grpc.aio.StreamStreamClientInterceptor):
         new_details = grpc.aio.ClientCallDetails(
             method=client_call_details.method,
             timeout=client_call_details.timeout,
-            metadata=_inject_auth_metadata(client_call_details.metadata, self._token_holder),
+            metadata=_inject_auth_metadata(
+                client_call_details.metadata, self._token_holder, method=client_call_details.method
+            ),
             credentials=client_call_details.credentials,
             wait_for_ready=client_call_details.wait_for_ready,
         )

@@ -5,6 +5,7 @@ from typing import ClassVar
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from kubemq.common.channel_validators import validate_channel_name
 from kubemq.grpc import (
     QueueMessage as pbQueueMessage,
     QueuesUpstreamRequest as pbQueuesUpstreamRequest,
@@ -119,6 +120,7 @@ class QueueMessage(BaseModel):
         """
         if not v:
             raise ValueError("Channel cannot be empty. Please provide a valid queue name.")
+        validate_channel_name(v)
         return v
 
     @field_validator("delay_in_seconds")

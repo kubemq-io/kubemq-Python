@@ -440,3 +440,149 @@ class TestQueriesSubscriptionStr:
         assert "QueriesSubscription" in repr_str
         assert "repr-channel" in repr_str
         assert "repr-group" in repr_str
+
+
+class TestCommandsSubscriptionDecodeDeprecated:
+    """Tests for CommandsSubscription deprecated decode method (line 66)."""
+
+    def test_decode_emits_deprecation_warning(self):
+        import warnings
+        sub = CommandsSubscription(
+            channel="ch",
+            on_receive_command_callback=MagicMock(),
+        )
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            request = sub.decode("client-id")
+            assert len(w) == 1
+            assert issubclass(w[0].category, DeprecationWarning)
+            assert "deprecated" in str(w[0].message).lower()
+        assert request.Channel == "ch"
+        assert request.ClientID == "client-id"
+
+
+class TestCommandsSubscriptionCallbackValidator:
+    """Tests for CommandsSubscription callback_must_exist validator (line 26)."""
+
+    def test_none_callback_raises(self):
+        with pytest.raises(Exception):
+            CommandsSubscription(
+                channel="ch",
+                on_receive_command_callback=None,
+            )
+
+
+class TestCommandsSubscriptionCreateFactory:
+    """Tests for CommandsSubscription.create() factory (lines 66-71)."""
+
+    def test_create_with_all_params(self):
+        cb = MagicMock()
+        err_cb = MagicMock()
+        sub = CommandsSubscription.create(
+            channel="factory-ch",
+            group="grp",
+            on_receive_command_callback=cb,
+            on_error_callback=err_cb,
+        )
+        assert sub.channel == "factory-ch"
+        assert sub.group == "grp"
+        assert sub.on_error_callback == err_cb
+
+
+class TestCommandsSubscriptionErrorAsyncSync:
+    """Tests for CommandsSubscription raise_on_error_async with sync callback (line 53)."""
+
+    @pytest.mark.asyncio
+    async def test_raise_on_error_async_with_sync_callback(self):
+        err_cb = MagicMock()
+        sub = CommandsSubscription(
+            channel="ch",
+            on_receive_command_callback=MagicMock(),
+            on_error_callback=err_cb,
+        )
+        await sub.raise_on_error_async("sync err via async")
+        err_cb.assert_called_once_with("sync err via async")
+
+    @pytest.mark.asyncio
+    async def test_raise_on_error_async_no_callback(self):
+        sub = CommandsSubscription(
+            channel="ch",
+            on_receive_command_callback=MagicMock(),
+            on_error_callback=None,
+        )
+        await sub.raise_on_error_async("no handler")
+
+
+class TestQueriesSubscriptionCallbackSync:
+    """Tests for QueriesSubscription sync callback paths (lines 38, 63)."""
+
+    @pytest.mark.asyncio
+    async def test_raise_on_receive_message_async_sync_callback(self):
+        callback = MagicMock()
+        sub = QueriesSubscription(
+            channel="ch",
+            on_receive_query_callback=callback,
+        )
+        query = QueryMessageReceived(id="q1", channel="ch", body=b"data")
+        await sub.raise_on_receive_message_async(query)
+        callback.assert_called_once_with(query)
+
+    @pytest.mark.asyncio
+    async def test_raise_on_error_async_sync_callback(self):
+        err_cb = MagicMock()
+        sub = QueriesSubscription(
+            channel="ch",
+            on_receive_query_callback=MagicMock(),
+            on_error_callback=err_cb,
+        )
+        await sub.raise_on_error_async("sync error path")
+        err_cb.assert_called_once_with("sync error path")
+
+    @pytest.mark.asyncio
+    async def test_raise_on_error_async_no_callback(self):
+        sub = QueriesSubscription(
+            channel="ch",
+            on_receive_query_callback=MagicMock(),
+            on_error_callback=None,
+        )
+        await sub.raise_on_error_async("no handler")
+
+
+class TestCommandsSubscriptionChannelValidation:
+    """GAP-H1/H2/H3: Channel validation for CommandsSubscription."""
+
+    def test_wildcard_star_raises(self):
+        with pytest.raises(ValueError, match="wildcard"):
+            CommandsSubscription(channel="cmd.*", on_receive_command_callback=MagicMock())
+
+    def test_wildcard_gt_raises(self):
+        with pytest.raises(ValueError, match="wildcard"):
+            CommandsSubscription(channel="cmd.>", on_receive_command_callback=MagicMock())
+
+    def test_whitespace_raises(self):
+        with pytest.raises(ValueError, match="whitespace"):
+            CommandsSubscription(channel="cmd channel", on_receive_command_callback=MagicMock())
+
+    def test_trailing_dot_raises(self):
+        with pytest.raises(ValueError, match="end with"):
+            CommandsSubscription(channel="cmd.", on_receive_command_callback=MagicMock())
+
+
+class TestQueriesSubscriptionChannelValidation:
+    """GAP-H1/H2/H3: Channel validation for QueriesSubscription."""
+
+    def test_wildcard_star_raises(self):
+        with pytest.raises(ValueError, match="wildcard"):
+            QueriesSubscription(channel="qry.*", on_receive_query_callback=MagicMock())
+
+    def test_wildcard_gt_raises(self):
+        with pytest.raises(ValueError, match="wildcard"):
+            QueriesSubscription(channel="qry.>", on_receive_query_callback=MagicMock())
+
+    def test_whitespace_raises(self):
+        with pytest.raises(ValueError, match="whitespace"):
+            QueriesSubscription(channel="qry channel", on_receive_query_callback=MagicMock())
+
+    def test_trailing_dot_raises(self):
+        with pytest.raises(ValueError, match="end with"):
+            QueriesSubscription(channel="qry.", on_receive_query_callback=MagicMock())

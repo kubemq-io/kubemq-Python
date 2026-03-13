@@ -10,6 +10,7 @@ import grpc
 from kubemq.common.helpers import decode_grpc_error, is_channel_error
 from kubemq.grpc import (
     QueuesDownstreamRequest,
+    QueuesDownstreamRequestType,
     QueuesDownstreamResponse,
 )
 from kubemq.transport import Connection, Transport
@@ -222,6 +223,10 @@ class DownstreamReceiver:
         """
         for response in responses:
             if self.shutdown_event.is_set():
+                break
+            if response.RequestTypeData == QueuesDownstreamRequestType.CloseByServer:
+                self.logger.warning("Server initiated stream close")
+                self._handle_disconnection()
                 break
             response_request_id = response.RefRequestId
             with self.lock:
