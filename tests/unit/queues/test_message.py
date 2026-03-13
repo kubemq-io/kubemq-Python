@@ -252,3 +252,23 @@ class TestQueueMessageConstants:
     def test_max_expiration_seconds_constant(self):
         """Test MAX_EXPIRATION_SECONDS is 12 hours."""
         assert QueueMessage.MAX_EXPIRATION_SECONDS == 43200
+
+
+class TestQueueMessageChannelValidation:
+    """GAP-H1/H2/H3: Channel validation for QueueMessage."""
+
+    def test_wildcard_star_raises(self):
+        with pytest.raises(ValueError, match="wildcard"):
+            QueueMessage(channel="q.*", body=b"x")
+
+    def test_wildcard_gt_raises(self):
+        with pytest.raises(ValueError, match="wildcard"):
+            QueueMessage(channel="q.>", body=b"x")
+
+    def test_whitespace_raises(self):
+        with pytest.raises(ValueError, match="whitespace"):
+            QueueMessage(channel="q channel", body=b"x")
+
+    def test_trailing_dot_raises(self):
+        with pytest.raises(ValueError, match="end with"):
+            QueueMessage(channel="q.", body=b"x")

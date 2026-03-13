@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-import functools
-import warnings
-from collections.abc import Awaitable, Callable
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, TypeVar
 
@@ -51,41 +49,3 @@ def cleanup_executor() -> None:
     if _compat_executor is not None:
         _compat_executor.shutdown(wait=False)
         _compat_executor = None
-
-
-def deprecated_async_method(
-    alternative: str,
-    version: str = "5.0.0",
-) -> Callable[[Callable[..., Awaitable[T]]], Callable[..., Awaitable[T]]]:
-    """Decorator to mark async methods as deprecated.
-
-    Use this to deprecate thread-wrapped async methods in favor of
-    native async clients.
-
-    Args:
-        alternative: The recommended alternative (e.g., "AsyncPubSubClient.send_event")
-        version: Version when the method will be removed (default "5.0.0")
-
-    Returns:
-        Decorator function
-
-    Example:
-        @deprecated_async_method("AsyncPubSubClient.send_event")
-        async def send_event_async(self, message):
-            ...
-    """
-
-    def decorator(func: Callable[..., Awaitable[T]]) -> Callable[..., Awaitable[T]]:
-        @functools.wraps(func)
-        async def wrapper(*args: Any, **kwargs: Any) -> T:
-            warnings.warn(
-                f"{func.__name__} is deprecated and will be removed in v{version}. "
-                f"Use {alternative} for native async support instead.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-            return await func(*args, **kwargs)
-
-        return wrapper  # type: ignore[return-value]
-
-    return decorator

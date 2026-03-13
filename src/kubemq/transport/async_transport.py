@@ -573,6 +573,39 @@ class AsyncTransport:
                 await self._on_connection_lost()
             raise from_grpc_error(e) from e
 
+    async def send_events_stream(
+        self,
+        request_iterator: AsyncIterator[pb.Event],
+        cancellation_token: AsyncCancellationToken | None = None,
+    ) -> AsyncIterator[pb.Result]:
+        """Bidirectional streaming for high-throughput event sending.
+
+        Args:
+            request_iterator: Async generator yielding Event protos.
+            cancellation_token: Optional cancellation token.
+
+        Yields:
+            Result proto for each store-flagged event.
+        """
+        self._ensure_connected()
+
+        call: grpc.aio.StreamStreamCall = self._stub.SendEventsStream(request_iterator)
+        await self._register_stream(call)
+
+        try:
+            async for response in call:
+                if cancellation_token and cancellation_token.is_cancelled:
+                    call.cancel()
+                    break
+                if self._closing:
+                    break
+                yield response
+        except grpc.aio.AioRpcError as e:
+            if e.code() != grpc.StatusCode.CANCELLED:
+                raise from_grpc_error(e) from e
+        finally:
+            await self._unregister_stream(call)
+
     # =========================================================================
     # Request/Response Operations (Commands & Queries)
     # =========================================================================

@@ -6,6 +6,7 @@ from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from kubemq.common.channel_validators import validate_channel_name
 from kubemq.grpc import Request as pbQuery
 
 if sys.version_info >= (3, 11):
@@ -52,6 +53,7 @@ class QueryMessage(BaseModel):
     def channel_must_exist(cls, v: str) -> str:
         if not v:
             raise ValueError("Query message must have a channel.")
+        validate_channel_name(v)
         return v
 
     @model_validator(mode="after")
@@ -60,9 +62,13 @@ class QueryMessage(BaseModel):
             raise ValueError(
                 "Query message must have at least one of the following: metadata, body, or tags."
             )
+        if self.cache_key and self.cache_ttl_int_seconds <= 0:
+            raise ValueError(
+                "cache_ttl_int_seconds must be > 0 when cache_key is set."
+            )
         return self
 
-    def encode(self, client_id: str) -> pbQuery:
+    def encode(self, client_id: str, *, span: bytes = b"") -> pbQuery:
         pb_query = pbQuery()
         pb_query.RequestID = self.id or str(uuid.uuid4())
         pb_query.ClientID = client_id
@@ -75,18 +81,9 @@ class QueryMessage(BaseModel):
             pb_query.Tags[key] = value
         pb_query.CacheKey = self.cache_key
         pb_query.CacheTTL = self.cache_ttl_int_seconds * 1000
+        if span:
+            pb_query.Span = span
         return pb_query
-
-    def with_updates(self, **kwargs) -> Self:
-        """Create a new message with updated values.
-
-        Since message instances are immutable, this creates a copy
-        with the specified fields overridden.
-
-        Returns:
-            A new instance of the same type with updated fields.
-        """
-        return self.model_copy(update=kwargs)
 
     def with_updates(self, **kwargs) -> Self:
         """Create a new message with updated values.

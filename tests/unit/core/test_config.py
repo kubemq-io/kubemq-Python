@@ -497,3 +497,209 @@ class TestClientConfigRetryAndTimeouts:
     def test_legacy_timeout_mode_false(self):
         config = ClientConfig(legacy_timeout_mode=False)
         assert config.operation_timeouts.send_publish == 5.0
+
+
+# -----------------------------------------------------------------------
+# Coverage extension: lines 96, 102, 108, 112, 116, 394, 401, 412, 414,
+# 418, 420, 422, 424, 426, 428, 444, 452, 460-466, 603-604
+# -----------------------------------------------------------------------
+
+
+class TestTLSConfigExtendedValidation:
+
+    def test_unreadable_file_raises_permission_error(self):
+        with tempfile.NamedTemporaryFile(suffix=".pem", delete=False) as cf:
+            cert_path = Path(cf.name)
+        with tempfile.NamedTemporaryFile(suffix=".pem", delete=False) as kf:
+            key_path = Path(kf.name)
+
+        try:
+            from unittest.mock import patch as _patch
+            with _patch("kubemq.core.config.os.access", return_value=False):
+                with pytest.raises(PermissionError, match="not readable"):
+                    TLSConfig(enabled=True, cert_file=cert_path, key_file=key_path)
+        finally:
+            os.unlink(cert_path)
+            os.unlink(key_path)
+
+    def test_invalid_min_tls_version(self):
+        with pytest.raises(ValueError, match="min_tls_version must be one of"):
+            TLSConfig(enabled=True, min_tls_version="1.0")
+
+    def test_cert_file_and_cert_pem_conflict(self):
+        with tempfile.NamedTemporaryFile(suffix=".pem", delete=False) as cf:
+            cert_path = Path(cf.name)
+        with tempfile.NamedTemporaryFile(suffix=".pem", delete=False) as kf:
+            key_path = Path(kf.name)
+        try:
+            with pytest.raises(ValueError, match="Cannot specify both cert_file and cert_pem"):
+                TLSConfig(
+                    enabled=True,
+                    cert_file=cert_path, cert_pem=b"PEM",
+                    key_file=key_path,
+                )
+        finally:
+            os.unlink(cert_path)
+            os.unlink(key_path)
+
+    def test_key_file_and_key_pem_conflict(self):
+        with tempfile.NamedTemporaryFile(suffix=".pem", delete=False) as cf:
+            cert_path = Path(cf.name)
+        with tempfile.NamedTemporaryFile(suffix=".pem", delete=False) as kf:
+            key_path = Path(kf.name)
+        try:
+            with pytest.raises(ValueError, match="Cannot specify both key_file and key_pem"):
+                TLSConfig(
+                    enabled=True,
+                    cert_file=cert_path,
+                    key_file=key_path, key_pem=b"PEM",
+                )
+        finally:
+            os.unlink(cert_path)
+            os.unlink(key_path)
+
+    def test_ca_file_and_ca_pem_conflict(self):
+        with tempfile.NamedTemporaryFile(suffix=".pem", delete=False) as caf:
+            ca_path = Path(caf.name)
+        try:
+            with pytest.raises(ValueError, match="Cannot specify both ca_file and ca_pem"):
+                TLSConfig(enabled=True, ca_file=ca_path, ca_pem=b"PEM")
+        finally:
+            os.unlink(ca_path)
+
+
+class TestClientConfigPostInitValidation:
+
+    def test_empty_auth_token_raises(self):
+        with pytest.raises(ValueError, match="auth_token must be non-empty"):
+            ClientConfig(address="localhost:50000", auth_token="   ")
+
+    def test_empty_client_id_raises(self):
+        with pytest.raises(ValueError, match="client_id must be non-empty"):
+            ClientConfig(address="localhost:50000", client_id="   ")
+
+    def test_negative_max_receive_size_defaults(self):
+        config = ClientConfig(address="localhost:50000", max_receive_size=-1)
+        assert config.max_receive_size == ClientConfig.DEFAULT_MAX_MESSAGE_SIZE
+
+    def test_negative_reconnect_interval_defaults(self):
+        config = ClientConfig(address="localhost:50000", reconnect_interval_seconds=-1)
+        assert config.reconnect_interval_seconds == 1
+
+    def test_connection_timeout_must_be_positive(self):
+        with pytest.raises(ValueError, match="connection_timeout must be positive"):
+            ClientConfig(address="localhost:50000", connection_timeout=0)
+
+    def test_drain_timeout_must_be_non_negative(self):
+        with pytest.raises(ValueError, match="drain_timeout must be non-negative"):
+            ClientConfig(address="localhost:50000", drain_timeout=-1)
+
+    def test_callback_completion_timeout_must_be_non_negative(self):
+        with pytest.raises(ValueError, match="callback_completion_timeout must be non-negative"):
+            ClientConfig(address="localhost:50000", callback_completion_timeout=-1)
+
+    def test_reconnect_buffer_size_must_be_non_negative(self):
+        with pytest.raises(ValueError, match="reconnect_buffer_size must be non-negative"):
+            ClientConfig(address="localhost:50000", reconnect_buffer_size=-1)
+
+    def test_buffer_overflow_mode_must_be_valid(self):
+        with pytest.raises(ValueError, match="buffer_overflow_mode must be"):
+            ClientConfig(address="localhost:50000", buffer_overflow_mode="drop")
+
+    def test_credential_timeout_must_be_positive(self):
+        with pytest.raises(ValueError, match="credential_timeout must be positive"):
+            ClientConfig(address="localhost:50000", credential_timeout=0)
+
+
+class TestClientConfigTokenPresent:
+
+    def test_token_present_true(self):
+        config = ClientConfig(address="localhost:50000", auth_token="secret")
+        assert config.token_present is True
+
+    def test_token_present_false_when_none(self):
+        config = ClientConfig(address="localhost:50000")
+        assert config.token_present is False
+
+
+class TestClientConfigIsLocalhost:
+
+    def test_ipv6_bracket_is_localhost(self):
+        config = ClientConfig(address="[::1]:50000")
+        assert config._is_localhost() is True
+
+    def test_127_is_localhost(self):
+        config = ClientConfig(address="127.0.0.1:50000")
+        assert config._is_localhost() is True
+
+    def test_remote_is_not_localhost(self):
+        config = ClientConfig(address="remote.server:50000")
+        assert config._is_localhost() is False
+
+    def test_resolve_tls_enabled_for_remote(self):
+        config = ClientConfig(address="remote.server:50000", auto_tls_for_remote=True)
+        assert config._resolve_tls_enabled() is True
+
+    def test_resolve_tls_disabled_for_localhost(self):
+        config = ClientConfig(address="localhost:50000", auto_tls_for_remote=True)
+        assert config._resolve_tls_enabled() is False
+
+
+class TestClientConfigFromFileWithTLS:
+
+    def test_from_file_with_tls_and_keepalive_sections(self):
+        with tempfile.NamedTemporaryFile(suffix=".pem", delete=False) as cf:
+            cert_path = cf.name
+        with tempfile.NamedTemporaryFile(suffix=".pem", delete=False) as kf:
+            key_path = kf.name
+        with tempfile.NamedTemporaryFile(suffix=".pem", delete=False) as caf:
+            ca_path = caf.name
+
+        config_data = f"""
+address = "tls-host:50000"
+client_id = "tls-client"
+
+[tls]
+enabled = true
+cert_file = "{cert_path}"
+key_file = "{key_path}"
+ca_file = "{ca_path}"
+
+[keep_alive]
+enabled = true
+ping_interval_in_seconds = 30
+ping_timeout_in_seconds = 10
+"""
+
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".toml", delete=False
+        ) as toml_f:
+            toml_f.write(config_data)
+            toml_f.flush()
+            toml_path = toml_f.name
+
+        try:
+            config = ClientConfig.from_file(toml_path)
+            assert config.address == "tls-host:50000"
+            assert config.tls.enabled is True
+            assert str(config.tls.cert_file) == cert_path
+            assert str(config.tls.key_file) == key_path
+            assert str(config.tls.ca_file) == ca_path
+            assert config.keep_alive.enabled is True
+            assert config.keep_alive.ping_interval_in_seconds == 30
+            assert config.keep_alive.ping_timeout_in_seconds == 10
+        finally:
+            os.unlink(cert_path)
+            os.unlink(key_path)
+            os.unlink(ca_path)
+            os.unlink(toml_path)
+
+
+class TestClientConfigFromDotenvImportError:
+
+    def test_from_dotenv_without_dotenv_raises(self):
+        import sys
+        from unittest.mock import patch as _patch
+        with _patch.dict(sys.modules, {"dotenv": None}):
+            with pytest.raises(ImportError, match="python-dotenv is required"):
+                ClientConfig.from_dotenv()

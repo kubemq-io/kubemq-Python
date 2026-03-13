@@ -147,6 +147,7 @@ class TestQueuesPollResponseDecode:
         pb_message.Attributes.ReRoutedFromQueue = ""
         pb_message.Attributes.ExpirationAt = 0
         pb_message.Attributes.DelayedTo = 0
+        pb_message.Attributes.MD5OfBody = ""
 
         pb_response = MagicMock()
         pb_response.RefRequestId = "req-msgs"
@@ -412,3 +413,160 @@ class TestQueuesPollResponseStr:
         assert "QueuesPollResponse(" in repr_str
         assert "req-repr" in repr_str
         assert "txn-repr" in repr_str
+
+
+class TestQueuesPollResponseStrException:
+    """Tests for __str__ exception handling (lines 317-318)."""
+
+    def test_str_handles_exception_gracefully(self):
+        response = QueuesPollResponse(
+            ref_request_id="req-1",
+            transaction_id="txn-1",
+        )
+        s = str(response)
+        assert "QueuesPollResponse" in s
+
+
+class TestQueuesPollResponseReprDetail:
+    """Tests for __repr__ (lines 297-298)."""
+
+    def test_repr_with_auto_ack(self):
+        response = QueuesPollResponse(
+            ref_request_id="req-repr",
+            is_auto_acked=True,
+            visibility_seconds=30,
+        )
+        r = repr(response)
+        assert "is_auto_acked=True" in r
+        assert "visibility_seconds=30" in r
+
+
+class TestQueuesPollResponseOperationError:
+    """Tests for _do_operation error path (lines 237-239)."""
+
+    def test_operation_error_raises_value_error(self):
+        response_handler = MagicMock(side_effect=RuntimeError("handler failed"))
+        response = QueuesPollResponse(
+            transaction_id="txn-1",
+            receiver_client_id="receiver",
+            response_handler=response_handler,
+            active_offsets=[1],
+            is_auto_acked=False,
+            is_transaction_completed=False,
+        )
+        with pytest.raises(ValueError, match="Failed to perform"):
+            response.ack_all()
+
+
+class TestQueuesPollResponseActiveOffsets:
+    """GAP-H6: Tests for get_active_offsets."""
+
+    def test_get_active_offsets_sends_correct_request_type(self):
+        from kubemq.grpc import QueuesDownstreamRequestType
+
+        mock_resp = MagicMock()
+        mock_resp.ActiveOffsets = [10, 20, 30]
+        handler = MagicMock(return_value=mock_resp)
+
+        response = QueuesPollResponse(
+            transaction_id="txn-1",
+            receiver_client_id="receiver",
+            response_handler=handler,
+            active_offsets=[1],
+        )
+
+        offsets = response.get_active_offsets()
+
+        call_args = handler.call_args[0][0]
+        assert call_args.RequestTypeData == QueuesDownstreamRequestType.ActiveOffsets
+        assert offsets == [10, 20, 30]
+
+
+class TestQueuesPollResponseTransactionStatus:
+    """GAP-H6: Tests for get_transaction_status."""
+
+    def test_transaction_status_sends_correct_request_type(self):
+        from kubemq.grpc import QueuesDownstreamRequestType
+
+        mock_resp = MagicMock()
+        mock_resp.TransactionComplete = True
+        handler = MagicMock(return_value=mock_resp)
+
+        response = QueuesPollResponse(
+            transaction_id="txn-1",
+            receiver_client_id="receiver",
+            response_handler=handler,
+            active_offsets=[1],
+        )
+
+        status = response.get_transaction_status()
+
+        call_args = handler.call_args[0][0]
+        assert call_args.RequestTypeData == QueuesDownstreamRequestType.TransactionStatus
+        assert status is True
+
+
+class TestQueuesPollResponseCloseTransaction:
+    """GAP-H6: Tests for close_transaction."""
+
+    def test_close_by_client_sends_correct_request_type(self):
+        from kubemq.grpc import QueuesDownstreamRequestType
+
+        handler = MagicMock()
+        response = QueuesPollResponse(
+            transaction_id="txn-1",
+            receiver_client_id="receiver",
+            response_handler=handler,
+            active_offsets=[1],
+            is_auto_acked=False,
+            is_transaction_completed=False,
+        )
+
+        response.close_transaction()
+
+        call_args = handler.call_args[0][0]
+        assert call_args.RequestTypeData == QueuesDownstreamRequestType.CloseByClient
+
+
+class TestQueuesPollResponseRequestTypeAndMetadata:
+    """GAP-M5: Tests for request_type_data and response_metadata fields."""
+
+    def test_decode_request_type_data(self):
+        from kubemq.grpc import QueuesDownstreamResponse
+
+        pb_resp = MagicMock(spec=QueuesDownstreamResponse)
+        pb_resp.RefRequestId = "req-1"
+        pb_resp.TransactionId = "txn-1"
+        pb_resp.Messages = []
+        pb_resp.Error = ""
+        pb_resp.IsError = False
+        pb_resp.TransactionComplete = False
+        pb_resp.ActiveOffsets = []
+        pb_resp.RequestTypeData = 5
+        pb_resp.Metadata = {}
+
+        response = QueuesPollResponse.decode(
+            pb_resp, "client", MagicMock()
+        )
+
+        assert response.request_type_data == 5
+
+    def test_decode_response_metadata(self):
+        from kubemq.grpc import QueuesDownstreamResponse
+
+        pb_resp = MagicMock(spec=QueuesDownstreamResponse)
+        pb_resp.RefRequestId = "req-1"
+        pb_resp.TransactionId = "txn-1"
+        pb_resp.Messages = []
+        pb_resp.Error = ""
+        pb_resp.IsError = False
+        pb_resp.TransactionComplete = False
+        pb_resp.ActiveOffsets = []
+        pb_resp.RequestTypeData = 0
+        pb_resp.Metadata = {"key": "value"}
+
+        response = QueuesPollResponse.decode(
+            pb_resp, "client", MagicMock()
+        )
+
+        assert response.response_metadata == {"key": "value"}

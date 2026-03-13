@@ -14,6 +14,9 @@ class CommandResponseMessage(BaseModel):
     is_executed: bool = Field(default=False)
     timestamp: datetime = Field(default_factory=datetime.now)
     error: str = Field(default="")
+    metadata: Optional[str] = None
+    body: bytes = Field(default=b"")
+    tags: dict[str, str] = Field(default_factory=dict)
 
     model_config = {"arbitrary_types_allowed": True}
 
@@ -35,6 +38,9 @@ class CommandResponseMessage(BaseModel):
             is_executed=pb_response.Executed,
             error=pb_response.Error,
             timestamp=datetime.fromtimestamp(pb_response.Timestamp / 1e9),
+            metadata=pb_response.Metadata,
+            body=pb_response.Body,
+            tags=dict(pb_response.Tags),
         )
 
     def encode(self, client_id: str) -> pbResponse:
@@ -47,6 +53,10 @@ class CommandResponseMessage(BaseModel):
         pb_response.Executed = self.is_executed
         pb_response.Error = self.error
         pb_response.Timestamp = int(self.timestamp.timestamp() * 1e9)
+        pb_response.Metadata = self.metadata or ""
+        pb_response.Body = self.body or b""
+        for key, value in self.tags.items():
+            pb_response.Tags[key] = value
         return pb_response
 
     def __repr__(self) -> str:

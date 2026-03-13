@@ -224,3 +224,59 @@ class TestRunInThreadEdgeCases:
         double = Callable(2)
         result = await run_in_thread(double, 5)
         assert result == 10
+
+
+# ==============================================================================
+# Additional Coverage Tests
+# ==============================================================================
+
+
+class TestRunInThreadReturnAndException:
+    """Focused tests for run_in_thread return values and exception propagation."""
+
+    @pytest.mark.asyncio
+    async def test_run_in_thread_returns_result(self):
+        """Verify that the function result is correctly returned."""
+
+        def compute():
+            return 42 * 3
+
+        result = await run_in_thread(compute)
+        assert result == 126
+
+    @pytest.mark.asyncio
+    async def test_run_in_thread_propagates_exception(self):
+        """Verify that exceptions from the function are raised to the caller."""
+
+        def explode():
+            raise RuntimeError("kaboom")
+
+        with pytest.raises(RuntimeError, match="kaboom"):
+            await run_in_thread(explode)
+
+
+class TestCleanupExecutor:
+    """Tests for cleanup_executor function."""
+
+    def test_cleanup_executor_no_error(self):
+        """Call cleanup_executor, verify no error even if executor was never created."""
+        from kubemq.core import compat
+
+        original = compat._compat_executor
+        try:
+            compat._compat_executor = None
+            compat.cleanup_executor()
+            assert compat._compat_executor is None
+        finally:
+            compat._compat_executor = original
+
+    @pytest.mark.asyncio
+    async def test_cleanup_executor_after_use(self):
+        """Use the executor via run_in_thread, then clean it up."""
+        from kubemq.core import compat
+
+        await run_in_thread(lambda: 1 + 1)
+        assert compat._compat_executor is not None
+
+        compat.cleanup_executor()
+        assert compat._compat_executor is None

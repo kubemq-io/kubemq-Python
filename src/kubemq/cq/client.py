@@ -9,7 +9,7 @@ from pathlib import Path
 
 import grpc
 
-from kubemq._internal.telemetry import KubeMQTagsCarrier, create_link_from_context, error_code_to_error_type
+from kubemq._internal.telemetry import KubeMQTagsCarrier, create_link_from_context, error_code_to_error_type, serialize_span_to_bytes
 from kubemq.common.cancellation_token import CancellationToken
 from kubemq.common.channel_stats import CQChannel
 from kubemq.common.helpers import decode_grpc_error
@@ -200,7 +200,8 @@ class Client(BaseClient):
             try:
                 self._ensure_connected()
                 assert self._transport is not None
-                pb_req = message.encode(self._config.client_id or "")
+                span_bytes = serialize_span_to_bytes()
+                pb_req = message.encode(self._config.client_id or "", span=span_bytes)
                 tags_dict = dict(pb_req.Tags)
                 KubeMQTagsCarrier(tags_dict).inject()
                 pb_req.Tags.update(tags_dict)
@@ -280,7 +281,8 @@ class Client(BaseClient):
             try:
                 self._ensure_connected()
                 assert self._transport is not None
-                pb_req = message.encode(self._config.client_id or "")
+                span_bytes = serialize_span_to_bytes()
+                pb_req = message.encode(self._config.client_id or "", span=span_bytes)
                 tags_dict = dict(pb_req.Tags)
                 KubeMQTagsCarrier(tags_dict).inject()
                 pb_req.Tags.update(tags_dict)
@@ -363,9 +365,11 @@ class Client(BaseClient):
         error_type_val = None
         with self._instrumentor.start_span("settle", channel) as span:
             try:
-                self._transport.kubemq_client().SendResponse(
-                    message.encode(self._config.client_id or "")
-                )
+                pb_response = message.encode(self._config.client_id or "")
+                tags_dict = dict(pb_response.Tags)
+                KubeMQTagsCarrier(tags_dict).inject()
+                pb_response.Tags.update(tags_dict)
+                self._transport.kubemq_client().SendResponse(pb_response)
                 self._instrumentor._metrics.record_sent_message("settle", channel)
             except Exception as e:
                 error_type_val = error_code_to_error_type(getattr(e, "code", None))

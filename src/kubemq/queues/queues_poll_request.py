@@ -4,6 +4,7 @@ import uuid
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from kubemq.common.channel_validators import validate_channel_name
 from kubemq.grpc import QueuesDownstreamRequest, QueuesDownstreamRequestType
 
 
@@ -60,10 +61,11 @@ class QueuesPollRequest(BaseModel):
     poll_max_messages: int = Field(
         default=1,
         ge=1,
+        le=1024,
         description="The maximum number of messages to poll in a single request",
     )
     poll_wait_timeout_in_seconds: int = Field(
-        default=60, ge=1, description="The maximum time to wait for messages in seconds"
+        default=60, ge=1, le=3600, description="The maximum time to wait for messages in seconds"
     )
     auto_ack_messages: bool = Field(
         default=False,
@@ -73,6 +75,10 @@ class QueuesPollRequest(BaseModel):
         default=0,
         ge=0,
         description="The visibility time in seconds for the messages",
+    )
+    metadata: dict[str, str] = Field(
+        default_factory=dict,
+        description="Arbitrary key-value metadata to attach to the downstream request",
     )
 
     # Validators
@@ -94,6 +100,7 @@ class QueuesPollRequest(BaseModel):
             raise ValueError(
                 "Queue poll request must have a channel. Please provide a valid queue name."
             )
+        validate_channel_name(v)
         return v
 
     @field_validator("visibility_seconds")
@@ -153,6 +160,9 @@ class QueuesPollRequest(BaseModel):
         request.WaitTimeout = self.poll_wait_timeout_in_seconds * 1000
         request.AutoAck = self.auto_ack_messages
         request.RequestTypeData = QueuesDownstreamRequestType.Get
+        if self.metadata:
+            for k, v in self.metadata.items():
+                request.Metadata[k] = v
         return request
 
     # String representations

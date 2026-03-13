@@ -25,6 +25,10 @@ class TestQueueSendResultDecode:
         pb_result.DelayedTo = 0
         pb_result.IsError = False
         pb_result.Error = ""
+        pb_result.RefChannel = ""
+        pb_result.RefTopic = ""
+        pb_result.RefPartition = 0
+        pb_result.RefHash = ""
 
         result = QueueSendResult.decode(pb_result)
 
@@ -42,6 +46,10 @@ class TestQueueSendResultDecode:
         pb_result.DelayedTo = 0
         pb_result.IsError = True
         pb_result.Error = "Queue not found"
+        pb_result.RefChannel = ""
+        pb_result.RefTopic = ""
+        pb_result.RefPartition = 0
+        pb_result.RefHash = ""
 
         result = QueueSendResult.decode(pb_result)
 
@@ -59,6 +67,10 @@ class TestQueueSendResultDecode:
         pb_result.DelayedTo = int(future_time.timestamp() * 1e9)
         pb_result.IsError = False
         pb_result.Error = ""
+        pb_result.RefChannel = ""
+        pb_result.RefTopic = ""
+        pb_result.RefPartition = 0
+        pb_result.RefHash = ""
 
         result = QueueSendResult.decode(pb_result)
 
@@ -75,6 +87,10 @@ class TestQueueSendResultDecode:
         pb_result.DelayedTo = 0
         pb_result.IsError = False
         pb_result.Error = ""
+        pb_result.RefChannel = ""
+        pb_result.RefTopic = ""
+        pb_result.RefPartition = 0
+        pb_result.RefHash = ""
 
         result = QueueSendResult.decode(pb_result)
 
@@ -239,3 +255,69 @@ class TestQueueSendResultStr:
 
         assert "QueueSendResult(" in repr_str
         assert "msg-repr" in repr_str
+
+
+class TestQueueSendResultDecodeException:
+    """Tests for decode exception handling (lines 162-163)."""
+
+    def test_decode_with_invalid_result_raises(self):
+        pb_result = MagicMock()
+        pb_result.MessageID = "msg-1"
+        pb_result.SentAt = "not_a_number"  # Will cause exception
+        pb_result.ExpirationAt = 0
+        pb_result.DelayedTo = 0
+        pb_result.IsError = False
+        pb_result.Error = ""
+        with pytest.raises(ValueError, match="Failed to decode"):
+            QueueSendResult.decode(pb_result)
+
+
+class TestQueueSendResultStrException:
+    """Tests for __str__ and __repr__ exception handling (lines 182-183)."""
+
+    def test_str_error_path(self):
+        result = QueueSendResult(
+            id="msg-err",
+            is_error=True,
+            error="Test error message",
+        )
+        s = str(result)
+        assert "ERROR" in s
+        assert "Test error message" in s
+
+    def test_repr_with_all_fields(self):
+        result = QueueSendResult(
+            id="r1",
+            sent_at=datetime.now(),
+            expired_at=datetime.now() + timedelta(hours=1),
+            delayed_to=datetime.now() + timedelta(minutes=5),
+            is_error=False,
+        )
+        r = repr(result)
+        assert "QueueSendResult(" in r
+        assert "r1" in r
+
+
+class TestQueueSendResultRefFields:
+    """GAP-M2: Tests for Ref fields in QueueSendResult."""
+
+    def test_decode_ref_fields(self):
+        from unittest.mock import MagicMock
+        pb_result = MagicMock()
+        pb_result.MessageID = "msg-1"
+        pb_result.SentAt = int(datetime.now().timestamp() * 1e9)
+        pb_result.ExpirationAt = 0
+        pb_result.DelayedTo = 0
+        pb_result.IsError = False
+        pb_result.Error = ""
+        pb_result.RefChannel = "ref-ch"
+        pb_result.RefTopic = "ref-topic"
+        pb_result.RefPartition = 3
+        pb_result.RefHash = "abc123"
+
+        result = QueueSendResult.decode(pb_result)
+
+        assert result.ref_channel == "ref-ch"
+        assert result.ref_topic == "ref-topic"
+        assert result.ref_partition == 3
+        assert result.ref_hash == "abc123"

@@ -3,6 +3,7 @@ from typing import Callable, Optional
 
 from pydantic import BaseModel, ValidationError, field_validator
 
+from kubemq.common.channel_validators import validate_channel_name
 from kubemq.common.subscribe_type import SubscribeType
 from kubemq.cq.command_message_received import CommandMessageReceived
 from kubemq.grpc import Subscribe
@@ -18,6 +19,7 @@ class CommandsSubscription(BaseModel):
     def channel_must_exist(cls, v: str) -> str:
         if not v:
             raise ValueError("command subscription must have a channel.")
+        validate_channel_name(v)
         return v
 
     @field_validator("on_receive_command_callback")

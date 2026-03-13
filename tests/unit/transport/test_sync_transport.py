@@ -356,5 +356,203 @@ class TestTransportAlias:
 
 
 # ==============================================================================
-# Import asyncio for async tests
+# Additional Coverage Tests
 # ==============================================================================
+
+
+class TestSyncTransportAsyncClientLazy:
+    """Tests for kubemq_async_client() lazy initialization (line 161)."""
+
+    def test_kubemq_async_client_lazy_init(self):
+        """Verify kubemq_async_client() calls _initialize_async() when _async_client is None."""
+        connection = Connection(address="localhost:50000")
+        transport = SyncTransport(connection)
+
+        mock_async_client = MagicMock()
+
+        def side_effect():
+            transport._async_client = mock_async_client
+
+        with patch.object(transport, "_initialize_async", side_effect=side_effect) as mock_init:
+            result = transport.kubemq_async_client()
+
+        mock_init.assert_called_once()
+        assert result is mock_async_client
+
+    def test_kubemq_async_client_returns_existing(self):
+        """Set _async_client to a mock, verify returned without calling _initialize_async."""
+        connection = Connection(address="localhost:50000")
+        transport = SyncTransport(connection)
+
+        mock_async_client = MagicMock()
+        transport._async_client = mock_async_client
+
+        with patch.object(transport, "_initialize_async") as mock_init:
+            result = transport.kubemq_async_client()
+
+        mock_init.assert_not_called()
+        assert result is mock_async_client
+
+
+class TestSyncTransportPingNotInitialized:
+    """Tests for ping() when client is None (line 145)."""
+
+    def test_ping_when_not_initialized(self):
+        """_client is None, verify RuntimeError raised."""
+        connection = Connection(address="localhost:50000")
+        transport = SyncTransport(connection)
+        transport._client = None
+
+        with pytest.raises(RuntimeError, match="Transport not initialized"):
+            transport.ping()
+
+
+class TestSyncTransportCloseEdgeCases:
+    """Tests for close() method edge cases (lines 207-226)."""
+
+    def test_close_with_channel_manager(self):
+        """Set _channel_manager to mock, verify close() calls it."""
+        connection = Connection(address="localhost:50000")
+        transport = SyncTransport(connection)
+
+        mock_channel_manager = MagicMock()
+        transport._channel_manager = mock_channel_manager
+        transport._async_channel = None
+        transport._is_connected = True
+
+        transport.close()
+
+        mock_channel_manager.close.assert_called_once()
+        assert transport._is_connected is False
+
+    def test_close_with_async_channel_in_sync_context(self):
+        """Set _async_channel to mock, verify it's cleaned up via new event loop."""
+        connection = Connection(address="localhost:50000")
+        transport = SyncTransport(connection)
+
+        mock_async_channel = MagicMock()
+        mock_async_channel.close = MagicMock(return_value=MagicMock())
+        transport._async_channel = mock_async_channel
+        transport._async_client = MagicMock()
+        transport._channel_manager = None
+
+        with patch("kubemq.transport.transport.asyncio.get_running_loop", side_effect=RuntimeError):
+            mock_loop = MagicMock()
+            with patch("kubemq.transport.transport.asyncio.new_event_loop", return_value=mock_loop):
+                transport.close()
+
+        mock_loop.run_until_complete.assert_called_once_with(mock_async_channel.close())
+        mock_loop.close.assert_called_once()
+        assert transport._async_channel is None
+        assert transport._async_client is None
+
+    def test_close_without_anything(self):
+        """No channel_manager, no async_channel, verify no errors."""
+        connection = Connection(address="localhost:50000")
+        transport = SyncTransport(connection)
+        transport._channel_manager = None
+        transport._async_channel = None
+
+        transport.close()
+
+        assert transport._is_connected is False
+
+
+class TestSyncTransportCloseAsyncEdgeCases:
+    """Tests for close_async() edge cases (lines 191-203)."""
+
+    @pytest.mark.asyncio
+    async def test_close_async_with_channel_manager(self):
+        """Verify close_async closes channel_manager and sets _is_connected False."""
+        connection = Connection(address="localhost:50000")
+        transport = SyncTransport(connection)
+
+        mock_channel_manager = MagicMock()
+        transport._channel_manager = mock_channel_manager
+        transport._async_channel = None
+        transport._is_connected = True
+
+        await transport.close_async()
+
+        mock_channel_manager.close.assert_called_once()
+        assert transport._is_connected is False
+
+    @pytest.mark.asyncio
+    async def test_close_async_with_both_channel_manager_and_async_channel(self):
+        """Verify close_async handles both channel_manager and async_channel."""
+        from unittest.mock import AsyncMock
+
+        connection = Connection(address="localhost:50000")
+        transport = SyncTransport(connection)
+
+        mock_channel_manager = MagicMock()
+        transport._channel_manager = mock_channel_manager
+        transport._is_connected = True
+
+        mock_async_channel = MagicMock()
+        mock_async_channel.close = AsyncMock()
+        transport._async_channel = mock_async_channel
+        transport._async_client = MagicMock()
+
+        await transport.close_async()
+
+        mock_channel_manager.close.assert_called_once()
+        mock_async_channel.close.assert_called_once()
+        assert transport._async_channel is None
+        assert transport._async_client is None
+        assert transport._is_connected is False
+
+
+class TestSyncTransportInitializeAsync:
+    """Tests for _initialize_async() method (lines 121-141)."""
+
+    @patch("kubemq.transport.transport.kubemq_pb2_grpc.kubemqStub")
+    @patch("kubemq.transport.transport.grpc.aio.insecure_channel")
+    def test_initialize_async_non_tls(self, mock_insecure_channel, mock_stub):
+        """Verify _initialize_async creates insecure async channel when TLS disabled."""
+        connection = Connection(address="localhost:50000")
+        transport = SyncTransport(connection)
+
+        mock_channel = MagicMock()
+        mock_insecure_channel.return_value = mock_channel
+        mock_stub.return_value = MagicMock()
+
+        transport._initialize_async()
+
+        mock_insecure_channel.assert_called_once()
+        assert transport._async_channel is mock_channel
+        assert transport._async_client is not None
+
+    @patch("kubemq.transport.transport.kubemq_pb2_grpc.kubemqStub")
+    @patch("kubemq.transport.transport._get_ssl_credentials")
+    @patch("kubemq.transport.transport.grpc.aio.secure_channel")
+    def test_initialize_async_tls(self, mock_secure_channel, mock_ssl_creds, mock_stub, tmp_path):
+        """Verify _initialize_async creates secure async channel when TLS enabled."""
+        ca_file = tmp_path / "ca.pem"
+        ca_file.write_bytes(b"ca-data")
+        cert_file = tmp_path / "cert.pem"
+        cert_file.write_bytes(b"cert-data")
+        key_file = tmp_path / "key.pem"
+        key_file.write_bytes(b"key-data")
+
+        connection = Connection(
+            address="localhost:50000",
+            tls=TlsConfig(
+                enabled=True,
+                ca_file=str(ca_file),
+                cert_file=str(cert_file),
+                key_file=str(key_file),
+            ),
+        )
+        transport = SyncTransport(connection)
+
+        mock_channel = MagicMock()
+        mock_secure_channel.return_value = mock_channel
+        mock_ssl_creds.return_value = MagicMock()
+        mock_stub.return_value = MagicMock()
+
+        transport._initialize_async()
+
+        mock_secure_channel.assert_called_once()
+        assert transport._async_channel is mock_channel
+        assert transport._async_client is not None

@@ -388,6 +388,95 @@ class TestConnectionNotReadyError:
         assert "RECONNECTING" in str(err)
 
 
+class TestReconnectionManagerBufferDrainOnSuccess:
+    """Tests for buffer drain callback on successful reconnection (lines 301-307)."""
+
+    async def test_sync_buffer_drain_callback_on_success(self):
+        drain_cb = MagicMock()
+        config = ReconnectConfig(
+            reconnect_buffer_size=1024,
+            initial_reconnect_delay_ms=50,
+        )
+        connect_fn = AsyncMock()
+        mgr = ReconnectionManager(
+            config, _make_backoff(), on_buffer_drain=drain_cb
+        )
+
+        await mgr.buffer_message(b"msg1")
+        await mgr.start_reconnection(connect_fn)
+        await asyncio.sleep(0.3)
+
+        drain_cb.assert_called_once_with(1)
+
+    async def test_async_buffer_drain_callback_on_success(self):
+        drain_cb = AsyncMock()
+        config = ReconnectConfig(
+            reconnect_buffer_size=1024,
+            initial_reconnect_delay_ms=50,
+        )
+        connect_fn = AsyncMock()
+        mgr = ReconnectionManager(
+            config, _make_backoff(), on_buffer_drain=drain_cb
+        )
+
+        await mgr.buffer_message(b"msg1")
+        await mgr.start_reconnection(connect_fn)
+        await asyncio.sleep(0.3)
+
+        drain_cb.assert_called_once_with(1)
+
+    async def test_buffer_drain_callback_exception_handled(self):
+        def bad_drain(count):
+            raise RuntimeError("drain failed")
+
+        config = ReconnectConfig(
+            reconnect_buffer_size=1024,
+            initial_reconnect_delay_ms=50,
+        )
+        connect_fn = AsyncMock()
+        mgr = ReconnectionManager(
+            config, _make_backoff(), on_buffer_drain=bad_drain
+        )
+
+        await mgr.buffer_message(b"msg1")
+        await mgr.start_reconnection(connect_fn)
+        await asyncio.sleep(0.3)
+
+
+class TestReconnectionManagerCancelEdge:
+    """Tests for cancel discard and notify edge cases (lines 356-357)."""
+
+    async def test_cancel_with_failed_drain_callback(self):
+        async def bad_drain(count):
+            raise RuntimeError("bad drain")
+
+        config = ReconnectConfig(reconnect_buffer_size=1024)
+        mgr = ReconnectionManager(
+            config, _make_backoff(), on_buffer_drain=bad_drain
+        )
+        await mgr.buffer_message(b"msg")
+        await mgr.cancel()
+
+
+class TestReconnectionManagerMaxAttemptsDiscard:
+    """Tests for max attempts reached discards buffer (line 260->exit, 283)."""
+
+    async def test_max_attempts_cancels_loop(self):
+        config = ReconnectConfig(
+            max_reconnect_attempts=1,
+            reconnect_buffer_size=1024,
+            initial_reconnect_delay_ms=50,
+        )
+        connect_fn = AsyncMock(side_effect=Exception("fail"))
+        mgr = ReconnectionManager(config, _make_backoff())
+
+        await mgr.start_reconnection(connect_fn)
+        await asyncio.sleep(0.5)
+
+        assert not mgr.is_reconnecting
+        assert connect_fn.call_count == 1
+
+
 # -----------------------------------------------------------------------
 # CONN-4: AsyncTransport drain behaviour
 # -----------------------------------------------------------------------
