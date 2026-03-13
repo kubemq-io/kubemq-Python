@@ -191,3 +191,174 @@ class TestEnumComparison:
         """Test that invalid values raise ValueError."""
         with pytest.raises(ValueError):
             StartPosition(99)
+
+
+# ==============================================================================
+# Coverage extension: lines 110, 141, 156-159, 168, 177, 186, 195, 217-283
+# ==============================================================================
+
+
+class TestCredentialProviderProtocol:
+
+    def test_isinstance_check(self):
+        from kubemq.core.types import CredentialProvider
+        from datetime import datetime
+        from typing import Optional
+
+        class MyProvider:
+            def get_token(self) -> tuple[str, Optional[datetime]]:
+                return ("tok", None)
+
+        assert isinstance(MyProvider(), CredentialProvider)
+
+    def test_non_conforming_class_fails(self):
+        from kubemq.core.types import CredentialProvider
+
+        class NotAProvider:
+            pass
+
+        assert not isinstance(NotAProvider(), CredentialProvider)
+
+    def test_stub_invocation(self):
+        from kubemq.core.types import CredentialProvider
+        result = CredentialProvider.get_token(None)
+        assert result is None
+
+
+class TestAsyncCredentialProviderProtocol:
+
+    def test_isinstance_check(self):
+        from kubemq.core.types import AsyncCredentialProvider
+        from datetime import datetime
+        from typing import Optional
+
+        class MyAsyncProvider:
+            async def get_token(self) -> tuple[str, Optional[datetime]]:
+                return ("tok", None)
+
+        assert isinstance(MyAsyncProvider(), AsyncCredentialProvider)
+
+    @pytest.mark.asyncio
+    async def test_stub_invocation(self):
+        from kubemq.core.types import AsyncCredentialProvider
+        result = await AsyncCredentialProvider.get_token(None)
+        assert result is None
+
+
+class TestLoggerProtocol:
+
+    def test_isinstance_check(self):
+        from kubemq.core.types import Logger
+
+        class MyLogger:
+            def debug(self, msg, **kwargs): pass
+            def info(self, msg, **kwargs): pass
+            def warning(self, msg, **kwargs): pass
+            def error(self, msg, **kwargs): pass
+
+        assert isinstance(MyLogger(), Logger)
+
+    def test_stub_invocations(self):
+        from kubemq.core.types import Logger
+        Logger.debug(None, "msg")
+        Logger.info(None, "msg")
+        Logger.warning(None, "msg")
+        Logger.error(None, "msg")
+
+
+class TestCloseableProtocolIsinstance:
+
+    def test_isinstance_check(self):
+        class MyCloseable:
+            def close(self) -> None:
+                pass
+
+        assert isinstance(MyCloseable(), Closeable)
+
+    def test_stub_invocation(self):
+        Closeable.close(None)
+
+
+class TestAsyncCloseableProtocolIsinstance:
+
+    def test_isinstance_check(self):
+        class MyAsyncCloseable:
+            async def close(self) -> None:
+                pass
+
+        assert isinstance(MyAsyncCloseable(), AsyncCloseable)
+
+    @pytest.mark.asyncio
+    async def test_stub_invocation(self):
+        await AsyncCloseable.close(None)
+
+
+class TestPingableProtocolIsinstance:
+
+    def test_isinstance_check(self):
+        class MyPingable:
+            def ping(self) -> ServerInfo:
+                return None  # type: ignore
+
+        assert isinstance(MyPingable(), Pingable)
+
+    def test_stub_invocation(self):
+        Pingable.ping(None)
+
+
+class TestAsyncPingableProtocolIsinstance:
+
+    def test_isinstance_check(self):
+        class MyAsyncPingable:
+            async def ping(self) -> ServerInfo:
+                return None  # type: ignore
+
+        assert isinstance(MyAsyncPingable(), AsyncPingable)
+
+    @pytest.mark.asyncio
+    async def test_stub_invocation(self):
+        await AsyncPingable.ping(None)
+
+
+class TestTransportProtocol:
+
+    def test_isinstance_check(self):
+        from kubemq.core.types import TransportProtocol
+
+        class MyTransport:
+            async def connect(self): ...
+            async def close(self): ...
+            async def ping(self): ...
+            async def send_event(self, event): ...
+            async def send_event_store(self, event): ...
+            async def subscribe(self, request, cancel_token=None): ...
+            async def send_command(self, request): ...
+            async def send_query(self, request): ...
+            async def send_response(self, response): ...
+            async def send_queue_message(self, message): ...
+            async def send_queue_messages_batch(self, messages): ...
+            async def receive_queue_messages(self, request): ...
+            async def create_channel(self, channel_type, channel): ...
+            async def delete_channel(self, channel_type, channel): ...
+            async def list_channels(self, channel_type, search): ...
+
+        assert isinstance(MyTransport(), TransportProtocol)
+
+    @pytest.mark.asyncio
+    async def test_stub_invocations(self):
+        from kubemq.core.types import TransportProtocol
+        await TransportProtocol.connect(None)
+        await TransportProtocol.close(None)
+        await TransportProtocol.ping(None)
+        await TransportProtocol.send_event(None, None)
+        await TransportProtocol.send_event_store(None, None)
+        await TransportProtocol.subscribe(None, None)
+        await TransportProtocol.send_command(None, None)
+        await TransportProtocol.send_query(None, None)
+        await TransportProtocol.send_response(None, None)
+        await TransportProtocol.send_queue_message(None, None)
+        await TransportProtocol.send_queue_messages_batch(None, None)
+        await TransportProtocol.receive_queue_messages(None, None)
+        await TransportProtocol.create_channel(None, None, None)
+        await TransportProtocol.delete_channel(None, None, None)
+        await TransportProtocol.list_channels(None, None, None)

@@ -1,3 +1,5 @@
+import logging
+import time
 import uuid
 
 import grpc
@@ -109,137 +111,74 @@ def delete_channel_request(transport, client_id, channel_name, channel_type) -> 
         raise GRPCError(decode_grpc_error(e)) from e
 
 
+_LIST_MAX_RETRIES = 3
+_LIST_RETRY_DELAY = 2.0
+_SNAPSHOT_NOT_READY = "cluster snapshot not ready yet"
+
+_logger = logging.getLogger("kubemq.common.requests")
+
+
+def _is_retryable_list_error(response_error: str | None, rpc_error: grpc.RpcError | None) -> bool:
+    if response_error and _SNAPSHOT_NOT_READY in response_error:
+        return True
+    if rpc_error and hasattr(rpc_error, "code") and rpc_error.code() == grpc.StatusCode.DEADLINE_EXCEEDED:
+        return True
+    return False
+
+
+def _list_channels_with_retry(transport, client_id, channel_type: str, channel_search: str, decode_fn):
+    """Shared retry wrapper for all list-channels operations.
+
+    Retries on transient errors such as 'cluster snapshot not ready yet'
+    and DEADLINE_EXCEEDED, which occur when the request misses the master node.
+    """
+    last_error: Exception | None = None
+    for attempt in range(_LIST_MAX_RETRIES):
+        try:
+            request = Request(
+                RequestID=str(uuid.uuid4()),
+                RequestTypeData=2,  # type: ignore[arg-type]
+                Metadata="list-channels",
+                Channel=requests_channel,
+                ClientID=client_id,
+                Tags={"channel_type": channel_type, "channel_search": channel_search},
+                Timeout=10 * 1000,
+            )
+            response = transport.kubemq_client().SendRequest(request)
+            if response:
+                if response.Executed:
+                    return decode_fn(response.Body)
+                else:
+                    if _is_retryable_list_error(response.Error, None) and attempt < _LIST_MAX_RETRIES - 1:
+                        _logger.warning("List channels attempt %d failed: %s, retrying...", attempt + 1, response.Error)
+                        time.sleep(_LIST_RETRY_DELAY)
+                        continue
+                    raise ListChannelsError(response.Error)
+            return []
+        except grpc.RpcError as e:
+            if _is_retryable_list_error(None, e) and attempt < _LIST_MAX_RETRIES - 1:
+                _logger.warning("List channels attempt %d gRPC error, retrying...", attempt + 1)
+                last_error = e
+                time.sleep(_LIST_RETRY_DELAY)
+                continue
+            raise GRPCError(decode_grpc_error(e)) from e
+    if last_error:
+        raise GRPCError(decode_grpc_error(last_error)) from last_error
+    return []
+
+
 def list_queues_channels(transport, client_id, channel_search) -> list[QueuesChannel]:
-    """
-
-    List Queues Channels
-
-    This method is used to list the queues channels from the Kubemq server. It takes the following parameters:
-
-    Parameters:
-    - `transport` : The transport object used to communicate with the Kubemq server.
-    - `client_id` : The client ID of the client making the request.
-    - `channel_search` : The search query string to filter the channels. (optional)
-
-    Returns:
-    - `List[QueuesChannel]` : A list of QueuesChannel objects representing the queues channels.
-
-    Raises:
-    - `ListChannelsError` : If the client fails to list channels, this error will be raised.
-    - `GRPCError` : If there is an error while communicating with the Kubemq server, this error will be raised.
-
-    Example Usage:
-
-    ```python
-    transport = Transport()
-    client_id = "my_client_id"
-
-    # List all queues channels
-    queues_channels = list_queues_channels(transport, client_id)
-
-    # List queues channels with a specific search query
-    search_query = "search query"
-    queues_channels = list_queues_channels(transport, client_id, search_query)
-    ```
-    """
-    try:
-        request = Request(
-            RequestID=str(uuid.uuid4()),
-            RequestTypeData=2,  # type: ignore[arg-type]
-            Metadata="list-channels",
-            Channel=requests_channel,
-            ClientID=client_id,
-            Tags={"channel_type": "queues", "channel_search": channel_search},
-            Timeout=10 * 1000,
-        )
-        response = transport.kubemq_client().SendRequest(request)
-        if response:
-            if response.Executed:
-                return decode_queues_channel_list(response.Body)
-            else:
-                raise ListChannelsError(response.Error)
-        return []
-    except grpc.RpcError as e:
-        raise GRPCError(decode_grpc_error(e)) from e
+    """List queues channels with retry on transient errors."""
+    return _list_channels_with_retry(transport, client_id, "queues", channel_search, decode_queues_channel_list)
 
 
 def list_pubsub_channels(
     transport, client_id, channel_type: str, channel_search
 ) -> list[PubSubChannel]:
-    """
-
-    This method is used to retrieve a list of PubSub channels based on the specified parameters.
-
-    Parameters:
-    - transport: The transport object used for communication.
-    - client_id: The ID of the client making the request.
-    - channel_type (str): The type of PubSub channel to filter the list by.
-    - channel_search: A search parameter to further filter the list of channels.
-
-    Returns:
-    - List[PubSubChannel]: A list of PubSubChannel objects representing the channels matching the specified parameters.
-
-    Raises:
-    - ListChannelsError: If the request fails or is not executed successfully.
-    - GRPCError: If a gRPC error occurs during the execution of the request.
-
-    """
-    try:
-        request = Request(
-            RequestID=str(uuid.uuid4()),
-            RequestTypeData=2,  # type: ignore[arg-type]
-            Metadata="list-channels",
-            Channel=requests_channel,
-            ClientID=client_id,
-            Tags={"channel_type": channel_type, "channel_search": channel_search},
-            Timeout=10 * 1000,
-        )
-        response = transport.kubemq_client().SendRequest(request)
-        if response:
-            if response.Executed:
-                return decode_pub_sub_channel_list(response.Body)
-            else:
-                raise ListChannelsError(response.Error)
-        return []
-    except grpc.RpcError as e:
-        raise GRPCError(decode_grpc_error(e)) from e
+    """List pub/sub channels with retry on transient errors."""
+    return _list_channels_with_retry(transport, client_id, channel_type, channel_search, decode_pub_sub_channel_list)
 
 
 def list_cq_channels(transport, client_id, channel_type: str, channel_search) -> list[CQChannel]:
-    """
-
-    Method: list_cq_channels
-
-    Parameters:
-    - transport: The transport object used for communication with the Kubemq server.
-    - client_id: The ID of the client making the request.
-    - channel_type (str): The type of channel to list.
-    - channel_search: The search keyword for filtering the channels.
-
-    Returns:
-    - List[CQChannel]: A list of CQChannel objects representing the channels that match the search criteria.
-
-    Raises:
-    - ListChannelsError: If the client fails to list the channels.
-    - GRPCError: If a gRPC error occurs during the request.
-
-    """
-    try:
-        request = Request(
-            RequestID=str(uuid.uuid4()),
-            RequestTypeData=2,  # type: ignore[arg-type]
-            Metadata="list-channels",
-            Channel=requests_channel,
-            ClientID=client_id,
-            Tags={"channel_type": channel_type, "channel_search": channel_search},
-            Timeout=10 * 1000,
-        )
-        response = transport.kubemq_client().SendRequest(request)
-        if response:
-            if response.Executed:
-                return decode_cq_channel_list(response.Body)
-            else:
-                raise ListChannelsError(response.Error)
-        return []
-    except grpc.RpcError as e:
-        raise GRPCError(decode_grpc_error(e)) from e
+    """List CQ channels with retry on transient errors."""
+    return _list_channels_with_retry(transport, client_id, channel_type, channel_search, decode_cq_channel_list)

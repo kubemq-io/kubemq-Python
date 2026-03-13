@@ -309,3 +309,97 @@ class TestChannelManagerRecreate:
 
         assert new_client is not None
         assert manager.connection_state.is_connected is True
+
+
+class TestChannelManagerTestConnection:
+    """Tests for _test_connection (lines 119, 139-140)."""
+
+    @patch("kubemq.transport.channel_manager.grpc.insecure_channel")
+    @patch("kubemq.transport.channel_manager.grpc.intercept_channel")
+    @patch("kubemq.transport.channel_manager.kubemq_pb2_grpc.kubemqStub")
+    def test_test_connection_returns_false_when_client_none(
+        self, mock_stub, mock_intercept, mock_insecure
+    ):
+        mock_channel = MagicMock()
+        mock_insecure.return_value = mock_channel
+        mock_intercept.return_value = mock_channel
+        mock_stub.return_value = MagicMock()
+
+        connection = Connection(address="localhost:50000", client_id="test")
+        logger = logging.getLogger("test")
+        manager = ChannelManager(connection, logger)
+        manager._client = None
+        assert manager._test_connection() is False
+
+
+class TestChannelManagerRecreateEdge:
+    """Tests for recreate_channel edge cases (lines 164-165, 201-205)."""
+
+    @patch("kubemq.transport.channel_manager.time.sleep")
+    @patch("kubemq.transport.channel_manager.grpc.insecure_channel")
+    @patch("kubemq.transport.channel_manager.grpc.intercept_channel")
+    @patch("kubemq.transport.channel_manager.kubemq_pb2_grpc.kubemqStub")
+    def test_recreate_closes_existing_channel_with_error(
+        self, mock_stub, mock_intercept, mock_insecure, mock_sleep
+    ):
+        mock_channel = MagicMock()
+        mock_channel.close.side_effect = Exception("close failed")
+        mock_insecure.return_value = mock_channel
+        mock_intercept.return_value = mock_channel
+        mock_client = MagicMock()
+        mock_client.Ping.return_value = MagicMock()
+        mock_stub.return_value = mock_client
+
+        connection = Connection(
+            address="localhost:50000",
+            client_id="test",
+            reconnect_interval_seconds=0,
+        )
+        logger = logging.getLogger("test")
+        manager = ChannelManager(connection, logger)
+        new_client = manager.recreate_channel()
+        assert new_client is not None
+
+    @patch("kubemq.transport.channel_manager.time.sleep")
+    @patch("kubemq.transport.channel_manager.grpc.insecure_channel")
+    @patch("kubemq.transport.channel_manager.grpc.intercept_channel")
+    @patch("kubemq.transport.channel_manager.kubemq_pb2_grpc.kubemqStub")
+    def test_recreate_connection_test_fails(
+        self, mock_stub, mock_intercept, mock_insecure, mock_sleep
+    ):
+        mock_channel = MagicMock()
+        mock_insecure.return_value = mock_channel
+        mock_intercept.return_value = mock_channel
+        mock_client = MagicMock()
+        mock_client.Ping.side_effect = [MagicMock(), Exception("ping fail")]
+        mock_stub.return_value = mock_client
+
+        connection = Connection(
+            address="localhost:50000",
+            client_id="test",
+            reconnect_interval_seconds=0,
+        )
+        logger = logging.getLogger("test")
+        manager = ChannelManager(connection, logger)
+        manager.recreate_channel()
+        assert manager.connection_state.is_connected is False
+
+
+class TestChannelManagerCloseEdge:
+    """Tests for close edge cases (line 212->219)."""
+
+    @patch("kubemq.transport.channel_manager.grpc.insecure_channel")
+    @patch("kubemq.transport.channel_manager.grpc.intercept_channel")
+    @patch("kubemq.transport.channel_manager.kubemq_pb2_grpc.kubemqStub")
+    def test_close_when_already_closed(self, mock_stub, mock_intercept, mock_insecure):
+        mock_insecure.return_value = MagicMock()
+        mock_intercept.return_value = MagicMock()
+        mock_stub.return_value = MagicMock()
+
+        connection = Connection(address="localhost:50000", client_id="test")
+        logger = logging.getLogger("test")
+        manager = ChannelManager(connection, logger)
+        manager._channel = None
+        manager._client = None
+        manager.close()
+        assert manager.connection_state.is_connected is False

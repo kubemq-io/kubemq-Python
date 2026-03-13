@@ -10,7 +10,12 @@ import grpc.aio
 import pytest
 
 from kubemq.core.config import ClientConfig
-from kubemq.core.exceptions import KubeMQClientClosedError, KubeMQConnectionError, KubeMQTimeoutError
+from kubemq.core.exceptions import (
+    KubeMQAuthenticationError,
+    KubeMQClientClosedError,
+    KubeMQConnectionError,
+    KubeMQTimeoutError,
+)
 from kubemq.grpc import kubemq_pb2 as pb
 from kubemq.transport.async_transport import AsyncTransport
 
@@ -1506,3 +1511,1182 @@ class TestAsyncTransportContextManagerExtended:
         # Should still be closed
         assert transport is not None
         assert transport.is_connected is False
+
+
+# ==============================================================================
+# Extended Tests - set_token
+# ==============================================================================
+
+
+class TestAsyncTransportSetToken:
+    """Tests for set_token method."""
+
+    def test_set_token(self, mock_config):
+        """Test set_token updates the token holder."""
+        transport = AsyncTransport(mock_config)
+        transport.set_token("new-token-value")
+        assert transport._token_holder.token == "new-token-value"
+
+    def test_set_token_updates_holder(self, mock_config):
+        """Test set_token can be called multiple times."""
+        transport = AsyncTransport(mock_config)
+        transport.set_token("first-token")
+        assert transport._token_holder.token == "first-token"
+
+        transport.set_token("second-token")
+        assert transport._token_holder.token == "second-token"
+
+
+# ==============================================================================
+# Extended Tests - _handle_unauthenticated
+# ==============================================================================
+
+
+class TestAsyncTransportHandleUnauthenticated:
+    """Tests for _handle_unauthenticated method."""
+
+    @pytest.mark.asyncio
+    async def test_returns_false_without_manager(self, mock_config):
+        """Test returns False when no token_manager is configured."""
+        transport = AsyncTransport(mock_config)
+        assert transport._token_manager is None
+
+        error = KubeMQAuthenticationError("unauthenticated")
+        result = await transport._handle_unauthenticated(error)
+        assert result is False
+
+    @pytest.mark.asyncio
+    async def test_returns_true_on_refresh_success(self, mock_config):
+        """Test returns True when token refresh succeeds."""
+        transport = AsyncTransport(mock_config)
+        mock_tm = AsyncMock()
+        mock_tm.invalidate = AsyncMock()
+        mock_tm.get_token = AsyncMock()
+        transport._token_manager = mock_tm
+
+        error = KubeMQAuthenticationError("unauthenticated")
+        result = await transport._handle_unauthenticated(error)
+
+        assert result is True
+        mock_tm.invalidate.assert_awaited_once()
+        mock_tm.get_token.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_returns_false_on_refresh_error(self, mock_config):
+        """Test returns False when token refresh raises an exception."""
+        transport = AsyncTransport(mock_config)
+        mock_tm = AsyncMock()
+        mock_tm.invalidate = AsyncMock()
+        mock_tm.get_token = AsyncMock(side_effect=RuntimeError("refresh failed"))
+        transport._token_manager = mock_tm
+
+        error = KubeMQAuthenticationError("unauthenticated")
+        result = await transport._handle_unauthenticated(error)
+
+        assert result is False
+
+
+# ==============================================================================
+# Extended Tests - _create_channel_for_reconnect
+# ==============================================================================
+
+
+class TestAsyncTransportCreateChannelForReconnect:
+    """Tests for _create_channel_for_reconnect method."""
+
+    @pytest.mark.asyncio
+    async def test_insecure_reconnect(self, mock_config):
+        """Test insecure (non-TLS) reconnect path."""
+        transport = AsyncTransport(mock_config)
+        mock_channel = AsyncMock()
+
+        with patch("grpc.aio.insecure_channel", return_value=mock_channel) as mock_insecure:
+            channel = await transport._create_channel_for_reconnect()
+
+        mock_insecure.assert_called_once()
+        assert channel is mock_channel
+
+    @pytest.mark.asyncio
+    async def test_secure_reconnect(self, mock_config_with_tls):
+        """Test TLS reconnect path with mock credentials."""
+        transport = AsyncTransport(mock_config_with_tls)
+        mock_channel = AsyncMock()
+        mock_credentials = MagicMock()
+
+        with (
+            patch.object(transport, "_build_ssl_credentials", return_value=mock_credentials),
+            patch("grpc.aio.secure_channel", return_value=mock_channel) as mock_secure,
+        ):
+            channel = await transport._create_channel_for_reconnect()
+
+        mock_secure.assert_called_once()
+        assert channel is mock_channel
+
+    @pytest.mark.asyncio
+    async def test_file_not_found_error(self, mock_config_with_tls):
+        """Test FileNotFoundError during TLS reconnect raises KubeMQConnectionError."""
+        transport = AsyncTransport(mock_config_with_tls)
+
+        with patch.object(
+            transport,
+            "_build_ssl_credentials",
+            side_effect=FileNotFoundError("ca.pem not found"),
+        ):
+            with pytest.raises(KubeMQConnectionError, match="Certificate file not found"):
+                await transport._create_channel_for_reconnect()
+
+    @pytest.mark.asyncio
+    async def test_permission_error(self, mock_config_with_tls):
+        """Test PermissionError during TLS reconnect raises KubeMQConnectionError."""
+        transport = AsyncTransport(mock_config_with_tls)
+
+        with patch.object(
+            transport,
+            "_build_ssl_credentials",
+            side_effect=PermissionError("permission denied"),
+        ):
+            with pytest.raises(KubeMQConnectionError, match="permission denied"):
+                await transport._create_channel_for_reconnect()
+
+
+# ==============================================================================
+# Extended Tests - _is_connection_error
+# ==============================================================================
+
+
+class TestAsyncTransportConnectionErrorDetection:
+    """Tests for _is_connection_error method."""
+
+    def test_unavailable_is_connection_error(self, mock_config):
+        """Test UNAVAILABLE is detected as connection error."""
+        transport = AsyncTransport(mock_config)
+        error = grpc.aio.AioRpcError(
+            grpc.StatusCode.UNAVAILABLE,
+            initial_metadata=None,
+            trailing_metadata=None,
+            details="Server unavailable",
+            debug_error_string=None,
+        )
+        assert transport._is_connection_error(error) is True
+
+    def test_aborted_is_connection_error(self, mock_config):
+        """Test ABORTED is detected as connection error."""
+        transport = AsyncTransport(mock_config)
+        error = grpc.aio.AioRpcError(
+            grpc.StatusCode.ABORTED,
+            initial_metadata=None,
+            trailing_metadata=None,
+            details="Aborted",
+            debug_error_string=None,
+        )
+        assert transport._is_connection_error(error) is True
+
+    def test_invalid_argument_not_connection_error(self, mock_config):
+        """Test INVALID_ARGUMENT is not a connection error."""
+        transport = AsyncTransport(mock_config)
+        error = grpc.aio.AioRpcError(
+            grpc.StatusCode.INVALID_ARGUMENT,
+            initial_metadata=None,
+            trailing_metadata=None,
+            details="Bad argument",
+            debug_error_string=None,
+        )
+        assert transport._is_connection_error(error) is False
+
+
+# ==============================================================================
+# Extended Tests - _on_connection_lost
+# ==============================================================================
+
+
+class TestAsyncTransportOnConnectionLost:
+    """Tests for _on_connection_lost method."""
+
+    @pytest.mark.asyncio
+    async def test_no_op_when_closing(self, mock_config):
+        """Test _on_connection_lost does nothing when _closing is True."""
+        transport = AsyncTransport(mock_config)
+        transport._closing = True
+        transport._connected = True
+
+        await transport._on_connection_lost()
+
+        assert transport._connected is True
+
+    @pytest.mark.asyncio
+    async def test_triggers_reconnection(self, mock_config):
+        """Test _on_connection_lost transitions state and starts reconnection."""
+        transport = AsyncTransport(mock_config)
+        transport._connected = True
+        transport._closing = False
+
+        mock_rm = MagicMock()
+        mock_rm.is_reconnecting = False
+        mock_rm.start_reconnection = AsyncMock()
+        transport._reconnection_manager = mock_rm
+
+        await transport._on_connection_lost()
+
+        assert transport._connected is False
+        mock_rm.start_reconnection.assert_awaited_once()
+
+
+# ==============================================================================
+# Extended Tests - _reconnect
+# ==============================================================================
+
+
+class TestAsyncTransportReconnect:
+    """Tests for _reconnect method."""
+
+    @pytest.mark.asyncio
+    async def test_reconnect_creates_new_channel_and_pings(self, mock_config):
+        """Test _reconnect creates new channel, pings, and closes old channel."""
+        transport = AsyncTransport(mock_config)
+
+        old_channel = AsyncMock()
+        transport._channel = old_channel
+
+        new_channel = AsyncMock()
+        mock_stub = MagicMock()
+        mock_stub.Ping = AsyncMock(return_value=MagicMock())
+
+        with (
+            patch.object(
+                transport, "_create_channel_for_reconnect", return_value=new_channel,
+            ) as mock_create,
+            patch("kubemq.grpc.kubemq_pb2_grpc.kubemqStub", return_value=mock_stub),
+        ):
+            await transport._reconnect()
+
+        mock_create.assert_awaited_once()
+        mock_stub.Ping.assert_awaited_once()
+        old_channel.close.assert_awaited_once()
+        assert transport._connected is True
+        assert transport._channel is new_channel
+
+    @pytest.mark.asyncio
+    async def test_reconnect_without_old_channel(self, mock_config):
+        """Test _reconnect works when there is no existing channel."""
+        transport = AsyncTransport(mock_config)
+        transport._channel = None
+
+        new_channel = AsyncMock()
+        mock_stub = MagicMock()
+        mock_stub.Ping = AsyncMock(return_value=MagicMock())
+
+        with (
+            patch.object(
+                transport, "_create_channel_for_reconnect", return_value=new_channel,
+            ),
+            patch("kubemq.grpc.kubemq_pb2_grpc.kubemqStub", return_value=mock_stub),
+        ):
+            await transport._reconnect()
+
+        assert transport._connected is True
+        assert transport._channel is new_channel
+
+
+# ==============================================================================
+# NEW: auto_reconnect __init__ tests
+# ==============================================================================
+
+
+class TestAsyncTransportAutoReconnectInit:
+    """Tests for __init__ with auto_reconnect flag."""
+
+    def test_init_auto_reconnect_true_creates_reconnection_manager(self):
+        config = ClientConfig(
+            address="localhost:50000",
+            client_id="test-client",
+            auto_reconnect=True,
+        )
+        transport = AsyncTransport(config)
+        assert transport._reconnection_manager is not None
+
+    def test_init_auto_reconnect_false_no_reconnection_manager(self):
+        config = ClientConfig(
+            address="localhost:50000",
+            client_id="test-client",
+            auto_reconnect=False,
+        )
+        transport = AsyncTransport(config)
+        assert transport._reconnection_manager is None
+
+
+# ==============================================================================
+# NEW: TLS insecure_skip_verify warning
+# ==============================================================================
+
+
+class TestAsyncTransportTLSInsecureWarning:
+    """Tests for TLS insecure_skip_verify warning log."""
+
+    @pytest.mark.asyncio
+    async def test_insecure_skip_verify_logs_warning(self, tmp_path, caplog):
+        import logging
+
+        from kubemq.core.config import TLSConfig
+
+        ca_file = tmp_path / "ca.pem"
+        ca_file.write_bytes(b"-----BEGIN CERTIFICATE-----\nca\n-----END CERTIFICATE-----")
+
+        config = ClientConfig(
+            address="localhost:50000",
+            client_id="test",
+            tls=TLSConfig(
+                enabled=True,
+                ca_file=ca_file,
+                insecure_skip_verify=True,
+            ),
+        )
+        transport = AsyncTransport(config)
+        mock_channel = AsyncMock()
+        mock_stub = MagicMock()
+        mock_creds = MagicMock()
+
+        with (
+            patch.object(transport, "_build_ssl_credentials", return_value=mock_creds),
+            patch("grpc.aio.secure_channel", return_value=mock_channel),
+            patch("kubemq.grpc.kubemq_pb2_grpc.kubemqStub", return_value=mock_stub),
+            caplog.at_level(logging.WARNING),
+        ):
+            await transport.connect(verify=False)
+
+        assert any("certificate verification is disabled" in r.message for r in caplog.records)
+
+
+# ==============================================================================
+# NEW: _build_channel_options with server_name_override
+# ==============================================================================
+
+
+class TestAsyncTransportChannelOptionsExtended:
+    """Extended tests for _build_channel_options."""
+
+    def test_server_name_override_option(self):
+        from kubemq.core.config import TLSConfig
+
+        config = ClientConfig(
+            address="localhost:50000",
+            client_id="test",
+            tls=TLSConfig(server_name_override="my.server"),
+        )
+        transport = AsyncTransport(config)
+        options = transport._build_channel_options()
+        option_dict = dict(options)
+        assert option_dict["grpc.ssl_target_name_override"] == "my.server"
+
+    def test_keepalive_enabled_includes_all_options(self):
+        from kubemq.core.config import KeepAliveConfig
+
+        config = ClientConfig(
+            address="localhost:50000",
+            client_id="test",
+            keep_alive=KeepAliveConfig(
+                enabled=True,
+                ping_interval_in_seconds=20,
+                ping_timeout_in_seconds=8,
+                permit_without_calls=False,
+            ),
+        )
+        transport = AsyncTransport(config)
+        options = dict(transport._build_channel_options())
+        assert options["grpc.keepalive_time_ms"] == 20_000
+        assert options["grpc.keepalive_timeout_ms"] == 8_000
+        assert options["grpc.keepalive_permit_without_calls"] == 0
+
+    def test_keepalive_disabled_excludes_keepalive_options(self):
+        from kubemq.core.config import KeepAliveConfig
+
+        config = ClientConfig(
+            address="localhost:50000",
+            client_id="test",
+            keep_alive=KeepAliveConfig(enabled=False),
+        )
+        transport = AsyncTransport(config)
+        options = dict(transport._build_channel_options())
+        assert "grpc.keepalive_time_ms" not in options
+
+
+# ==============================================================================
+# NEW: TLS PEM vs file fallback
+# ==============================================================================
+
+
+class TestAsyncTransportTLSPemFallback:
+    """Tests for _build_ssl_credentials PEM vs file fallback logic."""
+
+    def test_pem_bytes_take_precedence_over_file(self):
+        from kubemq.core.config import TLSConfig
+
+        ca_pem = b"ca-pem-bytes"
+        cert_pem = b"cert-pem-bytes"
+        key_pem = b"key-pem-bytes"
+
+        config = ClientConfig(
+            address="localhost:50000",
+            client_id="test",
+            tls=TLSConfig(
+                enabled=True,
+                ca_pem=ca_pem,
+                cert_pem=cert_pem,
+                key_pem=key_pem,
+            ),
+        )
+        transport = AsyncTransport(config)
+
+        with patch("grpc.ssl_channel_credentials") as mock_ssl:
+            mock_ssl.return_value = MagicMock()
+            transport._build_ssl_credentials()
+
+            call_kwargs = mock_ssl.call_args[1]
+            assert call_kwargs["root_certificates"] == ca_pem
+            assert call_kwargs["private_key"] == key_pem
+            assert call_kwargs["certificate_chain"] == cert_pem
+
+    def test_file_fallback_when_pem_is_none(self, tmp_path):
+        from kubemq.core.config import TLSConfig
+
+        ca_file = tmp_path / "ca.pem"
+        ca_file.write_bytes(b"ca-file-content")
+        cert_file = tmp_path / "cert.pem"
+        cert_file.write_bytes(b"cert-file-content")
+        key_file = tmp_path / "key.pem"
+        key_file.write_bytes(b"key-file-content")
+
+        config = ClientConfig(
+            address="localhost:50000",
+            client_id="test",
+            tls=TLSConfig(
+                enabled=True,
+                ca_file=ca_file,
+                cert_file=cert_file,
+                key_file=key_file,
+            ),
+        )
+        transport = AsyncTransport(config)
+
+        with patch("grpc.ssl_channel_credentials") as mock_ssl:
+            mock_ssl.return_value = MagicMock()
+            transport._build_ssl_credentials()
+
+            call_kwargs = mock_ssl.call_args[1]
+            assert call_kwargs["root_certificates"] == b"ca-file-content"
+            assert call_kwargs["private_key"] == b"key-file-content"
+            assert call_kwargs["certificate_chain"] == b"cert-file-content"
+
+
+# ==============================================================================
+# NEW: Verification ping timeout
+# ==============================================================================
+
+
+class TestAsyncTransportVerifyPingTimeout:
+    """Tests for verification ping timeout during connect."""
+
+    @pytest.mark.asyncio
+    async def test_ping_timeout_logs_warning_but_stays_connected(self, mock_config, caplog):
+        import logging
+
+        transport = AsyncTransport(mock_config)
+        mock_channel = AsyncMock()
+        mock_stub = MagicMock()
+
+        with (
+            patch("grpc.aio.insecure_channel", return_value=mock_channel),
+            patch("kubemq.grpc.kubemq_pb2_grpc.kubemqStub", return_value=mock_stub),
+            patch("asyncio.wait_for", side_effect=asyncio.TimeoutError()),
+            caplog.at_level(logging.WARNING),
+        ):
+            await transport.connect(verify=True)
+
+        assert transport.is_connected
+        assert any("verification timed out" in r.message for r in caplog.records)
+
+
+# ==============================================================================
+# NEW: _handle_unauthenticated exception path
+# ==============================================================================
+
+
+class TestAsyncTransportHandleUnauthenticatedException:
+    """Tests for _handle_unauthenticated when invalidate raises."""
+
+    @pytest.mark.asyncio
+    async def test_invalidate_raises_returns_false(self, mock_config):
+        transport = AsyncTransport(mock_config)
+        mock_tm = AsyncMock()
+        mock_tm.invalidate = AsyncMock(side_effect=RuntimeError("invalidate failed"))
+        transport._token_manager = mock_tm
+
+        error = KubeMQAuthenticationError("unauthenticated")
+        result = await transport._handle_unauthenticated(error)
+        assert result is False
+
+
+# ==============================================================================
+# NEW: OSError during reconnect TLS
+# ==============================================================================
+
+
+class TestAsyncTransportReconnectOSError:
+    """Tests for OSError during TLS reconnect."""
+
+    @pytest.mark.asyncio
+    async def test_oserror_during_tls_reconnect(self, mock_config_with_tls):
+        transport = AsyncTransport(mock_config_with_tls)
+
+        with patch.object(
+            transport,
+            "_build_ssl_credentials",
+            side_effect=OSError("disk I/O error"),
+        ):
+            with pytest.raises(KubeMQConnectionError, match="I/O error") as exc_info:
+                await transport._create_channel_for_reconnect()
+
+            assert exc_info.value.is_retryable is True
+
+
+# ==============================================================================
+# NEW: Close with drain timeout (force cancel)
+# ==============================================================================
+
+
+class TestAsyncTransportDrainTimeout:
+    """Tests for close with drain_timeout forcing stream cancellation."""
+
+    @pytest.mark.asyncio
+    async def test_close_drain_timeout_force_cancels_multiple_streams(self, mock_config):
+        transport = AsyncTransport(mock_config)
+        mock_channel = AsyncMock()
+        mock_stub = MagicMock()
+
+        cancel_events = []
+
+        class HangingStream:
+            def __await__(self):
+                return asyncio.sleep(999).__await__()
+
+            def cancel(self):
+                cancel_events.append(True)
+
+        stream1 = HangingStream()
+        stream2 = HangingStream()
+
+        with (
+            patch("grpc.aio.insecure_channel", return_value=mock_channel),
+            patch("kubemq.grpc.kubemq_pb2_grpc.kubemqStub", return_value=mock_stub),
+        ):
+            await transport.connect(verify=False)
+            await transport._register_stream(stream1)
+            await transport._register_stream(stream2)
+            await transport.close(drain_timeout=0.01)
+
+        assert len(cancel_events) == 2
+        assert len(transport._active_streams) == 0
+
+
+# ==============================================================================
+# NEW: _ensure_connected when draining
+# ==============================================================================
+
+
+class TestAsyncTransportEnsureConnectedDraining:
+    """Tests for _ensure_connected when _draining is True."""
+
+    def test_draining_raises_client_closed_error(self, mock_config):
+        transport = AsyncTransport(mock_config)
+        transport._connected = True
+        transport._draining = True
+
+        with pytest.raises(KubeMQClientClosedError, match="closing"):
+            transport._ensure_connected()
+
+
+# ==============================================================================
+# NEW: Send methods connection error → _on_connection_lost
+# ==============================================================================
+
+
+def _make_unavailable_error():
+    return grpc.aio.AioRpcError(
+        grpc.StatusCode.UNAVAILABLE,
+        initial_metadata=None,
+        trailing_metadata=None,
+        details="connection lost",
+        debug_error_string=None,
+    )
+
+
+class TestAsyncTransportSendConnectionErrors:
+    """Tests for send methods triggering _on_connection_lost on UNAVAILABLE."""
+
+    @pytest.mark.asyncio
+    async def test_send_event_unavailable_triggers_connection_lost(self, mock_config):
+        transport = AsyncTransport(mock_config)
+        mock_channel = AsyncMock()
+        mock_stub = MagicMock()
+        mock_stub.SendEvent = AsyncMock(side_effect=_make_unavailable_error())
+
+        with (
+            patch("grpc.aio.insecure_channel", return_value=mock_channel),
+            patch("kubemq.grpc.kubemq_pb2_grpc.kubemqStub", return_value=mock_stub),
+            patch.object(transport, "_on_connection_lost", new_callable=AsyncMock) as mock_lost,
+        ):
+            await transport.connect(verify=False)
+            with pytest.raises(Exception):
+                await transport.send_event(pb.Event())
+            mock_lost.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_send_request_unavailable_triggers_connection_lost(self, mock_config):
+        transport = AsyncTransport(mock_config)
+        mock_channel = AsyncMock()
+        mock_stub = MagicMock()
+        mock_stub.SendRequest = AsyncMock(side_effect=_make_unavailable_error())
+
+        with (
+            patch("grpc.aio.insecure_channel", return_value=mock_channel),
+            patch("kubemq.grpc.kubemq_pb2_grpc.kubemqStub", return_value=mock_stub),
+            patch.object(transport, "_on_connection_lost", new_callable=AsyncMock) as mock_lost,
+        ):
+            await transport.connect(verify=False)
+            with pytest.raises(Exception):
+                await transport.send_request(pb.Request())
+            mock_lost.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_send_response_unavailable_triggers_connection_lost(self, mock_config):
+        transport = AsyncTransport(mock_config)
+        mock_channel = AsyncMock()
+        mock_stub = MagicMock()
+        mock_stub.SendResponse = AsyncMock(side_effect=_make_unavailable_error())
+
+        with (
+            patch("grpc.aio.insecure_channel", return_value=mock_channel),
+            patch("kubemq.grpc.kubemq_pb2_grpc.kubemqStub", return_value=mock_stub),
+            patch.object(transport, "_on_connection_lost", new_callable=AsyncMock) as mock_lost,
+        ):
+            await transport.connect(verify=False)
+            with pytest.raises(Exception):
+                await transport.send_response(pb.Response())
+            mock_lost.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_send_queue_message_unavailable_triggers_connection_lost(self, mock_config):
+        transport = AsyncTransport(mock_config)
+        mock_channel = AsyncMock()
+        mock_stub = MagicMock()
+        mock_stub.SendQueueMessage = AsyncMock(side_effect=_make_unavailable_error())
+
+        with (
+            patch("grpc.aio.insecure_channel", return_value=mock_channel),
+            patch("kubemq.grpc.kubemq_pb2_grpc.kubemqStub", return_value=mock_stub),
+            patch.object(transport, "_on_connection_lost", new_callable=AsyncMock) as mock_lost,
+        ):
+            await transport.connect(verify=False)
+            with pytest.raises(Exception):
+                await transport.send_queue_message(pb.QueueMessage())
+            mock_lost.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_send_queue_batch_unavailable_triggers_connection_lost(self, mock_config):
+        transport = AsyncTransport(mock_config)
+        mock_channel = AsyncMock()
+        mock_stub = MagicMock()
+        mock_stub.SendQueueMessagesBatch = AsyncMock(side_effect=_make_unavailable_error())
+
+        with (
+            patch("grpc.aio.insecure_channel", return_value=mock_channel),
+            patch("kubemq.grpc.kubemq_pb2_grpc.kubemqStub", return_value=mock_stub),
+            patch.object(transport, "_on_connection_lost", new_callable=AsyncMock) as mock_lost,
+        ):
+            await transport.connect(verify=False)
+            with pytest.raises(Exception):
+                await transport.send_queue_messages_batch(pb.QueueMessagesBatchRequest())
+            mock_lost.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_receive_queue_unavailable_triggers_connection_lost(self, mock_config):
+        transport = AsyncTransport(mock_config)
+        mock_channel = AsyncMock()
+        mock_stub = MagicMock()
+        mock_stub.ReceiveQueueMessages = AsyncMock(side_effect=_make_unavailable_error())
+
+        with (
+            patch("grpc.aio.insecure_channel", return_value=mock_channel),
+            patch("kubemq.grpc.kubemq_pb2_grpc.kubemqStub", return_value=mock_stub),
+            patch.object(transport, "_on_connection_lost", new_callable=AsyncMock) as mock_lost,
+        ):
+            await transport.connect(verify=False)
+            with pytest.raises(Exception):
+                await transport.receive_queue_messages(
+                    pb.ReceiveQueueMessagesRequest(WaitTimeSeconds=1)
+                )
+            mock_lost.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_ack_all_unavailable_triggers_connection_lost(self, mock_config):
+        transport = AsyncTransport(mock_config)
+        mock_channel = AsyncMock()
+        mock_stub = MagicMock()
+        mock_stub.AckAllQueueMessages = AsyncMock(side_effect=_make_unavailable_error())
+
+        with (
+            patch("grpc.aio.insecure_channel", return_value=mock_channel),
+            patch("kubemq.grpc.kubemq_pb2_grpc.kubemqStub", return_value=mock_stub),
+            patch.object(transport, "_on_connection_lost", new_callable=AsyncMock) as mock_lost,
+        ):
+            await transport.connect(verify=False)
+            with pytest.raises(Exception):
+                await transport.ack_all_queue_messages(pb.AckAllQueueMessagesRequest())
+            mock_lost.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_queues_info_unavailable_triggers_connection_lost(self, mock_config):
+        transport = AsyncTransport(mock_config)
+        mock_channel = AsyncMock()
+        mock_stub = MagicMock()
+        mock_stub.QueuesInfo = AsyncMock(side_effect=_make_unavailable_error())
+
+        with (
+            patch("grpc.aio.insecure_channel", return_value=mock_channel),
+            patch("kubemq.grpc.kubemq_pb2_grpc.kubemqStub", return_value=mock_stub),
+            patch.object(transport, "_on_connection_lost", new_callable=AsyncMock) as mock_lost,
+        ):
+            await transport.connect(verify=False)
+            with pytest.raises(Exception):
+                await transport.queues_info(pb.QueuesInfoRequest())
+            mock_lost.assert_awaited_once()
+
+
+# ==============================================================================
+# NEW: Stream CANCELLED handling (suppressed)
+# ==============================================================================
+
+
+def _make_cancelled_error():
+    return grpc.aio.AioRpcError(
+        grpc.StatusCode.CANCELLED,
+        initial_metadata=None,
+        trailing_metadata=None,
+        details="cancelled",
+        debug_error_string=None,
+    )
+
+
+class _CancelledAsyncStream:
+    """Mock stream that raises CANCELLED on iteration."""
+
+    def __init__(self):
+        self._cancelled = False
+
+    def cancel(self):
+        self._cancelled = True
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        raise _make_cancelled_error()
+
+
+class TestAsyncTransportStreamCancelledSuppressed:
+    """Tests for CANCELLED error suppression in streaming methods."""
+
+    @pytest.mark.asyncio
+    async def test_subscribe_events_cancelled_suppressed(self, mock_config):
+        transport = AsyncTransport(mock_config)
+        mock_channel = AsyncMock()
+        mock_stub = MagicMock()
+        mock_stub.SubscribeToEvents = MagicMock(return_value=_CancelledAsyncStream())
+
+        with (
+            patch("grpc.aio.insecure_channel", return_value=mock_channel),
+            patch("kubemq.grpc.kubemq_pb2_grpc.kubemqStub", return_value=mock_stub),
+        ):
+            await transport.connect(verify=False)
+            received = []
+            async for event in transport.subscribe_to_events(pb.Subscribe()):
+                received.append(event)
+            assert received == []
+
+    @pytest.mark.asyncio
+    async def test_subscribe_requests_cancelled_suppressed(self, mock_config):
+        transport = AsyncTransport(mock_config)
+        mock_channel = AsyncMock()
+        mock_stub = MagicMock()
+        mock_stub.SubscribeToRequests = MagicMock(return_value=_CancelledAsyncStream())
+
+        with (
+            patch("grpc.aio.insecure_channel", return_value=mock_channel),
+            patch("kubemq.grpc.kubemq_pb2_grpc.kubemqStub", return_value=mock_stub),
+        ):
+            await transport.connect(verify=False)
+            received = []
+            async for req in transport.subscribe_to_requests(pb.Subscribe()):
+                received.append(req)
+            assert received == []
+
+    @pytest.mark.asyncio
+    async def test_queues_upstream_cancelled_suppressed(self, mock_config):
+        transport = AsyncTransport(mock_config)
+        mock_channel = AsyncMock()
+        mock_stub = MagicMock()
+        mock_stub.QueuesUpstream = MagicMock(return_value=_CancelledAsyncStream())
+
+        async def empty_gen():
+            if False:
+                yield pb.QueuesUpstreamRequest()
+
+        with (
+            patch("grpc.aio.insecure_channel", return_value=mock_channel),
+            patch("kubemq.grpc.kubemq_pb2_grpc.kubemqStub", return_value=mock_stub),
+        ):
+            await transport.connect(verify=False)
+            received = []
+            async for resp in transport.queues_upstream(empty_gen()):
+                received.append(resp)
+            assert received == []
+
+    @pytest.mark.asyncio
+    async def test_queues_downstream_cancelled_suppressed(self, mock_config):
+        transport = AsyncTransport(mock_config)
+        mock_channel = AsyncMock()
+        mock_stub = MagicMock()
+        mock_stub.QueuesDownstream = MagicMock(return_value=_CancelledAsyncStream())
+
+        async def empty_gen():
+            if False:
+                yield pb.QueuesDownstreamRequest()
+
+        with (
+            patch("grpc.aio.insecure_channel", return_value=mock_channel),
+            patch("kubemq.grpc.kubemq_pb2_grpc.kubemqStub", return_value=mock_stub),
+        ):
+            await transport.connect(verify=False)
+            received = []
+            async for resp in transport.queues_downstream(empty_gen()):
+                received.append(resp)
+            assert received == []
+
+
+# ==============================================================================
+# NEW: Stream closing check (loop break)
+# ==============================================================================
+
+
+class _ClosingAwareAsyncStream:
+    """Mock stream that yields items, setting transport._closing on the second __anext__ call.
+
+    The first item is returned normally; on the second call, _closing is
+    set *before* returning so the transport loop's closing check fires.
+    """
+
+    def __init__(self, items, transport):
+        self._items = items
+        self._index = 0
+        self._transport = transport
+
+    def cancel(self):
+        pass
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        if self._index >= len(self._items):
+            raise StopAsyncIteration
+        if self._index > 0:
+            self._transport._closing = True
+        item = self._items[self._index]
+        self._index += 1
+        return item
+
+
+class TestAsyncTransportStreamClosingBreak:
+    """Tests for stream loop breaking when transport is closing."""
+
+    @pytest.mark.asyncio
+    async def test_subscribe_events_breaks_on_closing(self, mock_config):
+        transport = AsyncTransport(mock_config)
+        mock_channel = AsyncMock()
+        mock_stub = MagicMock()
+
+        event1 = MagicMock(spec=pb.EventReceive)
+        event2 = MagicMock(spec=pb.EventReceive)
+        mock_call = _ClosingAwareAsyncStream([event1, event2], transport)
+        mock_stub.SubscribeToEvents = MagicMock(return_value=mock_call)
+
+        with (
+            patch("grpc.aio.insecure_channel", return_value=mock_channel),
+            patch("kubemq.grpc.kubemq_pb2_grpc.kubemqStub", return_value=mock_stub),
+        ):
+            await transport.connect(verify=False)
+            received = []
+            async for event in transport.subscribe_to_events(pb.Subscribe()):
+                received.append(event)
+
+        assert len(received) == 1
+
+    @pytest.mark.asyncio
+    async def test_subscribe_requests_breaks_on_closing(self, mock_config):
+        transport = AsyncTransport(mock_config)
+        mock_channel = AsyncMock()
+        mock_stub = MagicMock()
+
+        req1 = MagicMock(spec=pb.Request)
+        req2 = MagicMock(spec=pb.Request)
+        mock_call = _ClosingAwareAsyncStream([req1, req2], transport)
+        mock_stub.SubscribeToRequests = MagicMock(return_value=mock_call)
+
+        with (
+            patch("grpc.aio.insecure_channel", return_value=mock_channel),
+            patch("kubemq.grpc.kubemq_pb2_grpc.kubemqStub", return_value=mock_stub),
+        ):
+            await transport.connect(verify=False)
+            received = []
+            async for req in transport.subscribe_to_requests(pb.Subscribe()):
+                received.append(req)
+
+        assert len(received) == 1
+
+    @pytest.mark.asyncio
+    async def test_queues_upstream_breaks_on_closing(self, mock_config):
+        transport = AsyncTransport(mock_config)
+        mock_channel = AsyncMock()
+        mock_stub = MagicMock()
+
+        resp1 = MagicMock(spec=pb.QueuesUpstreamResponse)
+        resp2 = MagicMock(spec=pb.QueuesUpstreamResponse)
+        mock_call = _ClosingAwareAsyncStream([resp1, resp2], transport)
+        mock_stub.QueuesUpstream = MagicMock(return_value=mock_call)
+
+        async def request_gen():
+            yield pb.QueuesUpstreamRequest()
+
+        with (
+            patch("grpc.aio.insecure_channel", return_value=mock_channel),
+            patch("kubemq.grpc.kubemq_pb2_grpc.kubemqStub", return_value=mock_stub),
+        ):
+            await transport.connect(verify=False)
+            received = []
+            async for resp in transport.queues_upstream(request_gen()):
+                received.append(resp)
+
+        assert len(received) == 1
+
+    @pytest.mark.asyncio
+    async def test_queues_downstream_breaks_on_closing(self, mock_config):
+        transport = AsyncTransport(mock_config)
+        mock_channel = AsyncMock()
+        mock_stub = MagicMock()
+
+        resp1 = MagicMock(spec=pb.QueuesDownstreamResponse)
+        resp2 = MagicMock(spec=pb.QueuesDownstreamResponse)
+        mock_call = _ClosingAwareAsyncStream([resp1, resp2], transport)
+        mock_stub.QueuesDownstream = MagicMock(return_value=mock_call)
+
+        async def request_gen():
+            yield pb.QueuesDownstreamRequest()
+
+        with (
+            patch("grpc.aio.insecure_channel", return_value=mock_channel),
+            patch("kubemq.grpc.kubemq_pb2_grpc.kubemqStub", return_value=mock_stub),
+        ):
+            await transport.connect(verify=False)
+            received = []
+            async for resp in transport.queues_downstream(request_gen()):
+                received.append(resp)
+
+        assert len(received) == 1
+
+
+# ==============================================================================
+# NEW: Upstream/downstream stream UNAVAILABLE propagation
+# ==============================================================================
+
+
+def _make_unavailable_stream():
+    class _UnavailableStream:
+        def cancel(self):
+            pass
+
+        def __aiter__(self):
+            return self
+
+        async def __anext__(self):
+            raise _make_unavailable_error()
+
+    return _UnavailableStream()
+
+
+class TestAsyncTransportStreamUnavailablePropagation:
+    """Tests for UNAVAILABLE errors propagating from stream methods."""
+
+    @pytest.mark.asyncio
+    async def test_queues_upstream_unavailable_propagates(self, mock_config):
+        transport = AsyncTransport(mock_config)
+        mock_channel = AsyncMock()
+        mock_stub = MagicMock()
+        mock_stub.QueuesUpstream = MagicMock(return_value=_make_unavailable_stream())
+
+        async def request_gen():
+            yield pb.QueuesUpstreamRequest()
+
+        with (
+            patch("grpc.aio.insecure_channel", return_value=mock_channel),
+            patch("kubemq.grpc.kubemq_pb2_grpc.kubemqStub", return_value=mock_stub),
+        ):
+            await transport.connect(verify=False)
+            with pytest.raises(Exception):
+                async for _ in transport.queues_upstream(request_gen()):
+                    pass
+
+    @pytest.mark.asyncio
+    async def test_queues_downstream_unavailable_propagates(self, mock_config):
+        transport = AsyncTransport(mock_config)
+        mock_channel = AsyncMock()
+        mock_stub = MagicMock()
+        mock_stub.QueuesDownstream = MagicMock(return_value=_make_unavailable_stream())
+
+        async def request_gen():
+            yield pb.QueuesDownstreamRequest()
+
+        with (
+            patch("grpc.aio.insecure_channel", return_value=mock_channel),
+            patch("kubemq.grpc.kubemq_pb2_grpc.kubemqStub", return_value=mock_stub),
+        ):
+            await transport.connect(verify=False)
+            with pytest.raises(Exception):
+                async for _ in transport.queues_downstream(request_gen()):
+                    pass
+
+
+# ==============================================================================
+# NEW: __aexit__ calls close
+# ==============================================================================
+
+
+class TestAsyncTransportAexit:
+    """Tests for __aexit__ calling close()."""
+
+    @pytest.mark.asyncio
+    async def test_aexit_calls_close(self, mock_config):
+        transport = AsyncTransport(mock_config)
+
+        with patch.object(transport, "close", new_callable=AsyncMock) as mock_close:
+            await transport.__aexit__(None, None, None)
+            mock_close.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_aexit_calls_close_with_exception_info(self, mock_config):
+        transport = AsyncTransport(mock_config)
+
+        with patch.object(transport, "close", new_callable=AsyncMock) as mock_close:
+            await transport.__aexit__(ValueError, ValueError("test"), None)
+            mock_close.assert_awaited_once()
+
+
+# ==============================================================================
+# NEW: connection_state property, on_* callbacks
+# ==============================================================================
+
+
+class TestAsyncTransportConnectionStateProperty:
+    """Tests for connection_state property and on_* callback registration."""
+
+    def test_connection_state_property(self, mock_config):
+        from kubemq.core.types import ConnectionState
+
+        transport = AsyncTransport(mock_config)
+        assert transport.connection_state == ConnectionState.IDLE
+
+    def test_on_connected_registers_without_error(self, mock_config):
+        transport = AsyncTransport(mock_config)
+        callback = MagicMock()
+        transport.on_connected(callback)
+
+    def test_on_disconnected_registers_without_error(self, mock_config):
+        transport = AsyncTransport(mock_config)
+        callback = MagicMock()
+        transport.on_disconnected(callback)
+
+    def test_on_reconnecting_registers_without_error(self, mock_config):
+        transport = AsyncTransport(mock_config)
+        callback = MagicMock()
+        transport.on_reconnecting(callback)
+
+    def test_on_reconnected_registers_without_error(self, mock_config):
+        transport = AsyncTransport(mock_config)
+        callback = MagicMock()
+        transport.on_reconnected(callback)
+
+
+# ==============================================================================
+# NEW: close cancels reconnection_manager and token_manager
+# ==============================================================================
+
+
+class TestAsyncTransportCloseManagers:
+    """Tests for close() cancelling reconnection_manager and token_manager."""
+
+    @pytest.mark.asyncio
+    async def test_close_cancels_reconnection_manager(self, mock_config):
+        transport = AsyncTransport(mock_config)
+        mock_channel = AsyncMock()
+        mock_stub = MagicMock()
+        mock_rm = AsyncMock()
+        mock_rm.cancel = AsyncMock()
+
+        with (
+            patch("grpc.aio.insecure_channel", return_value=mock_channel),
+            patch("kubemq.grpc.kubemq_pb2_grpc.kubemqStub", return_value=mock_stub),
+        ):
+            await transport.connect(verify=False)
+            transport._reconnection_manager = mock_rm
+            await transport.close()
+
+        mock_rm.cancel.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_close_closes_token_manager(self, mock_config):
+        transport = AsyncTransport(mock_config)
+        mock_channel = AsyncMock()
+        mock_stub = MagicMock()
+        mock_tm = AsyncMock()
+        mock_tm.close = AsyncMock()
+
+        with (
+            patch("grpc.aio.insecure_channel", return_value=mock_channel),
+            patch("kubemq.grpc.kubemq_pb2_grpc.kubemqStub", return_value=mock_stub),
+        ):
+            await transport.connect(verify=False)
+            transport._token_manager = mock_tm
+            await transport.close()
+
+        mock_tm.close.assert_awaited_once()
+
+
+# ==============================================================================
+# NEW: _create_channel_for_reconnect with token_manager
+# ==============================================================================
+
+
+class TestAsyncTransportReconnectWithTokenManager:
+    """Tests for _create_channel_for_reconnect refreshing token."""
+
+    @pytest.mark.asyncio
+    async def test_reconnect_refreshes_token(self, mock_config):
+        transport = AsyncTransport(mock_config)
+        mock_tm = AsyncMock()
+        mock_tm.get_token = AsyncMock()
+        transport._token_manager = mock_tm
+
+        mock_channel = AsyncMock()
+
+        with patch("grpc.aio.insecure_channel", return_value=mock_channel):
+            await transport._create_channel_for_reconnect()
+
+        mock_tm.get_token.assert_awaited_once()

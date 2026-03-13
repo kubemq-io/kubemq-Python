@@ -106,7 +106,6 @@ class SyncTransport:
             self._client = self._channel_manager.get_client()
             with self._is_connected_lock:
                 self._is_connected = True
-            self._initialize_async()
             try:
                 server_info = self.ping()
                 check_server_compatibility(server_info.version, self._logger)
@@ -158,6 +157,8 @@ class SyncTransport:
         return self._client
 
     def kubemq_async_client(self) -> kubemq_pb2_grpc.kubemqStub:
+        if self._async_client is None:
+            self._initialize_async()
         return self._async_client
 
     def is_connected(self) -> bool:

@@ -6,6 +6,7 @@ from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from kubemq.common.channel_validators import validate_channel_name
 from kubemq.grpc import Request as pbCommand
 
 if sys.version_info >= (3, 11):
@@ -40,6 +41,7 @@ class CommandMessage(BaseModel):
     def channel_must_exist(cls, v: str) -> str:
         if not v:
             raise ValueError("Command message must have a channel.")
+        validate_channel_name(v)
         return v
 
     @model_validator(mode="after")
@@ -50,7 +52,7 @@ class CommandMessage(BaseModel):
             )
         return self
 
-    def encode(self, client_id: str) -> pbCommand:
+    def encode(self, client_id: str, *, span: bytes = b"") -> pbCommand:
         pb_command = pbCommand()
         pb_command.RequestID = self.id or str(uuid.uuid4())
         pb_command.ClientID = client_id
@@ -61,6 +63,8 @@ class CommandMessage(BaseModel):
         pb_command.RequestTypeData = pbCommand.RequestType.Command
         for key, value in self.tags.items():
             pb_command.Tags[key] = value
+        if span:
+            pb_command.Span = span
         return pb_command
 
     def with_updates(self, **kwargs) -> Self:

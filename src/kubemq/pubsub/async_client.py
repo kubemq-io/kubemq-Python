@@ -25,6 +25,7 @@ from kubemq.core.exceptions import (
     KubeMQStreamBrokenError,
     KubeMQValidationError,
 )
+from kubemq.pubsub.async_event_sender import AsyncEventSender
 from kubemq.pubsub.event_message import EventMessage
 from kubemq.pubsub.event_message_received import EventMessageReceived
 from kubemq.pubsub.event_send_result import EventSendResult
@@ -102,25 +103,41 @@ class AsyncClient(NativeAsyncBaseClient):
             config=config,
             **kwargs,
         )
+        self._event_sender: AsyncEventSender | None = None
+
+    async def _get_event_sender(self) -> AsyncEventSender:
+        """Lazily initialize the bidirectional event stream sender."""
+        if self._event_sender is None:
+            self._ensure_connected()
+            assert self._transport is not None
+            self._event_sender = AsyncEventSender(self._transport)
+            await self._event_sender.start()
+        return self._event_sender
+
+    async def close(self) -> None:
+        """Close the client and its event sender."""
+        if self._event_sender is not None:
+            await self._event_sender.close()
+            self._event_sender = None
+        await super().close()
 
     # =========================================================================
     # Send Operations — GS-aligned verbs
     # =========================================================================
 
     async def publish_event(self, message: EventMessage) -> None:
-        """Publish a fire-and-forget event.
+        """Publish a fire-and-forget event via bidirectional stream.
+
+        Uses ``SendEventsStream`` for high-throughput, fire-and-forget delivery.
 
         Args:
             message: The event message to publish.
 
         Raises:
             KubeMQConnectionError: If not connected.
-            KubeMQTimeoutError: If send times out.
             KubeMQValidationError: If message is invalid.
         """
         self._validate_message_size(message.body)
-        self._ensure_connected()
-        assert self._transport is not None
         start = time.perf_counter()
         error_type_val = None
         with self._instrumentor.start_span("publish", message.channel) as span:
@@ -136,12 +153,8 @@ class AsyncClient(NativeAsyncBaseClient):
                     )
                     span.set_attribute(MESSAGING_MESSAGE_ID, message.id)
                     span.set_attribute(MESSAGING_MESSAGE_BODY_SIZE, len(message.body))
-                await self._retry_executor.execute(
-                    "SendEvent",
-                    self._transport.send_event,
-                    pb_event,
-                    channel=message.channel,
-                )
+                sender = await self._get_event_sender()
+                await sender.send(pb_event)
                 self._instrumentor._metrics.record_sent_message("publish", message.channel)
             except ValidationError as e:
                 error_type_val = "validation"
@@ -176,8 +189,6 @@ class AsyncClient(NativeAsyncBaseClient):
             EventSendResult with persistence confirmation.
         """
         self._validate_message_size(message.body)
-        self._ensure_connected()
-        assert self._transport is not None
         start = time.perf_counter()
         error_type_val = None
         with self._instrumentor.start_span("publish", message.channel) as span:
@@ -193,14 +204,10 @@ class AsyncClient(NativeAsyncBaseClient):
                     )
                     span.set_attribute(MESSAGING_MESSAGE_ID, message.id)
                     span.set_attribute(MESSAGING_MESSAGE_BODY_SIZE, len(message.body))
-                result = await self._retry_executor.execute(
-                    "SendEventStore",
-                    self._transport.send_event,
-                    pb_event,
-                    channel=message.channel,
-                )
+                sender = await self._get_event_sender()
+                result = await sender.send(pb_event)
                 self._instrumentor._metrics.record_sent_message("publish", message.channel)
-                return EventSendResult.decode(result)
+                return EventSendResult.decode(result) if result else EventSendResult()
             except ValidationError as e:
                 error_type_val = "validation"
                 self._instrumentor.record_error(span, e, error_type_val)
@@ -668,6 +675,10 @@ class AsyncClient(NativeAsyncBaseClient):
         token = cancellation_token or AsyncCancellationToken()
         await self._register_subscription(token)
 
+        current_task = asyncio.current_task()
+        if current_task is not None:
+            self._register_subscription_task(current_task)
+
         pending_tasks: set[asyncio.Task] = set()  # type: ignore[type-arg]
         backoff = BackoffCalculator(self._config.retry_policy)
         attempt = 0
@@ -843,6 +854,10 @@ class AsyncClient(NativeAsyncBaseClient):
 
         token = cancellation_token or AsyncCancellationToken()
         await self._register_subscription(token)
+
+        current_task = asyncio.current_task()
+        if current_task is not None:
+            self._register_subscription_task(current_task)
 
         pending_tasks: set[asyncio.Task] = set()  # type: ignore[type-arg]
         backoff = BackoffCalculator(self._config.retry_policy)

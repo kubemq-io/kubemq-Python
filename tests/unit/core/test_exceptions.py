@@ -724,3 +724,226 @@ class TestExceptionHierarchy:
 
         with pytest.raises(KubeMQError):
             raise KubeMQBufferFullError("buffer full")
+
+
+# -----------------------------------------------------------------------
+# Coverage extension: lines 313-315, 506-542, 597-599, 650, 663-669,
+# 703, 734-740, 783-784, 804
+# -----------------------------------------------------------------------
+
+
+class TestKubeMQConfigurationErrorDefaults:
+
+    def test_defaults(self):
+        from kubemq.core.exceptions import KubeMQConfigurationError
+        exc = KubeMQConfigurationError("bad config")
+        assert exc.code == ErrorCode.CONFIGURATION_ERROR
+        assert exc.is_retryable is False
+        assert isinstance(exc, KubeMQError)
+
+    def test_override_defaults(self):
+        from kubemq.core.exceptions import KubeMQConfigurationError
+        exc = KubeMQConfigurationError("bad", code=ErrorCode.UNKNOWN, is_retryable=True)
+        assert exc.code == ErrorCode.UNKNOWN
+        assert exc.is_retryable is True
+
+
+class TestClassifyTlsError:
+
+    def test_cert_verify_failed_returns_auth_error(self):
+        from kubemq.core.exceptions import classify_tls_error
+        err = Exception("SSL: CERTIFICATE_VERIFY_FAILED")
+        result = classify_tls_error(err)
+        assert isinstance(result, KubeMQAuthenticationError)
+        assert result.code == ErrorCode.AUTH_FAILED
+        assert result.is_retryable is False
+
+    def test_expired_cert_returns_auth_error(self):
+        from kubemq.core.exceptions import classify_tls_error
+        err = Exception("certificate has expired")
+        result = classify_tls_error(err)
+        assert isinstance(result, KubeMQAuthenticationError)
+
+    def test_hostname_mismatch_returns_auth_error(self):
+        from kubemq.core.exceptions import classify_tls_error
+        err = Exception("hostname mismatch")
+        result = classify_tls_error(err)
+        assert isinstance(result, KubeMQAuthenticationError)
+
+    def test_no_shared_cipher_returns_config_error(self):
+        from kubemq.core.exceptions import classify_tls_error, KubeMQConfigurationError
+        err = Exception("no shared cipher available")
+        result = classify_tls_error(err)
+        assert isinstance(result, KubeMQConfigurationError)
+        assert result.code == ErrorCode.CONFIGURATION_ERROR
+
+    def test_unsupported_protocol_returns_config_error(self):
+        from kubemq.core.exceptions import classify_tls_error, KubeMQConfigurationError
+        err = Exception("unsupported protocol version")
+        result = classify_tls_error(err)
+        assert isinstance(result, KubeMQConfigurationError)
+
+    def test_network_error_returns_connection_error(self):
+        from kubemq.core.exceptions import classify_tls_error
+        err = Exception("connection reset during handshake")
+        result = classify_tls_error(err)
+        assert isinstance(result, KubeMQConnectionError)
+        assert result.is_retryable is True
+        assert result.code == ErrorCode.UNAVAILABLE
+
+
+class TestFromGrpcErrorExtended:
+
+    def _create_mock_grpc_error(self, code, details="Test details"):
+        mock_error = MagicMock()
+        mock_error.code = MagicMock(return_value=code)
+        mock_error.details = MagicMock(return_value=details)
+        mock_error.__class__ = grpc.RpcError
+        return mock_error
+
+    def test_ok_status_returns_kubemq_error(self):
+        err = self._create_mock_grpc_error(grpc.StatusCode.OK)
+        result = from_grpc_error(err, operation="TestOp", channel="ch")
+        assert isinstance(result, KubeMQError)
+        assert result.code == ErrorCode.UNKNOWN
+
+    def test_cancelled_client_initiated_with_is_cancelled(self):
+        err = self._create_mock_grpc_error(grpc.StatusCode.CANCELLED)
+        token = MagicMock()
+        token.is_cancelled = True
+        result = from_grpc_error(err, cancellation_token=token)
+        assert isinstance(result, KubeMQCancellationError)
+
+    def test_cancelled_server_initiated(self):
+        err = self._create_mock_grpc_error(grpc.StatusCode.CANCELLED)
+        token = MagicMock()
+        token.is_cancelled = False
+        del token.is_set
+        result = from_grpc_error(err, cancellation_token=token)
+        assert isinstance(result, KubeMQConnectionError)
+        assert result.is_retryable is True
+
+    def test_no_grpc_returns_generic_error(self):
+        from unittest.mock import patch as _patch
+        with _patch("kubemq.core.exceptions._HAS_GRPC", False):
+            err = RuntimeError("some error")
+            result = from_grpc_error(err, operation="TestOp")
+            assert isinstance(result, KubeMQError)
+            assert "some error" in result.message
+            assert result.operation == "TestOp"
+
+    def test_unknown_grpc_code_returns_kubemq_error(self):
+        err = MagicMock()
+        err.code = MagicMock(return_value=MagicMock())
+        err.details = MagicMock(return_value="unknown code")
+        err.__class__ = grpc.RpcError
+        result = from_grpc_error(err)
+        assert isinstance(result, KubeMQError)
+        assert result.code == ErrorCode.UNKNOWN
+
+
+class TestIsClientInitiatedCancel:
+
+    def test_threading_event_set(self):
+        import threading
+        from kubemq.core.exceptions import _is_client_initiated_cancel
+        event = threading.Event()
+        event.set()
+        assert _is_client_initiated_cancel(event) is True
+
+    def test_threading_event_not_set(self):
+        import threading
+        from kubemq.core.exceptions import _is_client_initiated_cancel
+        event = threading.Event()
+        assert _is_client_initiated_cancel(event) is False
+
+    def test_none_token_no_event_loop(self):
+        from kubemq.core.exceptions import _is_client_initiated_cancel
+        result = _is_client_initiated_cancel(None)
+        assert result is False
+
+
+class TestExtractRichDetailsError:
+
+    def test_trailing_metadata_raises_returns_empty(self):
+        from kubemq.core.exceptions import _extract_rich_details
+        err = MagicMock()
+        err.trailing_metadata.side_effect = RuntimeError("no metadata")
+        details = _extract_rich_details(err)
+        assert details == {}
+
+    def test_no_trailing_metadata_returns_empty(self):
+        from kubemq.core.exceptions import _extract_rich_details
+        err = Exception("plain error")
+        details = _extract_rich_details(err)
+        assert details == {}
+
+
+class TestConvertGrpcLikeErrorUnknownCode:
+
+    def test_unknown_code_returns_kubemq_error(self):
+        from kubemq.core.exceptions import _convert_grpc_like_error
+
+        class FakeError(Exception):
+            def code(self):
+                return "TOTALLY_UNKNOWN"
+            def details(self):
+                return "mysterious"
+
+        result = _convert_grpc_like_error(FakeError(), operation="Op", channel="ch")
+        assert isinstance(result, KubeMQError)
+        assert result.code == ErrorCode.UNKNOWN
+        assert result.operation == "Op"
+        assert result.channel == "ch"
+
+    def test_known_code_maps_correctly(self):
+        from kubemq.core.exceptions import _convert_grpc_like_error
+
+        class FakeError(Exception):
+            def code(self):
+                return "UNAVAILABLE"
+            def details(self):
+                return "server down"
+
+        result = _convert_grpc_like_error(FakeError())
+        assert isinstance(result, KubeMQConnectionError)
+        assert result.code == ErrorCode.UNAVAILABLE
+
+
+class TestLegacyGRPCError:
+    """Tests for legacy common.exceptions.GRPCError classification (lines 151, 153, 155)."""
+
+    def test_grpc_error_with_string_message(self):
+        import warnings
+        from kubemq.common.exceptions import GRPCError
+
+        with warnings.catch_warnings(record=True):
+            warnings.simplefilter("always")
+            err = GRPCError("simple string error")
+        assert "simple string error" in str(err)
+        assert err.code is None
+        assert err.cause is None
+
+    def test_grpc_error_with_exception(self):
+        import warnings
+        from kubemq.common.exceptions import GRPCError
+
+        mock_err = MagicMock()
+        mock_err.code.return_value = grpc.StatusCode.INTERNAL
+        mock_err.details.return_value = "internal error"
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            err = GRPCError(mock_err)
+        assert len(w) == 1
+        assert "Error" in str(err)
+        assert err.cause is mock_err
+
+    def test_grpc_error_emits_deprecation(self):
+        import warnings
+        from kubemq.common.exceptions import GRPCError
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            GRPCError("test")
+        assert any(issubclass(x.category, DeprecationWarning) for x in w)

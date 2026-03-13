@@ -32,6 +32,7 @@ class QueryResponseMessage(BaseModel):
     metadata: Optional[str] = None
     body: bytes = Field(default=b"")
     tags: dict[str, str] = Field(default_factory=dict)
+    cache_hit: bool = Field(default=False)
 
     model_config = {"arbitrary_types_allowed": True}
 
@@ -57,6 +58,7 @@ class QueryResponseMessage(BaseModel):
             metadata=pb_response.Metadata,
             body=pb_response.Body,
             tags=dict(pb_response.Tags),
+            cache_hit=pb_response.CacheHit,
         )
 
     def encode(self, client_id: str) -> pbResponse:

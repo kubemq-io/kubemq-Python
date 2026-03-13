@@ -371,3 +371,91 @@ class TestEventStoreMessageReceivedModelDump:
         dump = msg.model_dump()
 
         assert dump["timestamp"] == timestamp.isoformat()
+
+
+class TestEventMessageAtLeastOneValidator:
+    """Tests for at_least_one_must_exist validator edge cases."""
+
+    def test_no_metadata_no_body_no_tags_raises(self):
+        with pytest.raises(ValueError, match="at least one"):
+            EventMessage(channel="ch", metadata=None, body=b"", tags={})
+
+    def test_with_updates_creates_copy(self):
+        msg = EventMessage(channel="ch", body=b"data")
+        updated = msg.with_updates(body=b"new")
+        assert updated.body == b"new"
+        assert msg.body == b"data"
+
+
+class TestEventMessageEncodeAllFields:
+    """Test encode with all fields populated."""
+
+    def test_encode_with_metadata_body_tags(self):
+        event = EventMessage(
+            id="full-evt",
+            channel="ch",
+            metadata="meta",
+            body=b"body",
+            tags={"a": "b"},
+        )
+        pb = event.encode("c1")
+        assert pb.EventID == "full-evt"
+        assert pb.Metadata == "meta"
+        assert pb.Body == b"body"
+        assert pb.Tags["a"] == "b"
+        assert pb.Store is False
+
+
+class TestEventStoreMessageAtLeastOneValidator:
+    """Tests for at_least_one_must_exist validator on EventStoreMessage."""
+
+    def test_no_metadata_no_body_no_tags_raises(self):
+        with pytest.raises(ValueError, match="at least one"):
+            EventStoreMessage(channel="ch", metadata=None, body=b"", tags={})
+
+    def test_with_updates_creates_copy(self):
+        msg = EventStoreMessage(channel="ch", body=b"data")
+        updated = msg.with_updates(body=b"new")
+        assert updated.body == b"new"
+        assert msg.body == b"data"
+
+
+class TestEventStoreMessageEncodeAllFields:
+    """Test encode with all fields populated."""
+
+    def test_encode_with_all_fields(self):
+        event = EventStoreMessage(
+            id="store-full",
+            channel="ch",
+            metadata="meta",
+            body=b"body",
+            tags={"x": "y"},
+        )
+        pb = event.encode("c1")
+        assert pb.EventID == "store-full"
+        assert pb.Metadata == "meta"
+        assert pb.Body == b"body"
+        assert pb.Tags["x"] == "y"
+        assert pb.Store is True
+
+
+class TestEventSendResultModelDumpJson:
+    """Tests for EventSendResult.model_dump_json."""
+
+    def test_model_dump_json_excludes_none(self):
+        from kubemq.pubsub.event_send_result import EventSendResult
+        result = EventSendResult(id="r1", sent=True, error=None)
+        json_str = result.model_dump_json()
+        assert "error" not in json_str
+        assert "r1" in json_str
+
+    def test_decode_from_result(self):
+        from kubemq.pubsub.event_send_result import EventSendResult
+        pb_result = MagicMock()
+        pb_result.EventID = "decoded-r"
+        pb_result.Sent = True
+        pb_result.Error = "some error"
+        result = EventSendResult.decode(pb_result)
+        assert result.id == "decoded-r"
+        assert result.sent is True
+        assert result.error == "some error"

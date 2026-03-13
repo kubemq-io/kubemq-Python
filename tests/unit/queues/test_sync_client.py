@@ -673,3 +673,694 @@ class TestQueuesClientCleanup:
             mock_upstream.close.assert_called_once()
             mock_downstream.close.assert_called_once()
             mock_transport.close_async.assert_called_once()
+
+
+# ==============================================================================
+# Additional Coverage Tests
+# ==============================================================================
+
+import warnings
+import grpc
+import threading
+
+from kubemq.core.exceptions import KubeMQValidationError
+
+
+class FakeRpcError(grpc.RpcError):
+    """Minimal stub for gRPC errors."""
+
+    def code(self):
+        return grpc.StatusCode.UNAVAILABLE
+
+    def details(self):
+        return "server unavailable"
+
+
+class TestQueuesClientCloseAsyncAdditional:
+    """Additional tests for close_async covering lines 182-194."""
+
+    @pytest.mark.asyncio
+    async def test_close_async_sets_shutdown_event(self):
+        """Test close_async sets shutdown event."""
+        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+            mock_transport = MagicMock()
+            mock_transport.initialize.return_value = mock_transport
+            mock_transport.is_connected.return_value = True
+            mock_transport.close_async = AsyncMock()
+            mock_transport_class.return_value = mock_transport
+
+            client = Client(address="localhost:50000")
+            assert not client._shutdown_event.is_set()
+
+            await client.close_async()
+
+            assert client._shutdown_event.is_set()
+            mock_transport.close_async.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_close_async_no_transport(self):
+        """Test close_async handles None transport gracefully."""
+        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+            mock_transport = MagicMock()
+            mock_transport.initialize.return_value = mock_transport
+            mock_transport.is_connected.return_value = True
+            mock_transport_class.return_value = mock_transport
+
+            client = Client(address="localhost:50000")
+            client._transport = None
+            client._upstream_sender = None
+            client._downstream_receiver = None
+
+            await client.close_async()
+
+            assert client._shutdown_event.is_set()
+
+    @pytest.mark.asyncio
+    async def test_close_async_without_senders(self):
+        """Test close_async when upstream/downstream are None."""
+        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+            mock_transport = MagicMock()
+            mock_transport.initialize.return_value = mock_transport
+            mock_transport.is_connected.return_value = True
+            mock_transport.close_async = AsyncMock()
+            mock_transport_class.return_value = mock_transport
+
+            client = Client(address="localhost:50000")
+            client._upstream_sender = None
+            client._downstream_receiver = None
+
+            await client.close_async()
+
+            assert client._shutdown_event.is_set()
+            mock_transport.close_async.assert_called_once()
+
+
+class TestQueuesClientMonitorConnection:
+    """Tests for _monitor_connection covering lines 220-231."""
+
+    def test_monitor_connection_detects_status_change(self):
+        """Test _monitor_connection logs status changes."""
+        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+            mock_transport = MagicMock()
+            mock_transport.initialize.return_value = mock_transport
+            mock_transport.is_connected.return_value = True
+            mock_transport_class.return_value = mock_transport
+
+            client = Client(address="localhost:50000")
+
+            mock_transport.is_connected.side_effect = [False, True, True]
+
+            call_count = 0
+            original_sleep = __import__("time").sleep
+
+            def fake_sleep(interval):
+                nonlocal call_count
+                call_count += 1
+                if call_count >= 3:
+                    client._shutdown_event.set()
+
+            with patch("kubemq.queues.client.time.sleep", side_effect=fake_sleep):
+                client._monitor_connection()
+
+    def test_monitor_connection_exits_on_shutdown(self):
+        """Test _monitor_connection exits when shutdown event is set."""
+        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+            mock_transport = MagicMock()
+            mock_transport.initialize.return_value = mock_transport
+            mock_transport.is_connected.return_value = True
+            mock_transport_class.return_value = mock_transport
+
+            client = Client(address="localhost:50000")
+            client._shutdown_event.set()
+
+            client._monitor_connection()
+
+
+class TestQueuesClientPingAsync:
+    """Tests for ping_async covering line 209."""
+
+    @pytest.mark.asyncio
+    async def test_ping_async_delegates_to_sync(self):
+        """Test ping_async calls sync ping via run_in_thread."""
+        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+            mock_transport = MagicMock()
+            mock_transport.initialize.return_value = mock_transport
+            mock_transport.is_connected.return_value = True
+            mock_transport.ping.return_value = MagicMock(
+                host="localhost",
+                version="1.0",
+                server_start_time=0,
+                server_up_time_seconds=100,
+            )
+            mock_transport_class.return_value = mock_transport
+
+            client = Client(address="localhost:50000")
+
+            with warnings.catch_warnings(record=True) as w:
+                warnings.simplefilter("always")
+                result = await client.ping_async()
+
+                deprecation_warnings = [
+                    x for x in w if issubclass(x.category, DeprecationWarning)
+                ]
+                assert len(deprecation_warnings) > 0
+            assert result is not None
+
+
+class TestQueuesClientChannelManagementAdditional:
+    """Additional tests for channel management covering lines 339-405."""
+
+    @pytest.mark.asyncio
+    async def test_create_queues_channel_async(self):
+        """Test create_queues_channel_async delegates to sync."""
+        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+            mock_transport = MagicMock()
+            mock_transport.initialize.return_value = mock_transport
+            mock_transport.is_connected.return_value = True
+            mock_transport_class.return_value = mock_transport
+
+            with patch("kubemq.queues.client.create_channel_request") as mock_create:
+                mock_create.return_value = True
+
+                client = Client(address="localhost:50000")
+                result = await client.create_queues_channel_async("test-queue")
+
+                assert result is True
+
+    @pytest.mark.asyncio
+    async def test_delete_queues_channel_async(self):
+        """Test delete_queues_channel_async delegates to sync."""
+        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+            mock_transport = MagicMock()
+            mock_transport.initialize.return_value = mock_transport
+            mock_transport.is_connected.return_value = True
+            mock_transport_class.return_value = mock_transport
+
+            with patch("kubemq.queues.client.delete_channel_request") as mock_delete:
+                mock_delete.return_value = True
+
+                client = Client(address="localhost:50000")
+                result = await client.delete_queues_channel_async("test-queue")
+
+                assert result is True
+
+    @pytest.mark.asyncio
+    async def test_list_queues_channels_async(self):
+        """Test list_queues_channels_async delegates to sync."""
+        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+            mock_transport = MagicMock()
+            mock_transport.initialize.return_value = mock_transport
+            mock_transport.is_connected.return_value = True
+            mock_transport_class.return_value = mock_transport
+
+            with patch("kubemq.queues.client.list_queues_channels") as mock_list:
+                mock_list.return_value = []
+
+                client = Client(address="localhost:50000")
+                result = await client.list_queues_channels_async()
+
+                assert result == []
+
+
+class TestQueuesClientPullAdditional:
+    """Additional tests for pull covering lines 275-293."""
+
+    def test_pull_returns_empty_when_no_messages(self):
+        """Test pull returns empty QueueMessagesPulled when response.Messages is empty."""
+        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+            mock_transport = MagicMock()
+            mock_transport.initialize.return_value = mock_transport
+            mock_transport.is_connected.return_value = True
+
+            mock_grpc_client = MagicMock()
+            mock_response = MagicMock()
+            mock_response.IsError = False
+            mock_response.Error = ""
+            mock_response.Messages = []
+            mock_grpc_client.ReceiveQueueMessages.return_value = mock_response
+            mock_transport.kubemq_client.return_value = mock_grpc_client
+            mock_transport_class.return_value = mock_transport
+
+            client = Client(address="localhost:50000")
+
+            result = client.pull(
+                channel="test-queue",
+                max_messages=5,
+                wait_timeout_in_seconds=10,
+            )
+
+            assert isinstance(result, QueueMessagesPulled)
+            assert result.is_error is False
+            assert len(result.messages) == 0
+
+    def test_pull_returns_messages_when_present(self):
+        """Test pull returns decoded messages when response has messages (lines 649-653)."""
+        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+            mock_transport = MagicMock()
+            mock_transport.initialize.return_value = mock_transport
+            mock_transport.is_connected.return_value = True
+
+            mock_grpc_client = MagicMock()
+            mock_response = MagicMock()
+            mock_response.IsError = False
+            mock_response.Error = ""
+
+            mock_msg = MagicMock()
+            mock_msg.MessageID = "msg-1"
+            mock_msg.Channel = "test-queue"
+            mock_msg.Metadata = ""
+            mock_msg.Body = b"hello"
+            mock_msg.ClientID = "sender"
+            mock_msg.Tags = {}
+            mock_msg.Attributes.Timestamp = 0
+            mock_msg.Attributes.Sequence = 1
+            mock_msg.Attributes.ReceiveCount = 0
+            mock_msg.Attributes.ReRouted = False
+            mock_msg.Attributes.ReRoutedFromQueue = ""
+            mock_msg.Attributes.ExpirationAt = 0
+            mock_msg.Attributes.DelayedTo = 0
+
+            mock_response.Messages = [mock_msg]
+            mock_grpc_client.ReceiveQueueMessages.return_value = mock_response
+            mock_transport.kubemq_client.return_value = mock_grpc_client
+            mock_transport_class.return_value = mock_transport
+
+            client = Client(address="localhost:50000")
+
+            result = client.pull(
+                channel="test-queue",
+                max_messages=5,
+                wait_timeout_in_seconds=10,
+            )
+
+            assert isinstance(result, QueueMessagesPulled)
+            assert len(result.messages) == 1
+
+
+class TestQueuesClientPullAsync:
+    """Tests for pull_async covering lines 582-586."""
+
+    @pytest.mark.asyncio
+    async def test_pull_async_delegates_to_sync(self):
+        """Test pull_async delegates to sync pull."""
+        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+            mock_transport = MagicMock()
+            mock_transport.initialize.return_value = mock_transport
+            mock_transport.is_connected.return_value = True
+
+            mock_grpc_client = MagicMock()
+            mock_response = MagicMock()
+            mock_response.IsError = False
+            mock_response.Error = ""
+            mock_response.Messages = []
+            mock_grpc_client.ReceiveQueueMessages.return_value = mock_response
+            mock_transport.kubemq_client.return_value = mock_grpc_client
+            mock_transport_class.return_value = mock_transport
+
+            client = Client(address="localhost:50000")
+
+            result = await client.pull_async(
+                channel="test-queue",
+                max_messages=5,
+                wait_timeout_in_seconds=10,
+            )
+
+            assert isinstance(result, QueueMessagesPulled)
+
+
+class TestQueuesClientWaitingAdditional:
+    """Additional tests for waiting covering lines 604, 649-653, 671."""
+
+    def test_waiting_returns_empty_messages(self):
+        """Test waiting returns empty QueueMessagesWaiting when no messages."""
+        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+            mock_transport = MagicMock()
+            mock_transport.initialize.return_value = mock_transport
+            mock_transport.is_connected.return_value = True
+
+            mock_grpc_client = MagicMock()
+            mock_response = MagicMock()
+            mock_response.IsError = False
+            mock_response.Error = ""
+            mock_response.Messages = []
+            mock_grpc_client.ReceiveQueueMessages.return_value = mock_response
+            mock_transport.kubemq_client.return_value = mock_grpc_client
+            mock_transport_class.return_value = mock_transport
+
+            client = Client(address="localhost:50000")
+
+            result = client.waiting(
+                channel="test-queue",
+                max_messages=5,
+                wait_timeout_in_seconds=10,
+            )
+
+            assert isinstance(result, QueueMessagesWaiting)
+            assert len(result.messages) == 0
+
+    def test_waiting_returns_messages_when_present(self):
+        """Test waiting returns decoded messages when response has messages."""
+        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+            mock_transport = MagicMock()
+            mock_transport.initialize.return_value = mock_transport
+            mock_transport.is_connected.return_value = True
+
+            mock_grpc_client = MagicMock()
+            mock_response = MagicMock()
+            mock_response.IsError = False
+            mock_response.Error = ""
+
+            mock_msg = MagicMock()
+            mock_msg.MessageID = "msg-1"
+            mock_msg.Channel = "test-queue"
+            mock_msg.Metadata = ""
+            mock_msg.Body = b"hello"
+            mock_msg.ClientID = "sender"
+            mock_msg.Tags = {}
+            mock_msg.Attributes.Timestamp = 0
+            mock_msg.Attributes.Sequence = 1
+            mock_msg.Attributes.ReceiveCount = 0
+            mock_msg.Attributes.ReRouted = False
+            mock_msg.Attributes.ReRoutedFromQueue = ""
+            mock_msg.Attributes.ExpirationAt = 0
+            mock_msg.Attributes.DelayedTo = 0
+
+            mock_response.Messages = [mock_msg]
+            mock_grpc_client.ReceiveQueueMessages.return_value = mock_response
+            mock_transport.kubemq_client.return_value = mock_grpc_client
+            mock_transport_class.return_value = mock_transport
+
+            client = Client(address="localhost:50000")
+
+            result = client.waiting(
+                channel="test-queue",
+                max_messages=5,
+                wait_timeout_in_seconds=10,
+            )
+
+            assert isinstance(result, QueueMessagesWaiting)
+            assert len(result.messages) == 1
+
+    @pytest.mark.asyncio
+    async def test_waiting_async_delegates_to_sync(self):
+        """Test waiting_async delegates to sync waiting (line 604)."""
+        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+            mock_transport = MagicMock()
+            mock_transport.initialize.return_value = mock_transport
+            mock_transport.is_connected.return_value = True
+
+            mock_grpc_client = MagicMock()
+            mock_response = MagicMock()
+            mock_response.IsError = False
+            mock_response.Error = ""
+            mock_response.Messages = []
+            mock_grpc_client.ReceiveQueueMessages.return_value = mock_response
+            mock_transport.kubemq_client.return_value = mock_grpc_client
+            mock_transport_class.return_value = mock_transport
+
+            client = Client(address="localhost:50000")
+
+            result = await client.waiting_async(
+                channel="test-queue",
+                max_messages=5,
+                wait_timeout_in_seconds=10,
+            )
+
+            assert isinstance(result, QueueMessagesWaiting)
+
+
+class TestQueuesClientDeprecatedMethods:
+    """Tests for deprecated methods covering lines 405, 434, 445-448, 530."""
+
+    def test_send_queues_message_emits_deprecation_warning(self):
+        """Test send_queues_message emits deprecation warning (line 405)."""
+        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+            mock_transport = MagicMock()
+            mock_transport.initialize.return_value = mock_transport
+            mock_transport.is_connected.return_value = True
+            mock_transport_class.return_value = mock_transport
+
+            client = Client(address="localhost:50000")
+
+            mock_sender = MagicMock()
+            mock_result = QueueSendResult(
+                id="msg-123",
+                sent_at=1234567890,
+                expired_at=0,
+                delayed_to=0,
+                is_error=False,
+                error="",
+            )
+            mock_sender.send.return_value = mock_result
+            client._upstream_sender = mock_sender
+
+            message = QueueMessage(channel="test-queue", body=b"test")
+
+            with warnings.catch_warnings(record=True) as w:
+                warnings.simplefilter("always")
+                result = client.send_queues_message(message)
+
+                deprecation_warnings = [
+                    x for x in w if issubclass(x.category, DeprecationWarning)
+                ]
+                assert len(deprecation_warnings) > 0
+
+            assert result.is_error is False
+
+    def test_receive_queues_messages_emits_deprecation_warning(self):
+        """Test receive_queues_messages emits deprecation warning (line 434)."""
+        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+            mock_transport = MagicMock()
+            mock_transport.initialize.return_value = mock_transport
+            mock_transport.is_connected.return_value = True
+            mock_transport_class.return_value = mock_transport
+
+            client = Client(address="localhost:50000")
+
+            mock_receiver = MagicMock()
+            mock_response = MagicMock()
+            mock_response.RefRequestId = "req-1"
+            mock_response.TransactionId = "tx-1"
+            mock_response.IsError = False
+            mock_response.Error = ""
+            mock_response.Messages = []
+            mock_response.ActiveOffsets = []
+            mock_receiver.send.return_value = mock_response
+            client._downstream_receiver = mock_receiver
+
+            with warnings.catch_warnings(record=True) as w:
+                warnings.simplefilter("always")
+                result = client.receive_queues_messages(channel="test-queue")
+
+                deprecation_warnings = [
+                    x for x in w if issubclass(x.category, DeprecationWarning)
+                ]
+                assert len(deprecation_warnings) > 0
+
+            assert isinstance(result, QueuesPollResponse)
+
+    @pytest.mark.asyncio
+    async def test_receive_queues_messages_async_delegates(self):
+        """Test receive_queues_messages_async delegates to sync (lines 445-448)."""
+        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+            mock_transport = MagicMock()
+            mock_transport.initialize.return_value = mock_transport
+            mock_transport.is_connected.return_value = True
+            mock_transport_class.return_value = mock_transport
+
+            client = Client(address="localhost:50000")
+
+            mock_receiver = MagicMock()
+            mock_response = MagicMock()
+            mock_response.RefRequestId = "req-1"
+            mock_response.TransactionId = "tx-1"
+            mock_response.IsError = False
+            mock_response.Error = ""
+            mock_response.Messages = []
+            mock_response.ActiveOffsets = []
+            mock_receiver.send.return_value = mock_response
+            client._downstream_receiver = mock_receiver
+
+            result = await client.receive_queues_messages_async(channel="test-queue")
+
+            assert isinstance(result, QueuesPollResponse)
+
+    def test_send_queue_message_returns_error_on_none_result(self):
+        """Test send_queue_message returns error result when sender returns None (line 284)."""
+        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+            mock_transport = MagicMock()
+            mock_transport.initialize.return_value = mock_transport
+            mock_transport.is_connected.return_value = True
+            mock_transport_class.return_value = mock_transport
+
+            client = Client(address="localhost:50000")
+
+            mock_sender = MagicMock()
+            mock_sender.send.return_value = None
+            client._upstream_sender = mock_sender
+
+            message = QueueMessage(channel="test-queue", body=b"test")
+            result = client.send_queue_message(message)
+
+            assert result.is_error is True
+            assert "no response" in result.error.lower()
+
+    def test_send_queue_message_validation_error(self):
+        """Test send_queue_message wraps ValidationError in KubeMQValidationError (lines 286-293)."""
+        from pydantic import ValidationError as PydanticValidationError
+
+        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+            mock_transport = MagicMock()
+            mock_transport.initialize.return_value = mock_transport
+            mock_transport.is_connected.return_value = True
+            mock_transport_class.return_value = mock_transport
+
+            client = Client(address="localhost:50000")
+
+            mock_sender = MagicMock()
+            client._upstream_sender = mock_sender
+
+            message = QueueMessage(channel="test-queue", body=b"test")
+
+            validation_err = PydanticValidationError.from_exception_data(
+                title="QueueMessage",
+                line_errors=[],
+            )
+            with patch.object(QueueMessage, "encode_message", side_effect=validation_err):
+                with pytest.raises(KubeMQValidationError) as exc_info:
+                    client.send_queue_message(message)
+                assert exc_info.value.__cause__ is validation_err
+
+    @pytest.mark.asyncio
+    async def test_send_queues_message_async_emits_deprecation(self):
+        """Test send_queues_message_async emits deprecation warning (line 530)."""
+        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+            mock_transport = MagicMock()
+            mock_transport.initialize.return_value = mock_transport
+            mock_transport.is_connected.return_value = True
+            mock_transport_class.return_value = mock_transport
+
+            client = Client(address="localhost:50000")
+
+            mock_sender = MagicMock()
+            mock_result = QueueSendResult(
+                id="msg-1",
+                sent_at=0,
+                expired_at=0,
+                delayed_to=0,
+                is_error=False,
+                error="",
+            )
+            mock_sender.send.return_value = mock_result
+            client._upstream_sender = mock_sender
+
+            message = QueueMessage(channel="test-queue", body=b"test")
+
+            with warnings.catch_warnings(record=True) as w:
+                warnings.simplefilter("always")
+                result = await client.send_queues_message_async(message)
+
+                deprecation_warnings = [
+                    x for x in w if issubclass(x.category, DeprecationWarning)
+                ]
+                assert len(deprecation_warnings) > 0
+
+    def test_receive_queue_messages_none_response(self):
+        """Test receive_queue_messages returns empty when receiver returns None."""
+        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+            mock_transport = MagicMock()
+            mock_transport.initialize.return_value = mock_transport
+            mock_transport.is_connected.return_value = True
+            mock_transport_class.return_value = mock_transport
+
+            client = Client(address="localhost:50000")
+
+            mock_receiver = MagicMock()
+            mock_receiver.send.return_value = None
+            client._downstream_receiver = mock_receiver
+
+            result = client.receive_queue_messages(channel="test-queue")
+
+            assert isinstance(result, QueuesPollResponse)
+
+
+class TestSyncClientAckAllQueueMessages:
+    """GAP-H10: Tests for ack_all_queue_messages on sync client."""
+
+    def test_ack_all_queue_messages_calls_transport(self):
+        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+            mock_transport = MagicMock()
+            mock_transport.initialize.return_value = mock_transport
+            mock_transport.is_connected.return_value = True
+            mock_stub = MagicMock()
+            mock_resp = MagicMock()
+            mock_resp.IsError = False
+            mock_resp.AffectedMessages = 42
+            mock_stub.AckAllQueueMessages.return_value = mock_resp
+            mock_transport.kubemq_client.return_value = mock_stub
+            mock_transport_class.return_value = mock_transport
+
+            client = Client(address="localhost:50000")
+            result = client.ack_all_queue_messages("test-queue")
+
+            assert result == 42
+            mock_stub.AckAllQueueMessages.assert_called_once()
+
+    def test_ack_all_queue_messages_returns_affected_count(self):
+        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+            mock_transport = MagicMock()
+            mock_transport.initialize.return_value = mock_transport
+            mock_transport.is_connected.return_value = True
+            mock_stub = MagicMock()
+            mock_resp = MagicMock()
+            mock_resp.IsError = False
+            mock_resp.AffectedMessages = 7
+            mock_stub.AckAllQueueMessages.return_value = mock_resp
+            mock_transport.kubemq_client.return_value = mock_stub
+            mock_transport_class.return_value = mock_transport
+
+            client = Client(address="localhost:50000")
+            result = client.ack_all_queue_messages("q", wait_time_seconds=30)
+
+            req_arg = mock_stub.AckAllQueueMessages.call_args[0][0]
+            assert req_arg.WaitTimeSeconds == 30
+            assert result == 7
+
+
+class TestSyncClientQueuesInfo:
+    """GAP-H7: Tests for queues_info on sync client."""
+
+    def test_queues_info_calls_transport(self):
+        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+            mock_transport = MagicMock()
+            mock_transport.initialize.return_value = mock_transport
+            mock_transport.is_connected.return_value = True
+            mock_stub = MagicMock()
+            mock_resp = MagicMock()
+            mock_stub.QueuesInfo.return_value = mock_resp
+            mock_transport.kubemq_client.return_value = mock_stub
+            mock_transport_class.return_value = mock_transport
+
+            client = Client(address="localhost:50000")
+            result = client.queues_info()
+
+            mock_stub.QueuesInfo.assert_called_once()
+            assert result is mock_resp
+
+    def test_queues_info_with_specific_queue(self):
+        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+            mock_transport = MagicMock()
+            mock_transport.initialize.return_value = mock_transport
+            mock_transport.is_connected.return_value = True
+            mock_stub = MagicMock()
+            mock_resp = MagicMock()
+            mock_stub.QueuesInfo.return_value = mock_resp
+            mock_transport.kubemq_client.return_value = mock_stub
+            mock_transport_class.return_value = mock_transport
+
+            client = Client(address="localhost:50000")
+            result = client.queues_info("my-queue")
+
+            req_arg = mock_stub.QueuesInfo.call_args[0][0]
+            assert req_arg.QueueName == "my-queue"
+            assert result is mock_resp

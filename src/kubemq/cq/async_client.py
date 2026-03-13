@@ -12,7 +12,7 @@ from typing import (
 
 from pydantic import ValidationError
 
-from kubemq._internal.telemetry import KubeMQTagsCarrier, create_link_from_context, error_code_to_error_type
+from kubemq._internal.telemetry import KubeMQTagsCarrier, create_link_from_context, error_code_to_error_type, serialize_span_to_bytes
 from kubemq.common.async_cancellation_token import AsyncCancellationToken
 from kubemq.core.client import NativeAsyncBaseClient
 from kubemq.core.config import ClientConfig
@@ -129,7 +129,8 @@ class AsyncClient(NativeAsyncBaseClient):
             try:
                 self._ensure_connected()
                 assert self._transport is not None
-                pb_request = message.encode(self._config.client_id or "")
+                span_bytes = serialize_span_to_bytes()
+                pb_request = message.encode(self._config.client_id or "", span=span_bytes)
                 tags_dict = dict(pb_request.Tags)
                 KubeMQTagsCarrier(tags_dict).inject()
                 pb_request.Tags.update(tags_dict)
@@ -230,7 +231,8 @@ class AsyncClient(NativeAsyncBaseClient):
             try:
                 self._ensure_connected()
                 assert self._transport is not None
-                pb_request = message.encode(self._config.client_id or "")
+                span_bytes = serialize_span_to_bytes()
+                pb_request = message.encode(self._config.client_id or "", span=span_bytes)
                 tags_dict = dict(pb_request.Tags)
                 KubeMQTagsCarrier(tags_dict).inject()
                 pb_request.Tags.update(tags_dict)
@@ -327,6 +329,9 @@ class AsyncClient(NativeAsyncBaseClient):
         with self._instrumentor.start_span("settle", channel) as span:
             try:
                 pb_response = response.encode(self._config.client_id or "")
+                tags_dict = dict(pb_response.Tags)
+                KubeMQTagsCarrier(tags_dict).inject()
+                pb_response.Tags.update(tags_dict)
                 await self._retry_executor.execute(
                     "SendResponse",
                     self._transport.send_response,
@@ -576,6 +581,10 @@ class AsyncClient(NativeAsyncBaseClient):
         token = cancellation_token or AsyncCancellationToken()
         await self._register_subscription(token)
 
+        current_task = asyncio.current_task()
+        if current_task is not None:
+            self._register_subscription_task(current_task)
+
         pending_tasks: set[asyncio.Task] = set()  # type: ignore[type-arg]
 
         try:
@@ -697,6 +706,10 @@ class AsyncClient(NativeAsyncBaseClient):
 
         token = cancellation_token or AsyncCancellationToken()
         await self._register_subscription(token)
+
+        current_task = asyncio.current_task()
+        if current_task is not None:
+            self._register_subscription_task(current_task)
 
         pending_tasks: set[asyncio.Task] = set()  # type: ignore[type-arg]
 

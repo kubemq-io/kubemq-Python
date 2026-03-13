@@ -379,3 +379,300 @@ class TestEventsStoreType:
         assert EventsStoreType.StartAtSequence.value == 4
         assert EventsStoreType.StartAtTime.value == 5
         assert EventsStoreType.StartAtTimeDelta.value == 6
+
+
+class TestEventsStoreSubscriptionSequenceValidation:
+    """Tests for EventsStoreSubscription sequence value validation."""
+
+    def test_start_at_sequence_with_zero_raises(self):
+        with pytest.raises(ValueError, match="sequence value"):
+            EventsStoreSubscription(
+                channel="ch",
+                events_store_type=EventsStoreType.StartAtSequence,
+                events_store_sequence_value=0,
+                on_receive_event_callback=MagicMock(),
+            )
+
+    def test_start_at_sequence_with_positive_value(self):
+        sub = EventsStoreSubscription(
+            channel="ch",
+            events_store_type=EventsStoreType.StartAtSequence,
+            events_store_sequence_value=42,
+            on_receive_event_callback=MagicMock(),
+        )
+        assert sub.events_store_sequence_value == 42
+
+
+class TestEventsStoreSubscriptionTimeValidation:
+    """Tests for EventsStoreSubscription start time validation."""
+
+    def test_start_at_time_with_none_raises(self):
+        with pytest.raises(ValueError, match="start time"):
+            EventsStoreSubscription(
+                channel="ch",
+                events_store_type=EventsStoreType.StartAtTime,
+                events_store_start_time=None,
+                on_receive_event_callback=MagicMock(),
+            )
+
+    def test_start_at_time_with_datetime(self):
+        from datetime import datetime
+        dt = datetime(2025, 1, 1, 12, 0, 0)
+        sub = EventsStoreSubscription(
+            channel="ch",
+            events_store_type=EventsStoreType.StartAtTime,
+            events_store_start_time=dt,
+            on_receive_event_callback=MagicMock(),
+        )
+        assert sub.events_store_start_time == dt
+
+
+class TestEventsStoreSubscriptionCallbacksExtended:
+    """Extended tests for EventsStoreSubscription callback handling."""
+
+    def test_raise_on_receive_message_no_callback(self):
+        sub = EventsStoreSubscription(
+            channel="ch",
+            events_store_type=EventsStoreType.StartNewOnly,
+            on_receive_event_callback=MagicMock(),
+        )
+        sub.on_receive_event_callback = None
+        sub.raise_on_receive_message(MagicMock())
+
+    @pytest.mark.asyncio
+    async def test_raise_on_receive_message_async_with_sync_callback(self):
+        callback = MagicMock()
+        sub = EventsStoreSubscription(
+            channel="ch",
+            events_store_type=EventsStoreType.StartNewOnly,
+            on_receive_event_callback=callback,
+        )
+        event = EventStoreMessageReceived(id="m1", channel="ch", body=b"x", sequence=1)
+        await sub.raise_on_receive_message_async(event)
+        callback.assert_called_once_with(event)
+
+    def test_raise_on_error_no_callback(self):
+        sub = EventsStoreSubscription(
+            channel="ch",
+            events_store_type=EventsStoreType.StartNewOnly,
+            on_receive_event_callback=MagicMock(),
+            on_error_callback=None,
+        )
+        sub.raise_on_error("err")
+
+    @pytest.mark.asyncio
+    async def test_raise_on_error_async_with_sync_callback(self):
+        err_cb = MagicMock()
+        sub = EventsStoreSubscription(
+            channel="ch",
+            events_store_type=EventsStoreType.StartNewOnly,
+            on_receive_event_callback=MagicMock(),
+            on_error_callback=err_cb,
+        )
+        await sub.raise_on_error_async("some error")
+        err_cb.assert_called_once_with("some error")
+
+    @pytest.mark.asyncio
+    async def test_raise_on_error_async_with_async_callback(self):
+        err_cb = AsyncMock()
+        sub = EventsStoreSubscription(
+            channel="ch",
+            events_store_type=EventsStoreType.StartNewOnly,
+            on_receive_event_callback=MagicMock(),
+            on_error_callback=err_cb,
+        )
+        await sub.raise_on_error_async("async error")
+        err_cb.assert_called_once_with("async error")
+
+    @pytest.mark.asyncio
+    async def test_raise_on_error_async_no_callback(self):
+        sub = EventsStoreSubscription(
+            channel="ch",
+            events_store_type=EventsStoreType.StartNewOnly,
+            on_receive_event_callback=MagicMock(),
+            on_error_callback=None,
+        )
+        await sub.raise_on_error_async("no handler")
+
+
+class TestEventsStoreSubscriptionEncodeExtended:
+    """Extended tests for EventsStoreSubscription encoding."""
+
+    def test_encode_start_at_sequence(self):
+        sub = EventsStoreSubscription(
+            channel="ch",
+            events_store_type=EventsStoreType.StartAtSequence,
+            events_store_sequence_value=100,
+            on_receive_event_callback=MagicMock(),
+        )
+        request = sub.encode("client-1")
+        assert request.EventsStoreTypeValue == 100
+
+    def test_encode_start_at_time(self):
+        from datetime import datetime
+        dt = datetime(2025, 6, 15, 12, 0, 0)
+        sub = EventsStoreSubscription(
+            channel="ch",
+            events_store_type=EventsStoreType.StartAtTime,
+            events_store_start_time=dt,
+            on_receive_event_callback=MagicMock(),
+        )
+        request = sub.encode("client-1")
+        assert request.EventsStoreTypeValue == int(dt.timestamp())
+
+    def test_encode_start_at_time_delta(self):
+        """GAP-C1: StartAtTimeDelta value must be encoded correctly."""
+        sub = EventsStoreSubscription(
+            channel="ch",
+            events_store_type=EventsStoreType.StartAtTimeDelta,
+            events_store_time_delta_seconds=300,
+            on_receive_event_callback=MagicMock(),
+        )
+        request = sub.encode("client-1")
+        assert request.EventsStoreTypeData == EventsStoreType.StartAtTimeDelta.value
+        assert request.EventsStoreTypeValue == 300
+
+
+class TestEventsStoreSubscriptionTimeDeltaValidation:
+    """GAP-C1: Tests for StartAtTimeDelta validation."""
+
+    def test_start_at_time_delta_with_zero_raises(self):
+        with pytest.raises(ValueError, match="time delta value > 0"):
+            EventsStoreSubscription(
+                channel="ch",
+                events_store_type=EventsStoreType.StartAtTimeDelta,
+                events_store_time_delta_seconds=0,
+                on_receive_event_callback=MagicMock(),
+            )
+
+    def test_start_at_time_delta_with_negative_raises(self):
+        with pytest.raises(ValueError, match="time delta value > 0"):
+            EventsStoreSubscription(
+                channel="ch",
+                events_store_type=EventsStoreType.StartAtTimeDelta,
+                events_store_time_delta_seconds=-10,
+                on_receive_event_callback=MagicMock(),
+            )
+
+    def test_start_at_time_delta_with_positive_value(self):
+        sub = EventsStoreSubscription(
+            channel="ch",
+            events_store_type=EventsStoreType.StartAtTimeDelta,
+            events_store_time_delta_seconds=60,
+            on_receive_event_callback=MagicMock(),
+        )
+        assert sub.events_store_time_delta_seconds == 60
+
+
+class TestEventsStoreSubscriptionWildcardValidation:
+    """GAP-H1: Tests for wildcard rejection in EventsStore channels."""
+
+    def test_channel_with_star_wildcard_raises(self):
+        with pytest.raises(ValueError, match="wildcard"):
+            EventsStoreSubscription(
+                channel="events.*",
+                events_store_type=EventsStoreType.StartNewOnly,
+                on_receive_event_callback=MagicMock(),
+            )
+
+    def test_channel_with_gt_wildcard_raises(self):
+        with pytest.raises(ValueError, match="wildcard"):
+            EventsStoreSubscription(
+                channel="events.>",
+                events_store_type=EventsStoreType.StartNewOnly,
+                on_receive_event_callback=MagicMock(),
+            )
+
+    def test_channel_with_whitespace_raises(self):
+        with pytest.raises(ValueError, match="whitespace"):
+            EventsStoreSubscription(
+                channel="events channel",
+                events_store_type=EventsStoreType.StartNewOnly,
+                on_receive_event_callback=MagicMock(),
+            )
+
+    def test_channel_with_trailing_dot_raises(self):
+        with pytest.raises(ValueError, match="end with"):
+            EventsStoreSubscription(
+                channel="events.",
+                events_store_type=EventsStoreType.StartNewOnly,
+                on_receive_event_callback=MagicMock(),
+            )
+
+
+class TestEventsStoreSubscriptionModelDumpExtended:
+    """Extended tests for EventsStoreSubscription model_dump."""
+
+    def test_model_dump_with_start_time(self):
+        from datetime import datetime
+        dt = datetime(2025, 6, 15, 12, 0, 0)
+        sub = EventsStoreSubscription(
+            channel="ch",
+            events_store_type=EventsStoreType.StartAtTime,
+            events_store_start_time=dt,
+            on_receive_event_callback=MagicMock(),
+        )
+        dump = sub.model_dump()
+        assert dump["events_store_start_time"] == dt.isoformat()
+        assert "on_receive_event_callback" not in dump
+
+
+class TestEventsSubscriptionCallbacksExtended:
+    """Extended callback tests for EventsSubscription."""
+
+    @pytest.mark.asyncio
+    async def test_raise_on_receive_message_async_with_async_callback(self):
+        callback = AsyncMock()
+        sub = EventsSubscription(
+            channel="ch",
+            on_receive_event_callback=callback,
+        )
+        event = EventMessageReceived(id="m1", channel="ch", body=b"x")
+        await sub.raise_on_receive_message_async(event)
+        callback.assert_called_once_with(event)
+
+    @pytest.mark.asyncio
+    async def test_raise_on_error_async_with_async_callback(self):
+        err_cb = AsyncMock()
+        sub = EventsSubscription(
+            channel="ch",
+            on_receive_event_callback=MagicMock(),
+            on_error_callback=err_cb,
+        )
+        await sub.raise_on_error_async("async err")
+        err_cb.assert_called_once_with("async err")
+
+    @pytest.mark.asyncio
+    async def test_raise_on_error_async_with_sync_callback(self):
+        err_cb = MagicMock()
+        sub = EventsSubscription(
+            channel="ch",
+            on_receive_event_callback=MagicMock(),
+            on_error_callback=err_cb,
+        )
+        await sub.raise_on_error_async("sync err via async")
+        err_cb.assert_called_once_with("sync err via async")
+
+    @pytest.mark.asyncio
+    async def test_raise_on_error_async_no_callback(self):
+        sub = EventsSubscription(
+            channel="ch",
+            on_receive_event_callback=MagicMock(),
+            on_error_callback=None,
+        )
+        await sub.raise_on_error_async("no handler")
+
+
+class TestEventsSubscriptionModelDumpExtended:
+    """Extended model_dump tests for EventsSubscription."""
+
+    def test_model_dump_contains_channel(self):
+        sub = EventsSubscription(
+            channel="test-ch",
+            on_receive_event_callback=MagicMock(),
+            on_error_callback=MagicMock(),
+        )
+        dump = sub.model_dump()
+        assert dump["channel"] == "test-ch"
+        assert "on_receive_event_callback" not in dump
+        assert "on_error_callback" not in dump

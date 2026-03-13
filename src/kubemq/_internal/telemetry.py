@@ -503,6 +503,43 @@ class KubeMQTagsCarrier:
         return extract(carrier=self)
 
 
+def serialize_span_to_bytes(context: Any = None) -> bytes:
+    """Serialize the current OTel span context into bytes for the protobuf Span field.
+
+    Uses W3C Trace Context propagation format (JSON-encoded traceparent/tracestate).
+    Returns empty bytes when OTel is not available or no active span exists.
+    """
+    if not HAS_OTEL:
+        return b""
+    from opentelemetry.propagate import inject
+
+    carrier: dict[str, str] = {}
+    inject(carrier=carrier, context=context)
+    if not carrier:
+        return b""
+    import json
+
+    return json.dumps(carrier).encode("utf-8")
+
+
+def deserialize_span_from_bytes(data: bytes) -> Any:
+    """Deserialize span context from protobuf Span bytes field.
+
+    Returns an OTel Context, or None when OTel is not available or data is empty.
+    """
+    if not HAS_OTEL or not data:
+        return None
+    import json
+
+    from opentelemetry.propagate import extract
+
+    try:
+        carrier = json.loads(data.decode("utf-8"))
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return None
+    return extract(carrier=carrier)
+
+
 def create_link_from_context(ctx: Any) -> Any:
     """Create a span Link from an extracted OTel Context.
 

@@ -689,3 +689,506 @@ class TestClientLifecycle:
 
         assert client._closed is True
         assert client._transport is None
+
+
+# ==============================================================================
+# Additional Coverage Tests
+# ==============================================================================
+
+
+class TestBaseClientCloseEdgeCases:
+    """Tests for BaseClient.close() uncovered paths."""
+
+    @patch("kubemq.transport.transport.Transport")
+    def test_close_when_transport_none(self, mock_transport_class):
+        """Verify close() doesn't error when _transport is already None."""
+        mock_transport = MagicMock()
+        mock_transport.initialize.return_value = mock_transport
+        mock_transport_class.return_value = mock_transport
+
+        client = ConcreteBaseClient(address="localhost:50000")
+        client._transport = None
+
+        client.close()
+
+        assert client._closed is True
+        assert client._transport is None
+
+    @patch("kubemq.transport.transport.Transport")
+    def test_close_calls_transport_close(self, mock_transport_class):
+        """Verify transport.close() is called during close()."""
+        mock_transport = MagicMock()
+        mock_transport.initialize.return_value = mock_transport
+        mock_transport_class.return_value = mock_transport
+
+        client = ConcreteBaseClient(address="localhost:50000")
+        client.close()
+
+        mock_transport.close.assert_called_once()
+        assert client._transport is None
+        assert client._closed is True
+
+
+class TestBaseClientEnsureConnectedEdgeCases:
+    """Tests for BaseClient._ensure_connected() uncovered paths."""
+
+    @patch("kubemq.transport.transport.Transport")
+    def test_ensure_connected_when_transport_none(self, mock_transport_class):
+        """Verify _ensure_connected raises when transport is None (not initialized)."""
+        mock_transport = MagicMock()
+        mock_transport.initialize.return_value = mock_transport
+        mock_transport.is_connected.return_value = True
+        mock_transport_class.return_value = mock_transport
+
+        client = ConcreteBaseClient(address="localhost:50000")
+        client._transport = None
+
+        with pytest.raises(KubeMQConnectionError, match="not connected"):
+            client._ensure_connected()
+
+
+# ==============================================================================
+# Additional Coverage Tests — uncovered lines in core/client.py
+# ==============================================================================
+
+import asyncio
+import logging
+import threading
+import time
+
+from kubemq.core.client import _resolve_logger
+from kubemq.core.exceptions import KubeMQError, KubeMQValidationError
+
+
+class TestResolveLogger:
+    """Tests for _resolve_logger function (lines 44-47)."""
+
+    def test_returns_user_injected_logger(self):
+        mock_logger = MagicMock()
+        config = ClientConfig(address="localhost:50000", logger=mock_logger)
+        result = _resolve_logger(config, "TestClass")
+        assert result is mock_logger
+
+    def test_returns_stdlib_adapter_when_log_level_set(self):
+        from kubemq._internal.logging import StdLibLoggerAdapter
+
+        config = ClientConfig(address="localhost:50000", log_level=logging.DEBUG)
+        result = _resolve_logger(config, "TestClass")
+        assert isinstance(result, StdLibLoggerAdapter)
+
+
+class TestBaseClientInitializeError:
+    """Tests for BaseClient._initialize error path (lines 144-146)."""
+
+    def test_initialize_raises_maps_error(self):
+        with patch("kubemq.transport.transport.Transport") as mock_cls:
+            mock_transport = MagicMock()
+            mock_transport.initialize.side_effect = RuntimeError("connect failed")
+            mock_cls.return_value = mock_transport
+
+            with pytest.raises(KubeMQError):
+                ConcreteBaseClient(address="localhost:50000")
+
+
+class TestBaseClientPingError:
+    """Tests for BaseClient.ping() error path (lines 172-174)."""
+
+    @patch("kubemq.transport.transport.Transport")
+    def test_ping_error_maps_exception(self, mock_transport_class):
+        mock_transport = MagicMock()
+        mock_transport.initialize.return_value = mock_transport
+        mock_transport.is_connected.return_value = True
+        mock_transport.ping.side_effect = RuntimeError("ping failed")
+        mock_transport_class.return_value = mock_transport
+
+        client = ConcreteBaseClient(address="localhost:50000")
+
+        with pytest.raises(KubeMQError):
+            client.ping()
+
+
+class TestBaseClientSetToken:
+    """Tests for BaseClient.set_token() (lines 185-186)."""
+
+    @patch("kubemq.transport.transport.Transport")
+    def test_set_token_delegates_to_transport(self, mock_transport_class):
+        mock_transport = MagicMock()
+        mock_transport.initialize.return_value = mock_transport
+        mock_transport_class.return_value = mock_transport
+
+        client = ConcreteBaseClient(address="localhost:50000")
+        client.set_token("new-token-123")
+
+        mock_transport.set_token.assert_called_once_with("new-token-123")
+
+    @patch("kubemq.transport.transport.Transport")
+    def test_set_token_noop_when_transport_none(self, mock_transport_class):
+        mock_transport = MagicMock()
+        mock_transport.initialize.return_value = mock_transport
+        mock_transport_class.return_value = mock_transport
+
+        client = ConcreteBaseClient(address="localhost:50000")
+        client._transport = None
+        client.set_token("token")
+
+
+class TestBaseClientCloseThreadDrain:
+    """Tests for BaseClient.close() subscription thread drain (lines 226-235)."""
+
+    @patch("kubemq.transport.transport.Transport")
+    def test_close_joins_subscription_threads(self, mock_transport_class):
+        mock_transport = MagicMock()
+        mock_transport.initialize.return_value = mock_transport
+        mock_transport_class.return_value = mock_transport
+
+        client = ConcreteBaseClient(address="localhost:50000")
+        client._config.callback_completion_timeout = 5.0
+        client._logger = MagicMock()
+
+        mock_thread = MagicMock(spec=threading.Thread)
+        mock_thread.is_alive.return_value = True
+        client._register_subscription_thread(mock_thread)
+
+        client.close()
+
+        mock_thread.join.assert_called_once()
+        _, kwargs = mock_thread.join.call_args
+        assert kwargs.get("timeout") is not None
+
+    @patch("kubemq.transport.transport.Transport")
+    def test_close_timeout_breaks_thread_drain_loop(self, mock_transport_class):
+        mock_transport = MagicMock()
+        mock_transport.initialize.return_value = mock_transport
+        mock_transport_class.return_value = mock_transport
+
+        client = ConcreteBaseClient(address="localhost:50000")
+        client._config.callback_completion_timeout = 0.01
+        client._logger = MagicMock()
+
+        threads = []
+        for _ in range(3):
+            t = MagicMock(spec=threading.Thread)
+            t.is_alive.return_value = True
+            t.join.side_effect = lambda timeout=None: time.sleep(0.1)
+            threads.append(t)
+            client._register_subscription_thread(t)
+
+        client.close()
+
+        join_count = sum(1 for t in threads if t.join.called)
+        assert join_count >= 1
+        assert client._closed is True
+
+
+class TestAsyncBaseClientConnectError:
+    """Tests for AsyncBaseClient.connect() error path (lines 363-372)."""
+
+    @pytest.mark.asyncio
+    async def test_connect_error_maps_via_from_grpc_error(self):
+        client = ConcreteAsyncBaseClient(address="localhost:50000")
+
+        with patch("kubemq.core.client.run_in_thread", new_callable=AsyncMock) as mock_run:
+            mock_run.side_effect = RuntimeError("connection refused")
+
+            with pytest.raises(KubeMQError):
+                await client.connect()
+
+
+class TestAsyncBaseClientIsConnectedWithTransport:
+    """Tests for AsyncBaseClient.is_connected with transport (line 382)."""
+
+    def test_is_connected_true_with_transport(self):
+        client = ConcreteAsyncBaseClient(address="localhost:50000")
+        mock_transport = MagicMock()
+        mock_transport.is_connected.return_value = True
+        client._transport = mock_transport
+
+        assert client.is_connected is True
+
+
+class TestAsyncBaseClientPingError:
+    """Tests for AsyncBaseClient.ping() error path (lines 393-400)."""
+
+    @pytest.mark.asyncio
+    async def test_ping_error_maps_exception(self):
+        client = ConcreteAsyncBaseClient(address="localhost:50000")
+        mock_transport = MagicMock()
+        mock_transport.is_connected.return_value = True
+        client._transport = mock_transport
+
+        with patch("kubemq.core.client.run_in_thread", new_callable=AsyncMock) as mock_run:
+            mock_run.side_effect = RuntimeError("ping failed")
+
+            with pytest.raises(KubeMQError):
+                await client.ping()
+
+
+class TestAsyncBaseClientAexit:
+    """Tests for AsyncBaseClient.__aexit__."""
+
+    @pytest.mark.asyncio
+    async def test_aexit_calls_close(self):
+        client = ConcreteAsyncBaseClient(address="localhost:50000")
+        client.connect = AsyncMock()
+        client.close = AsyncMock()
+
+        async with client:
+            pass
+
+        client.close.assert_called_once()
+
+
+class TestAsyncBaseClientCloseTransportError:
+    """Tests for AsyncBaseClient.close() transport error (lines 420-421)."""
+
+    @pytest.mark.asyncio
+    async def test_close_transport_error_logs_warning_clears_transport(self):
+        client = ConcreteAsyncBaseClient(address="localhost:50000")
+        mock_transport = MagicMock()
+        mock_transport.close_async = AsyncMock(side_effect=RuntimeError("close failed"))
+        client._transport = mock_transport
+
+        await client.close()
+
+        assert client._transport is None
+        assert client._closed is True
+
+
+class TestAsyncBaseClientEnsureConnected:
+    """Tests for AsyncBaseClient._ensure_connected (lines 438-441)."""
+
+    def test_raises_when_closed(self):
+        client = ConcreteAsyncBaseClient(address="localhost:50000")
+        client._closed = True
+
+        with pytest.raises(KubeMQClientClosedError, match="Client is closed"):
+            client._ensure_connected()
+
+    def test_raises_when_not_connected(self):
+        client = ConcreteAsyncBaseClient(address="localhost:50000")
+
+        with pytest.raises(KubeMQConnectionError, match="not connected"):
+            client._ensure_connected()
+
+
+class TestNativeAsyncConnectionState:
+    """Tests for NativeAsyncBaseClient.connection_state (lines 596-600)."""
+
+    def test_connection_state_idle_without_transport(self):
+        from kubemq.core.types import ConnectionState
+
+        client = ConcreteNativeAsyncBaseClient(address="localhost:50000")
+        assert client.connection_state == ConnectionState.IDLE
+
+    def test_connection_state_from_transport(self):
+        from kubemq.core.types import ConnectionState
+
+        client = ConcreteNativeAsyncBaseClient(address="localhost:50000")
+        mock_transport = MagicMock()
+        mock_transport.connection_state = ConnectionState.READY
+        client._transport = mock_transport
+
+        assert client.connection_state == ConnectionState.READY
+
+
+class TestNativeAsyncSetToken:
+    """Tests for NativeAsyncBaseClient.set_token() (lines 590-591)."""
+
+    def test_set_token_delegates_to_transport(self):
+        client = ConcreteNativeAsyncBaseClient(address="localhost:50000")
+        mock_transport = MagicMock()
+        client._transport = mock_transport
+
+        client.set_token("new-token")
+
+        mock_transport.set_token.assert_called_once_with("new-token")
+
+    def test_set_token_noop_when_no_transport(self):
+        client = ConcreteNativeAsyncBaseClient(address="localhost:50000")
+        client.set_token("token")
+
+
+class TestNativeAsyncCallbackRegistrations:
+    """Tests for on_connected/disconnected/reconnecting/reconnected
+    (lines 604-605, 609-610, 614-615, 619-620)."""
+
+    def _client_with_transport(self):
+        client = ConcreteNativeAsyncBaseClient(address="localhost:50000")
+        transport = MagicMock()
+        client._transport = transport
+        return client, transport
+
+    def test_on_connected_delegates(self):
+        client, transport = self._client_with_transport()
+        cb = MagicMock()
+        client.on_connected(cb)
+        transport.on_connected.assert_called_once_with(cb)
+
+    def test_on_disconnected_delegates(self):
+        client, transport = self._client_with_transport()
+        cb = MagicMock()
+        client.on_disconnected(cb)
+        transport.on_disconnected.assert_called_once_with(cb)
+
+    def test_on_reconnecting_delegates(self):
+        client, transport = self._client_with_transport()
+        cb = MagicMock()
+        client.on_reconnecting(cb)
+        transport.on_reconnecting.assert_called_once_with(cb)
+
+    def test_on_reconnected_delegates(self):
+        client, transport = self._client_with_transport()
+        cb = MagicMock()
+        client.on_reconnected(cb)
+        transport.on_reconnected.assert_called_once_with(cb)
+
+    def test_on_connected_noop_without_transport(self):
+        client = ConcreteNativeAsyncBaseClient(address="localhost:50000")
+        client.on_connected(MagicMock())
+
+    def test_on_disconnected_noop_without_transport(self):
+        client = ConcreteNativeAsyncBaseClient(address="localhost:50000")
+        client.on_disconnected(MagicMock())
+
+    def test_on_reconnecting_noop_without_transport(self):
+        client = ConcreteNativeAsyncBaseClient(address="localhost:50000")
+        client.on_reconnecting(MagicMock())
+
+    def test_on_reconnected_noop_without_transport(self):
+        client = ConcreteNativeAsyncBaseClient(address="localhost:50000")
+        client.on_reconnected(MagicMock())
+
+
+class TestNativeAsyncTaskDrain:
+    """Tests for NativeAsyncBaseClient.close() task drain (lines 655-671)."""
+
+    @pytest.mark.asyncio
+    async def test_close_drains_pending_tasks(self):
+        client = ConcreteNativeAsyncBaseClient(address="localhost:50000")
+        client._logger = MagicMock()
+        mock_transport = MagicMock()
+        mock_transport.connect = AsyncMock()
+        mock_transport.close = AsyncMock()
+        mock_transport.is_connected = True
+        client._transport = mock_transport
+
+        completed = []
+
+        async def slow_work():
+            await asyncio.sleep(0.05)
+            completed.append(True)
+
+        task = asyncio.create_task(slow_work())
+        client._register_subscription_task(task)
+
+        await client.close()
+
+        assert len(completed) == 1
+        assert client._closed is True
+
+    @pytest.mark.asyncio
+    async def test_close_cancels_tasks_after_timeout(self):
+        client = ConcreteNativeAsyncBaseClient(address="localhost:50000")
+        client._logger = MagicMock()
+        mock_transport = MagicMock()
+        mock_transport.connect = AsyncMock()
+        mock_transport.close = AsyncMock()
+        mock_transport.is_connected = True
+        client._transport = mock_transport
+        client._config.callback_completion_timeout = 0.01
+
+        async def hang_forever():
+            await asyncio.sleep(100)
+
+        task = asyncio.create_task(hang_forever())
+        client._register_subscription_task(task)
+
+        await client.close()
+
+        assert task.cancelled() or task.done()
+        assert client._closed is True
+
+
+class TestNativeAsyncSubscriptionTaskRegistration:
+    """Tests for _register/_unregister_subscription_task (lines 742-743, 747)."""
+
+    @pytest.mark.asyncio
+    async def test_register_adds_task_to_set(self):
+        client = ConcreteNativeAsyncBaseClient(address="localhost:50000")
+
+        async def noop():
+            pass
+
+        task = asyncio.create_task(noop())
+        client._register_subscription_task(task)
+
+        assert task in client._subscription_tasks
+        await task
+
+    @pytest.mark.asyncio
+    async def test_done_callback_auto_removes_task(self):
+        client = ConcreteNativeAsyncBaseClient(address="localhost:50000")
+
+        async def noop():
+            pass
+
+        task = asyncio.create_task(noop())
+        client._register_subscription_task(task)
+        await task
+        await asyncio.sleep(0)
+
+        assert task not in client._subscription_tasks
+
+    @pytest.mark.asyncio
+    async def test_unregister_removes_task(self):
+        client = ConcreteNativeAsyncBaseClient(address="localhost:50000")
+
+        async def noop():
+            await asyncio.sleep(10)
+
+        task = asyncio.create_task(noop())
+        client._register_subscription_task(task)
+        client._unregister_subscription_task(task)
+
+        assert task not in client._subscription_tasks
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+
+
+class TestNativeAsyncValidateMessageSize:
+    """Tests for _validate_message_size (line 695)."""
+
+    def test_body_exceeds_max_raises(self):
+        config = ClientConfig(address="localhost:50000", max_send_size=100)
+        client = ConcreteNativeAsyncBaseClient(config=config)
+
+        with pytest.raises(KubeMQValidationError, match="exceeds maximum"):
+            client._validate_message_size(b"x" * 200)
+
+    def test_body_within_limit_passes(self):
+        config = ClientConfig(address="localhost:50000", max_send_size=100)
+        client = ConcreteNativeAsyncBaseClient(config=config)
+        client._validate_message_size(b"x" * 50)
+
+    def test_zero_max_means_unlimited(self):
+        config = ClientConfig(address="localhost:50000", max_send_size=0)
+        client = ConcreteNativeAsyncBaseClient(config=config)
+        client._validate_message_size(b"x" * 999999)
+
+
+class TestNativeAsyncAexit:
+    """Tests for NativeAsyncBaseClient.__aexit__."""
+
+    @pytest.mark.asyncio
+    async def test_aexit_calls_close(self):
+        client = ConcreteNativeAsyncBaseClient(address="localhost:50000")
+        client.connect = AsyncMock()
+        client.close = AsyncMock()
+
+        async with client:
+            pass
+
+        client.close.assert_called_once()

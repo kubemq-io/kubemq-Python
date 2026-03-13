@@ -1,9 +1,11 @@
+import asyncio
 import logging
 import threading
 import time
 import uuid
+from collections.abc import AsyncIterator
 from datetime import datetime
-from typing import Callable, Optional
+from typing import Any, Callable, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -74,8 +76,10 @@ class QueueMessageReceived(BaseModel):
     response_handler: Optional[Callable[[QueuesDownstreamRequest], QueuesDownstreamResponse]] = (
         Field(default=None)
     )
+    async_response_handler: Optional[Callable[[QueuesDownstreamRequest], Any]] = Field(default=None)
     visibility_seconds: int = Field(default=0)
     is_auto_acked: bool = Field(default=False)
+    md5_of_body: str = Field(default="")
     _visibility_timer: Optional[threading.Timer] = None
     _message_completed: bool = False
     _timer_expired: bool = False
@@ -127,6 +131,18 @@ class QueueMessageReceived(BaseModel):
                        completed, or the response handler is not set.
         """
         self._do_operation(QueuesDownstreamRequestType.ReQueueRange, channel)
+
+    async def async_ack(self):
+        """Acknowledge the message asynchronously (for native async clients)."""
+        await self._do_async_operation(QueuesDownstreamRequestType.AckRange)
+
+    async def async_reject(self):
+        """Reject the message asynchronously (for native async clients)."""
+        await self._do_async_operation(QueuesDownstreamRequestType.NAckRange)
+
+    async def async_re_queue(self, channel: str):
+        """Re-queue the message to another channel asynchronously (for native async clients)."""
+        await self._do_async_operation(QueuesDownstreamRequestType.ReQueueRange, channel)
 
     def extend_visibility_timer(self, additional_seconds: int):
         """
@@ -240,6 +256,7 @@ class QueueMessageReceived(BaseModel):
         ] = None,
         visibility_seconds: int = 0,
         is_auto_acked: bool = False,
+        async_response_handler: Optional[Callable[[QueuesDownstreamRequest], Any]] = None,
     ) -> "QueueMessageReceived":
         """
         Decode a protobuf message into a QueueMessageReceived instance.
@@ -249,9 +266,10 @@ class QueueMessageReceived(BaseModel):
             transaction_id: The ID of the transaction.
             transaction_is_completed: Whether the transaction is completed.
             receiver_client_id: The client ID of the receiver.
-            response_handler: The handler for sending responses.
+            response_handler: The handler for sending responses (sync clients).
             visibility_seconds: How long the message is visible.
             is_auto_acked: Whether the message is automatically acknowledged.
+            async_response_handler: Async handler for sending responses (native async clients).
 
         Returns:
             QueueMessageReceived: The decoded message.
@@ -288,8 +306,14 @@ class QueueMessageReceived(BaseModel):
             is_transaction_completed=transaction_is_completed,
             receiver_client_id=receiver_client_id,
             response_handler=response_handler,
+            async_response_handler=async_response_handler,
             visibility_seconds=visibility_seconds,
             is_auto_acked=is_auto_acked,
+            md5_of_body=(
+                message.Attributes.MD5OfBody
+                if message.Attributes and hasattr(message.Attributes, "MD5OfBody")
+                else ""
+            ),
         )
 
         if instance.visibility_seconds > 0:
@@ -338,6 +362,34 @@ class QueueMessageReceived(BaseModel):
             self._message_completed = True
             self._cancel_visibility_timer()
             self.response_handler(request)
+
+    async def _do_async_operation(self, request_type: QueuesDownstreamRequestType, re_queue_channel: str = ""):
+        """Perform an async operation on the message.
+
+        Used by native async clients that provide an async_response_handler.
+        """
+        if self.is_auto_acked:
+            raise ValueError(
+                "transaction was set with auto ack, message operations are not allowed"
+            )
+        if self.is_transaction_completed:
+            raise ValueError("transaction is already completed")
+        if self._message_completed:
+            raise ValueError("message transaction is already completed")
+        if not self.async_response_handler:
+            raise ValueError("async_response_handler is not set")
+
+        request = QueuesDownstreamRequest()
+        request.RequestID = str(uuid.uuid4())
+        request.ClientID = self.receiver_client_id
+        request.Channel = self.channel
+        request.RequestTypeData = request_type
+        request.RefTransactionId = self.transaction_id
+        request.SequenceRange.append(self.sequence)
+        request.ReQueueChannel = re_queue_channel
+        self._message_completed = True
+        self._cancel_visibility_timer()
+        await self.async_response_handler(request)
 
     def _mark_transaction_completed(self):
         """

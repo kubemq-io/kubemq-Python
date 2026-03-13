@@ -91,6 +91,12 @@ class QueuesPollResponse(BaseModel):
     is_auto_acked: bool = Field(
         default=False, description="Whether the messages are automatically acknowledged"
     )
+    request_type_data: int = Field(
+        default=0, description="The request type from the server response"
+    )
+    response_metadata: dict[str, str] = Field(
+        default_factory=dict, description="Metadata from the server response"
+    )
 
     # Constructor
     def __init__(self, **data):
@@ -160,6 +166,32 @@ class QueuesPollResponse(BaseModel):
         """
         self._do_operation(QueuesDownstreamRequestType.ReQueueAll, channel)
 
+    def get_active_offsets(self) -> list[int]:
+        """Query the server for the current active offsets of this transaction.
+
+        Returns:
+            List of active offset values.
+        """
+        response = self._do_operation_with_response(QueuesDownstreamRequestType.ActiveOffsets)
+        if response is not None:
+            return list(response.ActiveOffsets)
+        return list(self.active_offsets)
+
+    def get_transaction_status(self) -> bool:
+        """Query the server for the transaction completion status.
+
+        Returns:
+            True if the transaction is complete, False otherwise.
+        """
+        response = self._do_operation_with_response(QueuesDownstreamRequestType.TransactionStatus)
+        if response is not None:
+            return response.TransactionComplete
+        return self.is_transaction_completed
+
+    def close_transaction(self) -> None:
+        """Close the transaction by sending a CloseByClient request."""
+        self._do_operation(QueuesDownstreamRequestType.CloseByClient)
+
     # Utility methods
     def count(self) -> int:
         """
@@ -195,8 +227,42 @@ class QueuesPollResponse(BaseModel):
             return self.__class__(**data)
 
     # Internal helper methods
+    def _do_operation_with_response(
+        self,
+        request_type: QueuesDownstreamRequestType,
+        re_queue_channel: str = "",
+        metadata: dict[str, str] | None = None,
+    ) -> QueuesDownstreamResponse | None:
+        """Perform an operation and return the server response.
+
+        Returns:
+            The QueuesDownstreamResponse from the server, or None on error.
+        """
+        with self._lock:
+            if not self.response_handler:
+                raise ValueError("Response handler is not set")
+
+            try:
+                request = QueuesDownstreamRequest()
+                request.RequestID = str(uuid.uuid4())
+                request.ClientID = self.receiver_client_id
+                request.RequestTypeData = request_type
+                request.ReQueueChannel = re_queue_channel
+                request.RefTransactionId = self.transaction_id
+                request.SequenceRange.extend(self.active_offsets)
+                if metadata:
+                    for k, v in metadata.items():
+                        request.Metadata[k] = v
+                return self.response_handler(request)
+            except Exception as e:
+                logging.error(f"Error performing operation {request_type}: {str(e)}")
+                raise ValueError(f"Failed to perform operation: {str(e)}") from e
+
     def _do_operation(
-        self, request_type: QueuesDownstreamRequestType, re_queue_channel: str = ""
+        self,
+        request_type: QueuesDownstreamRequestType,
+        re_queue_channel: str = "",
+        metadata: dict[str, str] | None = None,
     ) -> None:
         """
         Perform an operation on all messages in the response.
@@ -204,6 +270,7 @@ class QueuesPollResponse(BaseModel):
         Args:
             request_type: The type of operation to perform.
             re_queue_channel: The channel to re-queue the messages to (if applicable).
+            metadata: Optional key-value metadata to attach to the downstream request.
 
         Raises:
             ValueError: If the messages are auto-acknowledged, the transaction is already
@@ -230,6 +297,9 @@ class QueuesPollResponse(BaseModel):
                 request.ReQueueChannel = re_queue_channel
                 request.RefTransactionId = self.transaction_id
                 request.SequenceRange.extend(self.active_offsets)
+                if metadata:
+                    for k, v in metadata.items():
+                        request.Metadata[k] = v
                 self.response_handler(request)
                 self.is_transaction_completed = True
                 for message in self.messages:
@@ -293,6 +363,8 @@ class QueuesPollResponse(BaseModel):
                 response_handler=response_handler,
                 visibility_seconds=request_visibility_seconds,
                 is_auto_acked=request_auto_ack,
+                request_type_data=int(response.RequestTypeData) if response.RequestTypeData else 0,
+                response_metadata=dict(response.Metadata) if hasattr(response, "Metadata") and response.Metadata else {},
             )
         except Exception as e:
             raise ValueError(f"Failed to decode response: {str(e)}") from e
