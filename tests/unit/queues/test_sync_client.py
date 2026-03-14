@@ -457,7 +457,7 @@ class TestQueuesClientWaiting:
 
             client = Client(address="localhost:50000")
 
-            with pytest.raises(ValueError, match="max_messages must be greater than 0"):
+            with pytest.raises(ValueError, match="max_messages must be between 1 and 1024"):
                 client.waiting(
                     channel="test-queue",
                     max_messages=0,
@@ -474,7 +474,7 @@ class TestQueuesClientWaiting:
 
             client = Client(address="localhost:50000")
 
-            with pytest.raises(ValueError, match="wait_timeout_in_seconds must be greater than 0"):
+            with pytest.raises(ValueError, match="wait_timeout_in_seconds must be between 1 and 3600"):
                 client.waiting(
                     channel="test-queue",
                     max_messages=5,
@@ -545,7 +545,7 @@ class TestQueuesClientPull:
 
             client = Client(address="localhost:50000")
 
-            with pytest.raises(ValueError, match="max_messages must be greater than 0"):
+            with pytest.raises(ValueError, match="max_messages must be between 1 and 1024"):
                 client.pull(
                     channel="test-queue",
                     max_messages=0,
@@ -562,7 +562,7 @@ class TestQueuesClientPull:
 
             client = Client(address="localhost:50000")
 
-            with pytest.raises(ValueError, match="wait_timeout_in_seconds must be greater than 0"):
+            with pytest.raises(ValueError, match="wait_timeout_in_seconds must be between 1 and 3600"):
                 client.pull(
                     channel="test-queue",
                     max_messages=5,

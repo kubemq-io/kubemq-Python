@@ -31,6 +31,7 @@ from kubemq.queues.queues_messages_waiting_pulled import (
     QueueMessageWaitingPulled,
 )
 from kubemq.queues.queues_poll_response import QueuesPollResponse
+from kubemq.queues.queues_info_response import QueuesInfoModel
 from kubemq.queues.queues_send_result import QueueBatchSendResult, QueueSendResult
 from kubemq.queues.upstream_sender import UpstreamSender
 from kubemq.transport.server_info import ServerInfo
@@ -693,14 +694,14 @@ class Client(BaseClient):
 
         return response.AffectedMessages
 
-    def queues_info(self, queue_name: str = ""):
+    def queues_info(self, queue_name: str = "") -> QueuesInfoModel:
         """Get queue information and statistics.
 
         Args:
             queue_name: Optional queue name to filter. Empty string returns all queues.
 
         Returns:
-            QueuesInfoResponse with queue details.
+            QueuesInfoModel with aggregate and per-queue statistics.
         """
         self._ensure_connected()
         assert self._transport is not None
@@ -710,7 +711,8 @@ class Client(BaseClient):
         request.RequestID = str(uuid.uuid4())
         request.QueueName = queue_name
 
-        return self._transport.kubemq_client().QueuesInfo(request)
+        response = self._transport.kubemq_client().QueuesInfo(request)
+        return QueuesInfoModel.decode(response)
 
     def pull(
         self, channel: str, max_messages: int, wait_timeout_in_seconds: int

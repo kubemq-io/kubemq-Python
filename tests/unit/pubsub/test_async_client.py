@@ -83,10 +83,14 @@ class TestAsyncClientSendEvent:
 
     @pytest.mark.asyncio
     async def test_send_event_encodes_message(self, mock_transport):
-        """Test send_event properly encodes the message."""
+        """Test send_event properly encodes the message via bidi stream sender."""
         client = AsyncClient(address="localhost:50000")
         client._transport = mock_transport
         client._connected = True  # type: ignore[attr-defined]
+
+        mock_sender = AsyncMock()
+        mock_sender.send = AsyncMock(return_value=None)
+        client._event_sender = mock_sender
 
         message = EventMessage(
             channel="test-channel",
@@ -96,12 +100,8 @@ class TestAsyncClientSendEvent:
 
         await client.send_event(message)
 
-        # Verify transport was called
-        mock_transport.send_event.assert_called_once()
-
-        # Get the pb.Event that was passed
-        call_args = mock_transport.send_event.call_args
-        pb_event = call_args[0][0]
+        mock_sender.send.assert_called_once()
+        pb_event = mock_sender.send.call_args[0][0]
         assert isinstance(pb_event, pb.Event)
 
 
@@ -119,16 +119,18 @@ class TestAsyncClientSendEventStore:
 
     @pytest.mark.asyncio
     async def test_send_event_store_returns_result(self, mock_transport):
-        """Test send_event_store returns EventSendResult."""
+        """Test send_event_store returns EventSendResult via bidi stream sender."""
         client = AsyncClient(address="localhost:50000")
         client._transport = mock_transport
         client._connected = True  # type: ignore[attr-defined]
 
-        # Setup mock response
         mock_result = pb.Result()
         mock_result.Sent = True
         mock_result.EventID = "event-123"
-        mock_transport.send_event.return_value = mock_result
+
+        mock_sender = AsyncMock()
+        mock_sender.send = AsyncMock(return_value=mock_result)
+        client._event_sender = mock_sender
 
         message = EventStoreMessage(
             channel="test-channel",
@@ -159,12 +161,15 @@ class TestAsyncClientSendBatch:
         client._transport = mock_transport
         client._connected = True  # type: ignore[attr-defined]
 
+        mock_sender = AsyncMock()
+        mock_sender.send = AsyncMock(return_value=None)
+        client._event_sender = mock_sender
+
         messages = [EventMessage(channel="test", body=f"msg-{i}".encode()) for i in range(10)]
 
         results = await client.send_events_batch(messages, max_concurrent=5)
 
         assert len(results) == 10
-        # All should be successful since transport mock doesn't raise
         assert all(r.sent for r in results)
 
 
@@ -289,11 +294,13 @@ class TestAsyncClientSendEventsStoreBatch:
         client._transport = mock_transport
         client._connected = True  # type: ignore[attr-defined]
 
-        # Setup mock response
         mock_result = pb.Result()
         mock_result.Sent = True
         mock_result.EventID = "event-123"
-        mock_transport.send_event.return_value = mock_result
+
+        mock_sender = AsyncMock()
+        mock_sender.send = AsyncMock(return_value=mock_result)
+        client._event_sender = mock_sender
 
         messages = [EventStoreMessage(channel="test", body=f"msg-{i}".encode()) for i in range(5)]
 
@@ -309,10 +316,9 @@ class TestAsyncClientSendEventsStoreBatch:
         client._transport = mock_transport
         client._connected = True  # type: ignore[attr-defined]
 
-        # Make send_event fail on every other call
         call_count = [0]
 
-        async def mock_send_event(event):
+        async def mock_send(event):
             call_count[0] += 1
             if call_count[0] % 2 == 0:
                 raise Exception("Send failed")
@@ -321,14 +327,15 @@ class TestAsyncClientSendEventsStoreBatch:
             result.EventID = f"event-{call_count[0]}"
             return result
 
-        mock_transport.send_event.side_effect = mock_send_event
+        mock_sender = AsyncMock()
+        mock_sender.send = AsyncMock(side_effect=mock_send)
+        client._event_sender = mock_sender
 
         messages = [EventStoreMessage(channel="test", body=f"msg-{i}".encode()) for i in range(4)]
 
         results = await client.send_events_store_batch(messages)
 
         assert len(results) == 4
-        # Some should succeed, some should fail
         successful = [r for r in results if r.sent]
         failed = [r for r in results if not r.sent]
         assert len(successful) == 2
@@ -653,12 +660,14 @@ class TestAsyncClientPublishEventTelemetry:
 
     @pytest.mark.asyncio
     async def test_publish_event_calls_transport(self, mock_transport):
-        """Verify publish_event encodes and calls transport."""
+        """Verify publish_event encodes and calls bidi stream sender."""
         client = AsyncClient(address="localhost:50000")
         client._transport = mock_transport
         client._connected = True  # type: ignore[attr-defined]
 
-        mock_transport.send_event = AsyncMock(return_value=None)
+        mock_sender = AsyncMock()
+        mock_sender.send = AsyncMock(return_value=None)
+        client._event_sender = mock_sender
 
         message = EventMessage(
             channel="test-channel",
@@ -668,8 +677,8 @@ class TestAsyncClientPublishEventTelemetry:
 
         await client.publish_event(message)
 
-        mock_transport.send_event.assert_called_once()
-        pb_event = mock_transport.send_event.call_args[0][0]
+        mock_sender.send.assert_called_once()
+        pb_event = mock_sender.send.call_args[0][0]
         assert isinstance(pb_event, pb.Event)
         assert pb_event.Channel == "test-channel"
         assert pb_event.Body == b"hello"
@@ -685,7 +694,10 @@ class TestAsyncClientPublishEventTelemetry:
         mock_result.Sent = True
         mock_result.EventID = "es-456"
         mock_result.Error = ""
-        mock_transport.send_event = AsyncMock(return_value=mock_result)
+
+        mock_sender = AsyncMock()
+        mock_sender.send = AsyncMock(return_value=mock_result)
+        client._event_sender = mock_sender
 
         message = EventStoreMessage(
             channel="store-channel",
@@ -1073,10 +1085,13 @@ class OneShotRetryIterator:
 
 
 def _make_connected_client(mock_transport):
-    """Create an AsyncClient wired to a mock transport."""
+    """Create an AsyncClient wired to a mock transport and mock event sender."""
     client = AsyncClient(address="localhost:50000")
     client._transport = mock_transport
     client._connected = True  # type: ignore[attr-defined]
+    mock_sender = AsyncMock()
+    mock_sender.send = AsyncMock(return_value=None)
+    client._event_sender = mock_sender
     return client
 
 
@@ -1119,9 +1134,11 @@ class TestPublishEventErrorPaths:
 
     @pytest.mark.asyncio
     async def test_publish_event_generic_exception_reraises(self, mock_transport):
-        """Generic exception from transport -> re-raised (lines 150-153)."""
+        """Generic exception from event sender -> re-raised."""
         client = _make_connected_client(mock_transport)
-        client._retry_executor.execute = AsyncMock(side_effect=RuntimeError("boom"))
+        mock_sender = AsyncMock()
+        mock_sender.send = AsyncMock(side_effect=RuntimeError("boom"))
+        client._event_sender = mock_sender
 
         msg = EventMessage(channel="ch", body=b"x")
         with pytest.raises(RuntimeError, match="boom"):
@@ -1171,7 +1188,7 @@ class TestPublishEventErrorPaths:
     async def test_publish_event_metrics_recorded_on_failure(self, mock_transport):
         """Metrics record_operation_duration called even on failure (finally block)."""
         client = _make_connected_client(mock_transport)
-        client._retry_executor.execute = AsyncMock(side_effect=RuntimeError("fail"))
+        client._event_sender.send = AsyncMock(side_effect=RuntimeError("fail"))
 
         mock_instrumentor = MagicMock()
         mock_span = MagicMock()
@@ -1216,9 +1233,9 @@ class TestPublishEventErrorPaths:
 
     @pytest.mark.asyncio
     async def test_publish_event_store_generic_exception(self, mock_transport):
-        """Generic exception -> re-raised (lines 208-211)."""
+        """Generic exception from event sender -> re-raised."""
         client = _make_connected_client(mock_transport)
-        client._retry_executor.execute = AsyncMock(side_effect=RuntimeError("store boom"))
+        client._event_sender.send = AsyncMock(side_effect=RuntimeError("store boom"))
 
         msg = EventStoreMessage(channel="ch", body=b"x")
         with pytest.raises(RuntimeError, match="store boom"):
@@ -1226,7 +1243,7 @@ class TestPublishEventErrorPaths:
 
     @pytest.mark.asyncio
     async def test_publish_event_store_span_attributes(self, mock_transport):
-        """Span attributes set when is_recording is True (lines 189-195)."""
+        """Span attributes set when is_recording is True."""
         client = _make_connected_client(mock_transport)
 
         mock_span = MagicMock()
@@ -1238,11 +1255,11 @@ class TestPublishEventErrorPaths:
         mock_instrumentor.start_span.return_value = mock_span
         client._instrumentor = mock_instrumentor
 
-        mock_result = MagicMock()
+        mock_result = pb.Result()
         mock_result.Sent = True
         mock_result.EventID = "id-1"
         mock_result.Error = ""
-        client._retry_executor.execute = AsyncMock(return_value=mock_result)
+        client._event_sender.send = AsyncMock(return_value=mock_result)
 
         msg = EventStoreMessage(channel="ch", body=b"hello")
         result = await client.publish_event_store(msg)
@@ -1266,13 +1283,13 @@ class TestSendEventsBatchFailure:
 
         call_count = [0]
 
-        async def mock_execute(op_name, fn, pb_event, **kwargs):
+        async def mock_send(pb_event):
             call_count[0] += 1
             if call_count[0] % 2 == 0:
                 raise RuntimeError("send failed")
             return None
 
-        client._retry_executor.execute = mock_execute
+        client._event_sender.send = AsyncMock(side_effect=mock_send)
 
         messages = [EventMessage(channel="ch", body=f"m{i}".encode()) for i in range(4)]
         results = await client.send_events_batch(messages)
