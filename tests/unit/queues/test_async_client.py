@@ -17,6 +17,7 @@ from kubemq.queues.async_client import (
     AsyncQueuesPollResponse,
 )
 from kubemq.queues.queues_message import QueueMessage
+from kubemq.queues.queues_send_result import QueueSendResult
 
 
 @pytest.fixture
@@ -85,17 +86,19 @@ class TestAsyncClientSendQueueMessage:
 
     @pytest.mark.asyncio
     async def test_send_queue_message_returns_result(self, mock_transport):
-        """Test send_queue_message returns QueueSendResult."""
+        """Test send_queue_message returns QueueSendResult via bidi upstream sender."""
+        from unittest.mock import AsyncMock
+
         client = AsyncClient(address="localhost:50000")
         client._transport = mock_transport
         client._connected = True  # type: ignore[attr-defined]
 
-        # Setup mock response
-        mock_result = pb.SendQueueMessageResult()
-        mock_result.IsError = False
-        mock_result.MessageID = "msg-123"
-        mock_result.SentAt = 1234567890
-        mock_transport.send_queue_message.return_value = mock_result
+        mock_send_result = QueueSendResult(
+            id="msg-123", is_error=False, sent_at=1234567890
+        )
+        mock_sender = AsyncMock()
+        mock_sender.send = AsyncMock(return_value=mock_send_result)
+        client._upstream_sender = mock_sender
 
         message = QueueMessage(
             channel="test-channel",
@@ -105,7 +108,7 @@ class TestAsyncClientSendQueueMessage:
         result = await client.send_queue_message(message)
 
         assert result.is_error is False
-        mock_transport.send_queue_message.assert_called_once()
+        mock_sender.send.assert_called_once()
 
 
 class TestAsyncClientSendBatch:
@@ -860,9 +863,12 @@ class TestAsyncQueuesPollResponseDecodeAllFields:
         assert result.is_auto_acked is True
         assert len(result.messages) == 1
 
+        from unittest.mock import ANY
+
         mock_decode.assert_called_once_with(
             msg, "tx-1", True, "rcv-1", None,
             visibility_seconds=30, is_auto_acked=True,
+            async_response_handler=ANY,
         )
 
     def test_decode_multiple_messages(self):
