@@ -21,8 +21,10 @@ from pydantic import ValidationError
 
 from kubemq.core.exceptions import KubeMQHandlerError, KubeMQMessageError, KubeMQValidationError
 from kubemq.grpc import kubemq_pb2 as pb
+from kubemq.queues.async_upstream_sender import AsyncUpstreamSender
 from kubemq.queues.queues_message import QueueMessage
 from kubemq.queues.queues_message_received import QueueMessageReceived
+from kubemq.queues.queues_info_response import QueuesInfoModel
 from kubemq.queues.queues_send_result import QueueBatchSendResult, QueueSendResult
 
 if TYPE_CHECKING:
@@ -233,6 +235,23 @@ class AsyncClient(NativeAsyncBaseClient):
             config=config,
             **kwargs,
         )
+        self._upstream_sender: AsyncUpstreamSender | None = None
+
+    async def _get_upstream_sender(self) -> AsyncUpstreamSender:
+        """Lazily initialize the bidirectional upstream stream sender."""
+        if self._upstream_sender is None:
+            self._ensure_connected()
+            assert self._transport is not None
+            self._upstream_sender = AsyncUpstreamSender(self._transport)
+            await self._upstream_sender.start()
+        return self._upstream_sender
+
+    async def close(self) -> None:
+        """Close the client and its upstream sender."""
+        if self._upstream_sender is not None:
+            await self._upstream_sender.close()
+            self._upstream_sender = None
+        await super().close()
 
     # =========================================================================
     # Send Operations
@@ -242,7 +261,9 @@ class AsyncClient(NativeAsyncBaseClient):
         self,
         message: QueueMessage,
     ) -> QueueSendResult:
-        """Send a single queue message.
+        """Send a single queue message via bidirectional upstream stream.
+
+        Uses ``QueuesUpstream`` bidi RPC for high-throughput delivery.
 
         Args:
             message: The queue message to send
@@ -255,9 +276,6 @@ class AsyncClient(NativeAsyncBaseClient):
         error_type_val = None
         with self._instrumentor.start_span("send", message.channel) as span:
             try:
-                self._ensure_connected()
-                assert self._transport is not None
-
                 pb_message = message.encode_message(self._config.client_id or "")
                 tags_dict = dict(pb_message.Tags)
                 KubeMQTagsCarrier(tags_dict).inject()
@@ -269,14 +287,10 @@ class AsyncClient(NativeAsyncBaseClient):
                     )
                     span.set_attribute(MESSAGING_MESSAGE_ID, message.id)
                     span.set_attribute(MESSAGING_MESSAGE_BODY_SIZE, len(message.body))
-                result = await self._retry_executor.execute(
-                    "SendQueueMessage",
-                    self._transport.send_queue_message,
-                    pb_message,
-                    channel=message.channel,
-                )
+                sender = await self._get_upstream_sender()
+                result = await sender.send(pb_message)
                 self._instrumentor._metrics.record_sent_message("send", message.channel)
-                return QueueSendResult.decode(result)
+                return result
             except ValidationError as e:
                 error_type_val = "validation"
                 self._instrumentor.record_error(span, e, error_type_val)
@@ -658,14 +672,14 @@ class AsyncClient(NativeAsyncBaseClient):
 
         return response.AffectedMessages
 
-    async def queues_info(self, queue_name: str = "") -> pb.QueuesInfoResponse:
+    async def queues_info(self, queue_name: str = "") -> QueuesInfoModel:
         """Get queue information and statistics.
 
         Args:
             queue_name: Optional queue name to filter. Empty string returns all queues.
 
         Returns:
-            QueuesInfoResponse with queue details.
+            QueuesInfoModel with aggregate and per-queue statistics.
         """
         self._ensure_connected()
         assert self._transport is not None
@@ -674,7 +688,8 @@ class AsyncClient(NativeAsyncBaseClient):
         request.RequestID = str(uuid.uuid4())
         request.QueueName = queue_name
 
-        return await self._transport.queues_info(request)
+        response = await self._transport.queues_info(request)
+        return QueuesInfoModel.decode(response)
 
 
 # Alias for backward compatibility and clearer naming

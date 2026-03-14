@@ -227,6 +227,14 @@ class AsyncTransport:
                         "grpc.keepalive_permit_without_calls",
                         1 if self._config.keep_alive.permit_without_calls else 0,
                     ),
+                    (
+                        "grpc.http2.min_time_between_pings_ms",
+                        self._config.keep_alive.ping_interval_in_seconds * 1000,
+                    ),
+                    (
+                        "grpc.http2.min_ping_interval_without_data_ms",
+                        self._config.keep_alive.ping_interval_in_seconds * 1000,
+                    ),
                 ]
             )
 

@@ -108,8 +108,11 @@ class TestKeepAliveConfig:
 
     def test_validation_when_enabled(self):
         """Test validation of interval values when enabled."""
-        with pytest.raises(ValueError, match="ping_interval_in_seconds must be positive"):
+        with pytest.raises(ValueError, match="ping_interval_in_seconds must be >= 5"):
             KeepAliveConfig(enabled=True, ping_interval_in_seconds=0)
+
+        with pytest.raises(ValueError, match="ping_interval_in_seconds must be >= 5"):
+            KeepAliveConfig(enabled=True, ping_interval_in_seconds=4)
 
         with pytest.raises(ValueError, match="ping_timeout_in_seconds must be positive"):
             KeepAliveConfig(enabled=True, ping_timeout_in_seconds=0)

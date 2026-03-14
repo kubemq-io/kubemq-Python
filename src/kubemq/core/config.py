@@ -286,8 +286,8 @@ class ClientConfig:
         | address                      | "localhost:50000"        |
         | client_id                    | socket.gethostname()     |
         | auth_token                   | None (no auth)           |
-        | max_send_size                | 104_857_600 (100 MB)     |
-        | max_receive_size             | 104_857_600 (100 MB)     |
+        | max_send_size                | 4_194_304 (4 MB)         |
+        | max_receive_size             | 4_194_304 (4 MB)         |
         | default_timeout_seconds      | 30                       |
         | connection_timeout           | 10.0                     |
         | tls                          | TLSConfig() (disabled)   |
@@ -305,7 +305,7 @@ class ClientConfig:
     """
 
     # Class-level defaults
-    DEFAULT_MAX_MESSAGE_SIZE: ClassVar[int] = 100 * 1024 * 1024  # 100MB
+    DEFAULT_MAX_MESSAGE_SIZE: ClassVar[int] = 4 * 1024 * 1024  # 4MB (spec default)
     DEFAULT_TIMEOUT_SECONDS: ClassVar[int] = 30
     DEFAULT_CONNECTION_TIMEOUT: ClassVar[float] = 10.0
     DEFAULT_DRAIN_TIMEOUT: ClassVar[float] = 5.0

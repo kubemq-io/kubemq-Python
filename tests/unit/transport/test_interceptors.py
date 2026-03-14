@@ -303,11 +303,11 @@ class TestAsyncUnaryUnaryAuthInterceptor:
 
     @pytest.mark.asyncio
     async def test_intercept_unary_unary_injects_auth(self):
-        """Test intercept_unary_unary injects authorization."""
+        """Test intercept_unary_unary injects authorization for non-Ping methods."""
         interceptor = AsyncUnaryUnaryAuthInterceptor(TokenHolder("inject-token"))
 
         mock_details = MagicMock()
-        mock_details.method = "/test/Ping"
+        mock_details.method = "/kubemq.kubemq/SendEvent"
         mock_details.timeout = 30.0
         mock_details.metadata = None
         mock_details.credentials = None
@@ -323,9 +323,33 @@ class TestAsyncUnaryUnaryAuthInterceptor:
         mock_continuation.assert_called_once()
         mock_ccd.assert_called_once()
         call_kwargs = mock_ccd.call_args
-        # Check that auth token was injected
         metadata = call_kwargs[1]["metadata"]
         assert ("authorization", "inject-token") in metadata
+
+    @pytest.mark.asyncio
+    async def test_intercept_unary_unary_skips_auth_for_ping(self):
+        """Test intercept_unary_unary bypasses auth for Ping RPC."""
+        interceptor = AsyncUnaryUnaryAuthInterceptor(TokenHolder("inject-token"))
+
+        mock_details = MagicMock()
+        mock_details.method = "/kubemq.kubemq/Ping"
+        mock_details.timeout = 30.0
+        mock_details.metadata = None
+        mock_details.credentials = None
+        mock_details.wait_for_ready = False
+
+        mock_continuation = AsyncMock(return_value="response")
+        request = MagicMock()
+
+        with patch("kubemq.transport.interceptors.grpc.aio.ClientCallDetails") as mock_ccd:
+            mock_ccd.return_value = MagicMock()
+            await interceptor.intercept_unary_unary(mock_continuation, mock_details, request)
+
+        mock_continuation.assert_called_once()
+        mock_ccd.assert_called_once()
+        call_kwargs = mock_ccd.call_args
+        metadata = call_kwargs[1]["metadata"]
+        assert ("authorization", "inject-token") not in metadata
 
 
 class TestAsyncUnaryStreamAuthInterceptor:
