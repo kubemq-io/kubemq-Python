@@ -626,3 +626,120 @@ class TestQueueMessageReceivedMD5OfBody:
         msg = QueueMessageReceived.decode(pb_message, "txn-1", False, "receiver", None)
 
         assert msg.md5_of_body == "5d41402abc4b2a76b9719d911017c592"
+
+
+class TestQueueMessageReceivedAsyncOperations:
+    """Tests for async_ack, async_reject, async_re_queue, and _do_async_operation validation."""
+
+    @pytest.mark.asyncio
+    async def test_async_ack_calls_handler(self):
+        handler = MagicMock()
+
+        async def async_handler(request):
+            handler(request)
+
+        msg = QueueMessageReceived(
+            id="msg-async-ack",
+            channel="test-queue",
+            transaction_id="txn-1",
+            receiver_client_id="receiver",
+            async_response_handler=async_handler,
+            is_auto_acked=False,
+            is_transaction_completed=False,
+        )
+
+        await msg.async_ack()
+
+        handler.assert_called_once()
+        request = handler.call_args[0][0]
+        assert request.RequestTypeData == QueuesDownstreamRequestType.AckRange
+
+    @pytest.mark.asyncio
+    async def test_async_reject_calls_handler(self):
+        handler = MagicMock()
+
+        async def async_handler(request):
+            handler(request)
+
+        msg = QueueMessageReceived(
+            id="msg-async-reject",
+            channel="test-queue",
+            transaction_id="txn-1",
+            receiver_client_id="receiver",
+            async_response_handler=async_handler,
+            is_auto_acked=False,
+            is_transaction_completed=False,
+        )
+
+        await msg.async_reject()
+
+        handler.assert_called_once()
+        request = handler.call_args[0][0]
+        assert request.RequestTypeData == QueuesDownstreamRequestType.NAckRange
+
+    @pytest.mark.asyncio
+    async def test_async_re_queue_calls_handler_with_channel(self):
+        handler = MagicMock()
+
+        async def async_handler(request):
+            handler(request)
+
+        msg = QueueMessageReceived(
+            id="msg-async-requeue",
+            channel="test-queue",
+            transaction_id="txn-1",
+            receiver_client_id="receiver",
+            async_response_handler=async_handler,
+            is_auto_acked=False,
+            is_transaction_completed=False,
+        )
+
+        await msg.async_re_queue("new-channel")
+
+        handler.assert_called_once()
+        request = handler.call_args[0][0]
+        assert request.RequestTypeData == QueuesDownstreamRequestType.ReQueueRange
+        assert request.ReQueueChannel == "new-channel"
+
+    @pytest.mark.asyncio
+    async def test_async_op_raises_when_auto_acked(self):
+        msg = QueueMessageReceived(
+            id="m1",
+            channel="q",
+            is_auto_acked=True,
+            async_response_handler=MagicMock(),
+        )
+        with pytest.raises(ValueError, match="auto ack"):
+            await msg.async_ack()
+
+    @pytest.mark.asyncio
+    async def test_async_op_raises_when_transaction_completed(self):
+        msg = QueueMessageReceived(
+            id="m1",
+            channel="q",
+            is_transaction_completed=True,
+            async_response_handler=MagicMock(),
+        )
+        with pytest.raises(ValueError, match="already completed"):
+            await msg.async_ack()
+
+    @pytest.mark.asyncio
+    async def test_async_op_raises_when_message_completed(self):
+        msg = QueueMessageReceived(
+            id="m1",
+            channel="q",
+            async_response_handler=MagicMock(),
+        )
+        msg._message_completed = True
+        with pytest.raises(ValueError, match="already completed"):
+            await msg.async_ack()
+
+    @pytest.mark.asyncio
+    async def test_async_op_raises_when_no_async_handler(self):
+        msg = QueueMessageReceived(
+            id="m1",
+            channel="q",
+            async_response_handler=None,
+        )
+        with pytest.raises(ValueError, match="async_response_handler is not set"):
+            await msg.async_ack()

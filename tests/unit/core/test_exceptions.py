@@ -947,3 +947,51 @@ class TestLegacyGRPCError:
             warnings.simplefilter("always")
             GRPCError("test")
         assert any(issubclass(x.category, DeprecationWarning) for x in w)
+
+
+class TestLegacyGRPCErrorBranches:
+    """Tests for GRPCError __init__ branches: KubeMQValidationError, KubeMQMessageError, KubeMQChannelError."""
+
+    def _create_mock_grpc_error(self, code, details="Test details"):
+        mock_error = MagicMock()
+        mock_error.code = MagicMock(return_value=code)
+        mock_error.details = MagicMock(return_value=details)
+        mock_error.__class__ = grpc.RpcError
+        return mock_error
+
+    def test_grpc_error_validation_branch(self):
+        import warnings
+        from kubemq.common.exceptions import GRPCError
+
+        mock_err = self._create_mock_grpc_error(
+            grpc.StatusCode.INVALID_ARGUMENT, "bad param"
+        )
+        with warnings.catch_warnings(record=True):
+            warnings.simplefilter("always")
+            err = GRPCError(mock_err)
+        assert "Validation Error" in str(err)
+        assert err.cause is mock_err
+
+    def test_grpc_error_message_branch(self):
+        import warnings
+        from kubemq.common.exceptions import GRPCError
+
+        mock_err = self._create_mock_grpc_error(
+            grpc.StatusCode.RESOURCE_EXHAUSTED, "quota exceeded"
+        )
+        with warnings.catch_warnings(record=True):
+            warnings.simplefilter("always")
+            err = GRPCError(mock_err)
+        assert "Message Error" in str(err)
+
+    def test_grpc_error_channel_branch(self):
+        import warnings
+        from kubemq.common.exceptions import GRPCError
+
+        mock_err = self._create_mock_grpc_error(
+            grpc.StatusCode.NOT_FOUND, "channel not found"
+        )
+        with warnings.catch_warnings(record=True):
+            warnings.simplefilter("always")
+            err = GRPCError(mock_err)
+        assert "Channel Error" in str(err)

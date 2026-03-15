@@ -80,7 +80,7 @@ class QueryMessage(BaseModel):
         for key, value in self.tags.items():
             pb_query.Tags[key] = value
         pb_query.CacheKey = self.cache_key
-        pb_query.CacheTTL = self.cache_ttl_int_seconds * 1000
+        pb_query.CacheTTL = self.cache_ttl_int_seconds
         if span:
             pb_query.Span = span
         return pb_query

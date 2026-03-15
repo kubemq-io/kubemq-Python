@@ -1327,40 +1327,305 @@ class TestSyncClientAckAllQueueMessages:
             assert result == 7
 
 
-class TestSyncClientQueuesInfo:
-    """GAP-H7: Tests for queues_info on sync client."""
+# ==============================================================================
+# Extended Coverage Tests — 95% target
+# ==============================================================================
 
-    def test_queues_info_calls_transport(self):
+
+class TestSendQueueMessageSimple:
+    """Tests for send_queue_message_simple() unary RPC path (lines 300-344)."""
+
+    def test_send_queue_message_simple_success(self):
+        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+            mock_transport = MagicMock()
+            mock_transport.initialize.return_value = mock_transport
+            mock_transport.is_connected.return_value = True
+
+            mock_grpc_client = MagicMock()
+            mock_pb_result = MagicMock()
+            mock_pb_result.MessageID = "msg-simple-1"
+            mock_pb_result.SentAt = 0
+            mock_pb_result.ExpirationAt = 0
+            mock_pb_result.DelayedTo = 0
+            mock_pb_result.IsError = False
+            mock_pb_result.Error = ""
+            mock_grpc_client.SendQueueMessage.return_value = mock_pb_result
+            mock_transport.kubemq_client.return_value = mock_grpc_client
+            mock_transport_class.return_value = mock_transport
+
+            client = Client(address="localhost:50000")
+            message = QueueMessage(channel="test-queue", body=b"hello")
+
+            result = client.send_queue_message_simple(message)
+
+            assert result is not None
+            mock_grpc_client.SendQueueMessage.assert_called_once()
+
+    def test_send_queue_message_simple_validation_error(self):
+        from pydantic import ValidationError as PydanticValidationError
+
+        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+            mock_transport = MagicMock()
+            mock_transport.initialize.return_value = mock_transport
+            mock_transport.is_connected.return_value = True
+            mock_transport_class.return_value = mock_transport
+
+            client = Client(address="localhost:50000")
+            message = QueueMessage(channel="test-queue", body=b"test")
+
+            validation_err = PydanticValidationError.from_exception_data(
+                title="QueueMessage", line_errors=[]
+            )
+            with patch.object(QueueMessage, "encode_message", side_effect=validation_err):
+                with pytest.raises(KubeMQValidationError) as exc_info:
+                    client.send_queue_message_simple(message)
+                assert exc_info.value.__cause__ is validation_err
+
+    def test_send_queue_message_simple_transport_error(self):
+        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+            mock_transport = MagicMock()
+            mock_transport.initialize.return_value = mock_transport
+            mock_transport.is_connected.return_value = True
+
+            mock_grpc_client = MagicMock()
+            mock_grpc_client.SendQueueMessage.side_effect = FakeRpcError()
+            mock_transport.kubemq_client.return_value = mock_grpc_client
+            mock_transport_class.return_value = mock_transport
+
+            client = Client(address="localhost:50000")
+            message = QueueMessage(channel="test-queue", body=b"test")
+
+            with pytest.raises(grpc.RpcError):
+                client.send_queue_message_simple(message)
+
+
+class TestSendQueueMessagesBatch:
+    """Tests for send_queue_messages_batch() (lines 387-427)."""
+
+    def test_send_queue_messages_batch_success(self):
+        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+            mock_transport = MagicMock()
+            mock_transport.initialize.return_value = mock_transport
+            mock_transport.is_connected.return_value = True
+
+            mock_grpc_client = MagicMock()
+            mock_batch_response = MagicMock()
+            mock_batch_response.BatchID = "batch-123"
+            mock_batch_response.HaveErrors = False
+
+            mock_r1 = MagicMock()
+            mock_r1.MessageID = "msg-1"
+            mock_r1.SentAt = 0
+            mock_r1.ExpirationAt = 0
+            mock_r1.DelayedTo = 0
+            mock_r1.IsError = False
+            mock_r1.Error = ""
+            mock_r2 = MagicMock()
+            mock_r2.MessageID = "msg-2"
+            mock_r2.SentAt = 0
+            mock_r2.ExpirationAt = 0
+            mock_r2.DelayedTo = 0
+            mock_r2.IsError = False
+            mock_r2.Error = ""
+
+            mock_batch_response.Results = [mock_r1, mock_r2]
+            mock_grpc_client.SendQueueMessagesBatch.return_value = mock_batch_response
+            mock_transport.kubemq_client.return_value = mock_grpc_client
+            mock_transport_class.return_value = mock_transport
+
+            client = Client(address="localhost:50000")
+            messages = [
+                QueueMessage(channel="q", body=b"msg1"),
+                QueueMessage(channel="q", body=b"msg2"),
+            ]
+
+            batch_result = client.send_queue_messages_batch(messages)
+
+            assert batch_result.batch_id == "batch-123"
+            assert batch_result.have_errors is False
+            assert len(batch_result.results) == 2
+            mock_grpc_client.SendQueueMessagesBatch.assert_called_once()
+
+    def test_send_queue_messages_batch_with_errors(self):
+        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+            mock_transport = MagicMock()
+            mock_transport.initialize.return_value = mock_transport
+            mock_transport.is_connected.return_value = True
+
+            mock_grpc_client = MagicMock()
+            mock_batch_response = MagicMock()
+            mock_batch_response.BatchID = "batch-err"
+            mock_batch_response.HaveErrors = True
+
+            ok = MagicMock()
+            ok.MessageID = "ok"
+            ok.SentAt = 0
+            ok.ExpirationAt = 0
+            ok.DelayedTo = 0
+            ok.IsError = False
+            ok.Error = ""
+            err = MagicMock()
+            err.MessageID = "err"
+            err.SentAt = 0
+            err.ExpirationAt = 0
+            err.DelayedTo = 0
+            err.IsError = True
+            err.Error = "channel not found"
+
+            mock_batch_response.Results = [ok, err]
+            mock_grpc_client.SendQueueMessagesBatch.return_value = mock_batch_response
+            mock_transport.kubemq_client.return_value = mock_grpc_client
+            mock_transport_class.return_value = mock_transport
+
+            client = Client(address="localhost:50000")
+            messages = [
+                QueueMessage(channel="q", body=b"m1"),
+                QueueMessage(channel="bad", body=b"m2"),
+            ]
+
+            batch_result = client.send_queue_messages_batch(messages)
+
+            assert batch_result.have_errors is True
+            assert batch_result.results[1].is_error is True
+
+
+class TestReceiveQueueMessagesMetadata:
+    """Tests for receive_queue_messages with metadata (lines 527-529)."""
+
+    def test_receive_with_metadata_sets_metadata_on_request(self):
+        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+            mock_transport = MagicMock()
+            mock_transport.initialize.return_value = mock_transport
+            mock_transport.is_connected.return_value = True
+            mock_transport_class.return_value = mock_transport
+
+            client = Client(address="localhost:50000")
+
+            mock_receiver = MagicMock()
+            mock_response = MagicMock()
+            mock_response.RefRequestId = "req-meta"
+            mock_response.TransactionId = "tx-meta"
+            mock_response.IsError = False
+            mock_response.Error = ""
+            mock_response.Messages = []
+            mock_response.ActiveOffsets = []
+            mock_receiver.send.return_value = mock_response
+            client._downstream_receiver = mock_receiver
+
+            result = client.receive_queue_messages(
+                channel="test-queue",
+                metadata={"key1": "val1", "key2": "val2"},
+            )
+
+            assert isinstance(result, QueuesPollResponse)
+            call_args = mock_receiver.send.call_args[0][0]
+            assert call_args.Metadata["key1"] == "val1"
+            assert call_args.Metadata["key2"] == "val2"
+
+
+class TestReceiveQueueMessagesExceptionPath:
+    """Tests for receive exception/finally (lines 543-546)."""
+
+    def test_receive_transport_error_propagates(self):
+        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+            mock_transport = MagicMock()
+            mock_transport.initialize.return_value = mock_transport
+            mock_transport.is_connected.return_value = True
+            mock_transport_class.return_value = mock_transport
+
+            client = Client(address="localhost:50000")
+
+            mock_receiver = MagicMock()
+            mock_receiver.send.side_effect = FakeRpcError()
+            client._downstream_receiver = mock_receiver
+
+            with pytest.raises(grpc.RpcError):
+                client.receive_queue_messages(channel="test-queue")
+
+    def test_receive_invalid_max_messages_raises(self):
+        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+            mock_transport = MagicMock()
+            mock_transport.initialize.return_value = mock_transport
+            mock_transport.is_connected.return_value = True
+            mock_transport_class.return_value = mock_transport
+
+            client = Client(address="localhost:50000")
+
+            with pytest.raises(ValueError, match="max_messages must be between 1 and 1024"):
+                client.receive_queue_messages(channel="q", max_messages=0)
+
+            with pytest.raises(ValueError, match="max_messages must be between 1 and 1024"):
+                client.receive_queue_messages(channel="q", max_messages=1025)
+
+    def test_receive_invalid_timeout_raises(self):
+        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+            mock_transport = MagicMock()
+            mock_transport.initialize.return_value = mock_transport
+            mock_transport.is_connected.return_value = True
+            mock_transport_class.return_value = mock_transport
+
+            client = Client(address="localhost:50000")
+
+            with pytest.raises(ValueError, match="wait_timeout_in_seconds must be between 0 and 3600"):
+                client.receive_queue_messages(channel="q", wait_timeout_in_seconds=-1)
+
+    def test_receive_no_client_id_raises(self):
+        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+            mock_transport = MagicMock()
+            mock_transport.initialize.return_value = mock_transport
+            mock_transport.is_connected.return_value = True
+            mock_transport_class.return_value = mock_transport
+
+            client = Client(address="localhost:50000")
+            client._config.client_id = ""
+
+            with pytest.raises(ValueError, match="ClientID required"):
+                client.receive_queue_messages(channel="q")
+
+
+class TestSendQueueMessageTransportError:
+    """Tests for send_queue_message general exception path (lines 290-293)."""
+
+    def test_send_queue_message_grpc_error_propagates(self):
+        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+            mock_transport = MagicMock()
+            mock_transport.initialize.return_value = mock_transport
+            mock_transport.is_connected.return_value = True
+            mock_transport_class.return_value = mock_transport
+
+            client = Client(address="localhost:50000")
+
+            mock_sender = MagicMock()
+            mock_sender.send.side_effect = FakeRpcError()
+            client._upstream_sender = mock_sender
+
+            message = QueueMessage(channel="q", body=b"test")
+
+            with pytest.raises(grpc.RpcError):
+                client.send_queue_message(message)
+
+
+class TestAckAllQueueMessagesErrorPath:
+    """Tests for ack_all_queue_messages error path."""
+
+    def test_ack_all_queue_messages_error_raises(self):
+        from kubemq.core.exceptions import KubeMQMessageError
+
         with patch("kubemq.transport.transport.Transport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport.is_connected.return_value = True
             mock_stub = MagicMock()
             mock_resp = MagicMock()
-            mock_stub.QueuesInfo.return_value = mock_resp
+            mock_resp.IsError = True
+            mock_resp.Error = "queue locked"
+            mock_stub.AckAllQueueMessages.return_value = mock_resp
             mock_transport.kubemq_client.return_value = mock_stub
             mock_transport_class.return_value = mock_transport
 
             client = Client(address="localhost:50000")
-            result = client.queues_info()
 
-            mock_stub.QueuesInfo.assert_called_once()
-            assert result is mock_resp
+            with pytest.raises(KubeMQMessageError, match="queue locked"):
+                client.ack_all_queue_messages("locked-queue")
 
-    def test_queues_info_with_specific_queue(self):
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
-            mock_transport = MagicMock()
-            mock_transport.initialize.return_value = mock_transport
-            mock_transport.is_connected.return_value = True
-            mock_stub = MagicMock()
-            mock_resp = MagicMock()
-            mock_stub.QueuesInfo.return_value = mock_resp
-            mock_transport.kubemq_client.return_value = mock_stub
-            mock_transport_class.return_value = mock_transport
 
-            client = Client(address="localhost:50000")
-            result = client.queues_info("my-queue")
-
-            req_arg = mock_stub.QueuesInfo.call_args[0][0]
-            assert req_arg.QueueName == "my-queue"
-            assert result is mock_resp

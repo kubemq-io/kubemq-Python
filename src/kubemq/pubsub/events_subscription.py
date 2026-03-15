@@ -3,6 +3,7 @@ from typing import Callable, Optional
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
+from kubemq.common.channel_validators import validate_channel_name
 from kubemq.common.subscribe_type import SubscribeType
 from kubemq.grpc import Subscribe
 from kubemq.pubsub.event_message_received import EventMessageReceived
@@ -18,6 +19,7 @@ class EventsSubscription(BaseModel):
     def channel_must_exist(cls, v):
         if not v:
             raise ValueError("Event subscription must have a channel.")
+        validate_channel_name(v, allow_wildcards=True)
         return v
 
     def raise_on_receive_message(self, received_event: EventMessageReceived):

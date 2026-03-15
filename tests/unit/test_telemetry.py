@@ -705,3 +705,342 @@ class TestKubeMQMetricsRecording:
     def test_record_retry_exhausted(self):
         metrics = KubeMQMetrics(meter=_NOOP_METER)
         metrics.record_retry_exhausted("publish", "timeout")
+
+
+# ==============================================================================
+# Additional coverage tests
+# ==============================================================================
+
+
+class TestErrorCodeToErrorTypeNonEnum:
+    """Test error_code_to_error_type when code is not an ErrorCode enum instance."""
+
+    def test_non_enum_int_returns_fatal(self):
+        assert error_code_to_error_type(42) == "fatal"
+
+    def test_none_returns_fatal(self):
+        assert error_code_to_error_type(None) == "fatal"
+
+    def test_random_object_returns_fatal(self):
+        assert error_code_to_error_type(object()) == "fatal"
+
+
+class TestSerializeSpanToBytes:
+    """Tests for serialize_span_to_bytes."""
+
+    def test_returns_empty_when_no_otel(self):
+        from kubemq._internal.telemetry import serialize_span_to_bytes
+
+        with patch("kubemq._internal.telemetry.HAS_OTEL", False):
+            result = serialize_span_to_bytes()
+            assert result == b""
+
+    @pytest.mark.skipif(not HAS_OTEL, reason="OTel not installed")
+    def test_returns_empty_when_carrier_empty_after_inject(self):
+        from kubemq._internal.telemetry import serialize_span_to_bytes
+
+        with patch("kubemq._internal.telemetry.HAS_OTEL", True):
+            with patch("opentelemetry.propagate.inject") as mock_inject:
+                mock_inject.side_effect = lambda carrier, context=None: None
+                result = serialize_span_to_bytes()
+                assert result == b""
+
+    @pytest.mark.skipif(not HAS_OTEL, reason="OTel not installed")
+    def test_returns_json_when_carrier_has_data(self):
+        import json
+
+        from kubemq._internal.telemetry import serialize_span_to_bytes
+
+        def fake_inject(carrier, context=None):
+            carrier["traceparent"] = "00-abc-def-01"
+
+        with patch("kubemq._internal.telemetry.HAS_OTEL", True):
+            with patch("opentelemetry.propagate.inject", side_effect=fake_inject):
+                result = serialize_span_to_bytes()
+                parsed = json.loads(result)
+                assert parsed["traceparent"] == "00-abc-def-01"
+
+
+class TestDeserializeSpanFromBytes:
+    """Tests for deserialize_span_from_bytes."""
+
+    def test_returns_none_when_no_otel(self):
+        from kubemq._internal.telemetry import deserialize_span_from_bytes
+
+        with patch("kubemq._internal.telemetry.HAS_OTEL", False):
+            result = deserialize_span_from_bytes(b'{"traceparent": "value"}')
+            assert result is None
+
+    def test_returns_none_when_data_empty(self):
+        from kubemq._internal.telemetry import deserialize_span_from_bytes
+
+        result = deserialize_span_from_bytes(b"")
+        assert result is None
+
+    @pytest.mark.skipif(not HAS_OTEL, reason="OTel not installed")
+    def test_returns_none_on_bad_json(self):
+        from kubemq._internal.telemetry import deserialize_span_from_bytes
+
+        with patch("kubemq._internal.telemetry.HAS_OTEL", True):
+            result = deserialize_span_from_bytes(b"not-json")
+            assert result is None
+
+    @pytest.mark.skipif(not HAS_OTEL, reason="OTel not installed")
+    def test_returns_context_on_valid_json(self):
+        from kubemq._internal.telemetry import deserialize_span_from_bytes
+
+        with patch("kubemq._internal.telemetry.HAS_OTEL", True):
+            with patch("opentelemetry.propagate.extract") as mock_extract:
+                mock_ctx = MagicMock()
+                mock_extract.return_value = mock_ctx
+                result = deserialize_span_from_bytes(b'{"traceparent": "val"}')
+                assert result is mock_ctx
+                mock_extract.assert_called_once()
+
+
+class TestKubeMQInstrumentorStartSpan:
+    """Test KubeMQInstrumentor.start_span with default kind."""
+
+    def test_start_span_returns_noop_without_otel(self):
+        instrumentor = KubeMQInstrumentor("c1", "host:50000")
+        with patch("kubemq._internal.telemetry.HAS_OTEL", False):
+            span = instrumentor.start_span("publish", "my-channel")
+            assert span is _NOOP_SPAN
+
+    def test_start_span_with_explicit_kind(self):
+        instrumentor = KubeMQInstrumentor("c1", "host:50000")
+        with patch("kubemq._internal.telemetry.HAS_OTEL", False):
+            span = instrumentor.start_span("publish", "my-channel", kind="PRODUCER")
+            assert span is _NOOP_SPAN
+
+
+# ==============================================================================
+# Mock-based OTel tests (don't require OTel installed)
+# ==============================================================================
+
+
+class TestResolveSpanKindMocked:
+    """Tests for _resolve_span_kind using mocked OTel modules."""
+
+    def test_string_resolves_to_mocked_kind(self):
+        import enum
+
+        class FakeSpanKind(enum.Enum):
+            PRODUCER = "PRODUCER_ENUM"
+            CONSUMER = "CONSUMER_ENUM"
+            CLIENT = "CLIENT_ENUM"
+            SERVER = "SERVER_ENUM"
+            INTERNAL = "INTERNAL_ENUM"
+
+        mock_trace = MagicMock()
+        mock_trace.SpanKind = FakeSpanKind
+
+        with (
+            patch("kubemq._internal.telemetry.HAS_OTEL", True),
+            patch.dict("sys.modules", {"opentelemetry.trace": mock_trace}),
+        ):
+            result = KubeMQInstrumentor._resolve_span_kind("PRODUCER")
+            assert result == FakeSpanKind.PRODUCER
+
+    def test_enum_passthrough_mocked(self):
+        import enum
+
+        class FakeSpanKind(enum.Enum):
+            PRODUCER = "P"
+
+        mock_trace = MagicMock()
+        mock_trace.SpanKind = FakeSpanKind
+
+        with (
+            patch("kubemq._internal.telemetry.HAS_OTEL", True),
+            patch.dict("sys.modules", {"opentelemetry.trace": mock_trace}),
+        ):
+            result = KubeMQInstrumentor._resolve_span_kind(FakeSpanKind.PRODUCER)
+            assert result is FakeSpanKind.PRODUCER
+
+    def test_unknown_defaults_to_internal_mocked(self):
+        import enum
+
+        class FakeSpanKind(enum.Enum):
+            PRODUCER = "PRODUCER_ENUM"
+            CONSUMER = "CONSUMER_ENUM"
+            CLIENT = "CLIENT_ENUM"
+            SERVER = "SERVER_ENUM"
+            INTERNAL = "INTERNAL_ENUM"
+
+        mock_trace = MagicMock()
+        mock_trace.SpanKind = FakeSpanKind
+
+        with (
+            patch("kubemq._internal.telemetry.HAS_OTEL", True),
+            patch.dict("sys.modules", {"opentelemetry.trace": mock_trace}),
+        ):
+            result = KubeMQInstrumentor._resolve_span_kind("UNKNOWN_KIND")
+            assert result == FakeSpanKind.INTERNAL
+
+
+class TestKubeMQTagsCarrierMocked:
+    """Tests for inject/extract using mocked OTel propagators."""
+
+    def test_inject_calls_otel_inject(self):
+        mock_inject = MagicMock()
+        mock_propagate = MagicMock()
+        mock_propagate.inject = mock_inject
+
+        with (
+            patch("kubemq._internal.telemetry.HAS_OTEL", True),
+            patch.dict("sys.modules", {"opentelemetry.propagate": mock_propagate}),
+        ):
+            carrier = KubeMQTagsCarrier({"key": "val"})
+            carrier.inject()
+            mock_inject.assert_called_once()
+
+    def test_extract_calls_otel_extract(self):
+        mock_ctx = MagicMock()
+        mock_extract = MagicMock(return_value=mock_ctx)
+        mock_propagate = MagicMock()
+        mock_propagate.extract = mock_extract
+
+        with (
+            patch("kubemq._internal.telemetry.HAS_OTEL", True),
+            patch.dict("sys.modules", {"opentelemetry.propagate": mock_propagate}),
+        ):
+            carrier = KubeMQTagsCarrier({"traceparent": "00-abc"})
+            result = carrier.extract()
+            assert result is mock_ctx
+            mock_extract.assert_called_once()
+
+
+class TestSerializeSpanToBytesMocked:
+    """Tests for serialize_span_to_bytes with mocked OTel."""
+
+    def test_returns_empty_when_carrier_empty(self):
+        mock_inject = MagicMock()
+        mock_propagate = MagicMock()
+        mock_propagate.inject = mock_inject
+
+        with (
+            patch("kubemq._internal.telemetry.HAS_OTEL", True),
+            patch.dict("sys.modules", {"opentelemetry.propagate": mock_propagate}),
+        ):
+            from kubemq._internal.telemetry import serialize_span_to_bytes
+            result = serialize_span_to_bytes()
+            assert result == b""
+
+    def test_returns_json_when_carrier_populated(self):
+        import json
+
+        def fake_inject(carrier, context=None):
+            carrier["traceparent"] = "00-abc-def-01"
+
+        mock_propagate = MagicMock()
+        mock_propagate.inject = fake_inject
+
+        with (
+            patch("kubemq._internal.telemetry.HAS_OTEL", True),
+            patch.dict("sys.modules", {"opentelemetry.propagate": mock_propagate}),
+        ):
+            from kubemq._internal.telemetry import serialize_span_to_bytes
+            result = serialize_span_to_bytes()
+            parsed = json.loads(result)
+            assert parsed["traceparent"] == "00-abc-def-01"
+
+
+class TestDeserializeSpanFromBytesMocked:
+    """Tests for deserialize_span_from_bytes with mocked OTel."""
+
+    def test_returns_none_on_bad_json(self):
+        mock_propagate = MagicMock()
+
+        with (
+            patch("kubemq._internal.telemetry.HAS_OTEL", True),
+            patch.dict("sys.modules", {"opentelemetry.propagate": mock_propagate}),
+        ):
+            from kubemq._internal.telemetry import deserialize_span_from_bytes
+            result = deserialize_span_from_bytes(b"not-json{{{")
+            assert result is None
+
+    def test_returns_context_on_valid_json(self):
+        mock_ctx = MagicMock()
+        mock_extract = MagicMock(return_value=mock_ctx)
+        mock_propagate = MagicMock()
+        mock_propagate.extract = mock_extract
+
+        with (
+            patch("kubemq._internal.telemetry.HAS_OTEL", True),
+            patch.dict("sys.modules", {"opentelemetry.propagate": mock_propagate}),
+        ):
+            from kubemq._internal.telemetry import deserialize_span_from_bytes
+            result = deserialize_span_from_bytes(b'{"traceparent": "val"}')
+            assert result is mock_ctx
+
+
+class TestCreateLinkFromContextMocked:
+    """Tests for create_link_from_context with mocked OTel."""
+
+    def test_returns_link_when_valid_span(self):
+        mock_span_ctx = MagicMock()
+        mock_span_ctx.is_valid = True
+        mock_span = MagicMock()
+        mock_span.get_span_context.return_value = mock_span_ctx
+        mock_link = MagicMock()
+
+        mock_otel_trace = MagicMock()
+        mock_otel_trace.get_current_span.return_value = mock_span
+        mock_otel_trace.Link = MagicMock(return_value=mock_link)
+
+        with (
+            patch("kubemq._internal.telemetry.HAS_OTEL", True),
+            patch.dict("sys.modules", {
+                "opentelemetry": MagicMock(trace=mock_otel_trace),
+                "opentelemetry.trace": mock_otel_trace,
+            }),
+        ):
+            from kubemq._internal.telemetry import create_link_from_context
+            ctx = MagicMock()
+            result = create_link_from_context(ctx)
+            assert result is mock_link
+
+    def test_returns_none_when_span_invalid(self):
+        mock_span_ctx = MagicMock()
+        mock_span_ctx.is_valid = False
+        mock_span = MagicMock()
+        mock_span.get_span_context.return_value = mock_span_ctx
+
+        mock_otel_trace = MagicMock()
+        mock_otel_trace.get_current_span.return_value = mock_span
+
+        with (
+            patch("kubemq._internal.telemetry.HAS_OTEL", True),
+            patch.dict("sys.modules", {
+                "opentelemetry": MagicMock(trace=mock_otel_trace),
+                "opentelemetry.trace": mock_otel_trace,
+            }),
+        ):
+            from kubemq._internal.telemetry import create_link_from_context
+            result = create_link_from_context(MagicMock())
+            assert result is None
+
+
+class TestAddRetryEventMocked:
+    """Tests for add_retry_event when span is recording."""
+
+    def test_adds_event_when_recording(self):
+        instrumentor = KubeMQInstrumentor("c1", "host:50000")
+        mock_span = MagicMock()
+        mock_span.is_recording.return_value = True
+
+        with patch("kubemq._internal.telemetry.HAS_OTEL", True):
+            instrumentor.add_retry_event(mock_span, attempt=2, delay_seconds=1.5, error_type="timeout")
+
+        mock_span.add_event.assert_called_once()
+
+    def test_noop_when_not_recording(self):
+        instrumentor = KubeMQInstrumentor("c1", "host:50000")
+        mock_span = MagicMock()
+        mock_span.is_recording.return_value = False
+
+        with patch("kubemq._internal.telemetry.HAS_OTEL", True):
+            instrumentor.add_retry_event(mock_span, attempt=1, delay_seconds=0.5, error_type="timeout")
+
+        mock_span.add_event.assert_not_called()

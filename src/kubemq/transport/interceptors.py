@@ -20,11 +20,16 @@ if TYPE_CHECKING:
 
 
 _PING_METHOD_SUFFIX = "/Ping"
+_PING_METHOD_SUFFIX_BYTES = b"/Ping"
 
 
-def _is_ping_method(method: str | None) -> bool:
+def _is_ping_method(method: str | bytes | None) -> bool:
     """Return True if the RPC method is the Ping health-check (bypasses auth)."""
-    return bool(method and method.endswith(_PING_METHOD_SUFFIX))
+    if not method:
+        return False
+    if isinstance(method, bytes):
+        return method.endswith(_PING_METHOD_SUFFIX_BYTES)
+    return method.endswith(_PING_METHOD_SUFFIX)
 
 
 def _inject_auth_metadata(

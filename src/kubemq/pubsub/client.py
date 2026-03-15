@@ -37,7 +37,7 @@ from kubemq.pubsub.event_send_result import EventSendResult
 from kubemq.pubsub.event_sender import EventSender
 from kubemq.pubsub.event_store_message import EventStoreMessage
 from kubemq.pubsub.event_store_message_received import EventStoreMessageReceived
-from kubemq.pubsub.events_store_subscription import EventsStoreSubscription
+from kubemq.pubsub.events_store_subscription import EventsStoreSubscription, EventsStoreType
 from kubemq.pubsub.events_subscription import EventsSubscription
 from kubemq.transport.server_info import ServerInfo
 
@@ -217,6 +217,55 @@ class Client(BaseClient):
             return self._event_sender
 
     # Event methods — GS-aligned verbs
+
+    def send_event(self, message: EventMessage) -> None:
+        """Send an event message via unary SendEvent RPC.
+
+        Uses the unary ``SendEvent`` RPC for single-shot delivery.
+
+        Args:
+            message: The event message to send.
+
+        Raises:
+            KubeMQValidationError: If message is invalid.
+            KubeMQError: If the server returns Sent=false.
+        """
+        self._validate_message_size(message.body)
+        self._ensure_connected()
+        assert self._transport is not None
+        start = time.perf_counter()
+        error_type_val = None
+        with self._instrumentor.start_span("publish", message.channel) as span:
+            try:
+                pb_event = message.encode(self._config.client_id or "")
+                tags_dict = dict(pb_event.Tags)
+                KubeMQTagsCarrier(tags_dict).inject()
+                pb_event.Tags.update(tags_dict)
+                if span.is_recording():
+                    from kubemq._internal.semconv import (
+                        MESSAGING_MESSAGE_BODY_SIZE,
+                        MESSAGING_MESSAGE_ID,
+                    )
+                    span.set_attribute(MESSAGING_MESSAGE_ID, message.id)
+                    span.set_attribute(MESSAGING_MESSAGE_BODY_SIZE, len(message.body))
+                result = self._transport.kubemq_client().SendEvent(pb_event)
+                self._instrumentor._metrics.record_sent_message("publish", message.channel)
+                if result and not result.Sent and result.Error:
+                    from kubemq.core.exceptions import KubeMQError
+                    raise KubeMQError(result.Error)
+            except ValidationError as e:
+                error_type_val = "validation"
+                self._instrumentor.record_error(span, e, error_type_val)
+                raise KubeMQValidationError(str(e), is_retryable=False) from e
+            except Exception as e:
+                error_type_val = error_code_to_error_type(getattr(e, "code", None))
+                self._instrumentor.record_error(span, e, error_type_val)
+                raise
+            finally:
+                duration = time.perf_counter() - start
+                self._instrumentor._metrics.record_operation_duration(
+                    duration, "publish", message.channel, error_type_val
+                )
 
     def _publish_event_impl(self, message: EventMessage) -> None:
         """Internal implementation for event publishing."""
@@ -569,11 +618,26 @@ class Client(BaseClient):
         channel = subscription.channel
         args: tuple = ()
         if isinstance(subscription, EventsStoreSubscription):
+            last_seq = [0]
+
+            def make_store_stream():
+                sub = subscription
+                if last_seq[0] > 0:
+                    sub = subscription.model_copy(update={
+                        "events_store_type": EventsStoreType.StartAtSequence,
+                        "events_store_sequence_value": last_seq[0] + 1,
+                    })
+                return transport.kubemq_client().SubscribeToEvents(sub.encode(client_id))
+
+            def decode_and_track(message):
+                received = EventStoreMessageReceived().decode(message)
+                if received.sequence > 0:
+                    last_seq[0] = received.sequence
+                subscription.raise_on_receive_message(received)
+
             args = (
-                lambda: transport.kubemq_client().SubscribeToEvents(subscription.encode(client_id)),
-                lambda message: subscription.raise_on_receive_message(
-                    EventStoreMessageReceived().decode(message)
-                ),
+                make_store_stream,
+                decode_and_track,
                 lambda error: subscription.raise_on_error(error),
                 cancel_token_event,
                 channel,
@@ -719,11 +783,26 @@ class Client(BaseClient):
         channel = subscription.channel
         args: tuple = ()
         if isinstance(subscription, EventsStoreSubscription):
+            last_seq = [0]
+
+            def make_store_stream_async():
+                sub = subscription
+                if last_seq[0] > 0:
+                    sub = subscription.model_copy(update={
+                        "events_store_type": EventsStoreType.StartAtSequence,
+                        "events_store_sequence_value": last_seq[0] + 1,
+                    })
+                return transport.kubemq_client().SubscribeToEvents(sub.encode(client_id))
+
+            async def decode_and_track_async(message):
+                received = EventStoreMessageReceived().decode(message)
+                if received.sequence > 0:
+                    last_seq[0] = received.sequence
+                await subscription.raise_on_receive_message_async(received)
+
             args = (
-                lambda: transport.kubemq_client().SubscribeToEvents(subscription.encode(client_id)),
-                lambda message: subscription.raise_on_receive_message_async(
-                    EventStoreMessageReceived().decode(message)
-                ),
+                make_store_stream_async,
+                decode_and_track_async,
                 lambda error: subscription.raise_on_error_async(error),
                 cancel_token_event,
                 channel,
