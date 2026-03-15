@@ -67,6 +67,8 @@ class QueryResponseMessage(BaseModel):
         """
         if not self.query_received:
             raise ValueError("Query received is required for encoding.")
+        if not self.query_received.id or self.query_received.id.strip() == "":
+            raise ValueError("RequestID cannot be empty")
         pb_response = pbResponse()
         pb_response.ClientID = client_id
         pb_response.RequestID = self.query_received.id

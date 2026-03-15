@@ -122,7 +122,7 @@ class TestAsyncQueuesClientSend:
                 for i in range(50)
             ]
 
-            results = await client.send_queue_messages_batch(messages, max_concurrent=10)
+            results = await client.send_queue_messages_batch(messages)
 
             assert len(results) == 50
             # All should succeed

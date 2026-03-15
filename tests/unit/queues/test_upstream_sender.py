@@ -271,3 +271,241 @@ class TestUpstreamSenderClose:
 
         assert sender.shutdown_event.is_set()
         assert sender.allow_new_messages is False
+
+
+# ==============================================================================
+# Queue Utilization Warning Tests
+# ==============================================================================
+
+
+class TestUpstreamSenderQueueUtilization:
+    """Tests for send queue utilization warning."""
+
+    def test_send_queue_high_utilization_warning(self):
+        mock_transport, mock_logger, mock_connection = _make_mocks()
+        sender = _make_sender(
+            mock_transport, mock_logger, mock_connection,
+            max_queue_size=10, send_timeout=0.01,
+        )
+        for i in range(9):
+            sender.sending_queue.put_nowait(
+                QueuesUpstreamRequest(RequestID=f"filler-{i}")
+            )
+
+        message = pbQueueMessage(MessageID="msg-warn", Channel="test-q")
+        sender.send(message)
+
+        mock_logger.warning.assert_called()
+
+
+# ==============================================================================
+# GenerateRequests Tests
+# ==============================================================================
+
+
+class TestUpstreamSenderGenerateRequests:
+    """Tests for UpstreamSender._generate_requests()."""
+
+    def test_sentinel_exits_generator(self):
+        mock_transport, mock_logger, mock_connection = _make_mocks()
+        sender = _make_sender(mock_transport, mock_logger, mock_connection)
+
+        req = QueuesUpstreamRequest(RequestID="req-1")
+        sender.sending_queue.put(req)
+        sender.sending_queue.put(None)
+
+        results = list(sender._generate_requests())
+
+        assert len(results) == 1
+        assert results[0].RequestID == "req-1"
+
+
+# ==============================================================================
+# ProcessResponses Tests
+# ==============================================================================
+
+
+class TestUpstreamSenderProcessResponses:
+    """Tests for UpstreamSender._process_responses()."""
+
+    def test_resolves_tracked_responses(self):
+        mock_transport, mock_logger, mock_connection = _make_mocks()
+        sender = _make_sender(mock_transport, mock_logger, mock_connection)
+        sender.allow_new_messages = False
+
+        container, event = {}, threading.Event()
+        sender.response_tracking["req-1"] = (container, event, "msg-1")
+
+        response = QueuesUpstreamResponse(RefRequestID="req-1")
+        sender._process_responses(iter([response]))
+
+        assert event.is_set()
+        assert container["response"] is response
+        assert sender.allow_new_messages is True
+
+    def test_exits_on_shutdown(self):
+        mock_transport, mock_logger, mock_connection = _make_mocks()
+        sender = _make_sender(mock_transport, mock_logger, mock_connection)
+        sender.shutdown_event.set()
+
+        container, event = {}, threading.Event()
+        sender.response_tracking["req-1"] = (container, event, "msg-1")
+
+        response = QueuesUpstreamResponse(RefRequestID="req-1")
+        sender._process_responses(iter([response]))
+
+        assert not event.is_set()
+
+
+# ==============================================================================
+# SendQueueStream Tests
+# ==============================================================================
+
+
+class TestUpstreamSenderSendQueueStream:
+    """Tests for UpstreamSender._send_queue_stream()."""
+
+    def test_grpc_error_path(self):
+        mock_transport, mock_logger, mock_connection = _make_mocks()
+        sender = _make_sender(mock_transport, mock_logger, mock_connection)
+
+        stub = MagicMock()
+        stub.QueuesUpstream.side_effect = FakeRpcError()
+        mock_transport.kubemq_client.return_value = stub
+
+        def handle_and_stop(error, is_grpc_error=False):
+            sender.shutdown_event.set()
+            return True
+
+        with patch.object(sender, '_handle_error', side_effect=handle_and_stop) as mock_handle:
+            sender._send_queue_stream()
+
+        mock_handle.assert_called_once()
+        args, kwargs = mock_handle.call_args
+        assert isinstance(args[0], grpc.RpcError)
+        assert kwargs.get('is_grpc_error') is True
+
+    def test_generic_exception_path(self):
+        mock_transport, mock_logger, mock_connection = _make_mocks()
+        sender = _make_sender(mock_transport, mock_logger, mock_connection)
+
+        stub = MagicMock()
+        stub.QueuesUpstream.side_effect = RuntimeError("boom")
+        mock_transport.kubemq_client.return_value = stub
+
+        def handle_and_stop(error, is_grpc_error=False):
+            sender.shutdown_event.set()
+            return True
+
+        with patch.object(sender, '_handle_error', side_effect=handle_and_stop) as mock_handle:
+            sender._send_queue_stream()
+
+        mock_handle.assert_called_once()
+        args, kwargs = mock_handle.call_args
+        assert isinstance(args[0], RuntimeError)
+        assert kwargs.get('is_grpc_error', False) is False
+
+    def test_exits_when_handle_error_returns_false(self):
+        mock_transport, mock_logger, mock_connection = _make_mocks()
+        sender = _make_sender(mock_transport, mock_logger, mock_connection)
+
+        stub = MagicMock()
+        stub.QueuesUpstream.side_effect = FakeRpcError()
+        mock_transport.kubemq_client.return_value = stub
+
+        with patch.object(sender, '_handle_error', return_value=False) as mock_handle:
+            sender._send_queue_stream()
+
+        mock_handle.assert_called_once()
+        assert not sender.shutdown_event.is_set()
+
+
+# ==============================================================================
+# RecreateChannel Corrected Tests
+# ==============================================================================
+
+
+class TestUpstreamSenderRecreateChannelCorrected:
+    """Corrected test for _recreate_channel generic failure with logging verification."""
+
+    def test_generic_failure_logs_error(self):
+        mock_transport, mock_logger, mock_connection = _make_mocks()
+        mock_transport.recreate_channel.side_effect = Exception("unexpected")
+        sender = _make_sender(mock_transport, mock_logger, mock_connection)
+
+        result = sender._recreate_channel()
+
+        assert result is False
+        mock_logger.error.assert_called()
+        log_msg = mock_logger.error.call_args[0][0]
+        assert "unexpected" in log_msg
+
+
+# ==============================================================================
+# Coverage Gap Tests
+# ==============================================================================
+
+
+class TestUpstreamSenderUnlimitedQueue:
+    """Cover branch 121->131: max_queue_size=0 skips utilization check."""
+
+    def test_send_unlimited_queue_no_warning(self):
+        mock_transport, mock_logger, mock_connection = _make_mocks()
+        sender = _make_sender(
+            mock_transport, mock_logger, mock_connection,
+            max_queue_size=0, send_timeout=0.01,
+        )
+        message = pbQueueMessage(MessageID="msg-unlimited", Channel="test-q")
+        sender.send(message)
+        mock_logger.warning.assert_not_called()
+
+
+class TestUpstreamSenderRecreateChannelConnectionErrorEnabled:
+    """Cover lines 239-240: ConnectionError with auto_reconnect enabled."""
+
+    def test_connection_error_auto_reconnect_enabled(self):
+        mock_transport, mock_logger, mock_connection = _make_mocks()
+        mock_connection.disable_auto_reconnect = False
+        mock_transport.recreate_channel.side_effect = ConnectionError("refused")
+        sender = _make_sender(mock_transport, mock_logger, mock_connection)
+
+        result = sender._recreate_channel()
+
+        assert result is False
+        error_calls = [str(c) for c in mock_logger.error.call_args_list]
+        assert any("Connection error" in c for c in error_calls)
+
+
+class TestUpstreamSenderHandleErrorChannelError:
+    """Cover lines 264-266: non-gRPC channel error detection."""
+
+    def test_channel_error_triggers_recreate(self):
+        mock_transport, mock_logger, mock_connection = _make_mocks()
+        sender = _make_sender(mock_transport, mock_logger, mock_connection)
+
+        error = Exception("channel closed unexpectedly")
+        with patch.object(sender, "_handle_disconnection"), \
+             patch.object(sender, "_recreate_channel", return_value=True) as mock_recreate:
+            result = sender._handle_error(error)
+
+        assert result is True
+        mock_recreate.assert_called_once()
+        error_calls = [str(c) for c in mock_logger.error.call_args_list]
+        assert any("Channel error" in c for c in error_calls)
+
+
+class TestUpstreamSenderSendQueueStreamGenericFalse:
+    """Cover line 296: generic exception where _handle_error returns False."""
+
+    def test_generic_exception_exits_thread(self):
+        mock_transport, mock_logger, mock_connection = _make_mocks()
+        sender = _make_sender(mock_transport, mock_logger, mock_connection)
+
+        stub = MagicMock()
+        stub.QueuesUpstream.side_effect = RuntimeError("boom")
+        mock_transport.kubemq_client.return_value = stub
+
+        with patch.object(sender, '_handle_error', return_value=False):
+            sender._send_queue_stream()
+
+        assert not sender.shutdown_event.is_set()

@@ -1,13 +1,8 @@
-from collections.abc import Iterable as _Iterable, Mapping as _Mapping
-from typing import (
-    ClassVar as _ClassVar,
-)
-
-from google.protobuf import descriptor as _descriptor, message as _message
-from google.protobuf.internal import (
-    containers as _containers,
-    enum_type_wrapper as _enum_type_wrapper,
-)
+from google.protobuf.internal import containers as _containers
+from google.protobuf.internal import enum_type_wrapper as _enum_type_wrapper
+from google.protobuf import descriptor as _descriptor
+from google.protobuf import message as _message
+from typing import ClassVar as _ClassVar, Iterable as _Iterable, Mapping as _Mapping, Optional as _Optional, Union as _Union
 
 DESCRIPTOR: _descriptor.FileDescriptor
 
@@ -35,7 +30,6 @@ class QueuesDownstreamRequestType(int, metaclass=_enum_type_wrapper.EnumTypeWrap
     TransactionStatus: _ClassVar[QueuesDownstreamRequestType]
     CloseByClient: _ClassVar[QueuesDownstreamRequestType]
     CloseByServer: _ClassVar[QueuesDownstreamRequestType]
-
 StreamRequestTypeUnknown: StreamRequestType
 ReceiveMessage: StreamRequestType
 AckMessage: StreamRequestType
@@ -66,13 +60,7 @@ class PingResult(_message.Message):
     Version: str
     ServerStartTime: int
     ServerUpTimeSeconds: int
-    def __init__(
-        self,
-        Host: str | None = ...,
-        Version: str | None = ...,
-        ServerStartTime: int | None = ...,
-        ServerUpTimeSeconds: int | None = ...,
-    ) -> None: ...
+    def __init__(self, Host: _Optional[str] = ..., Version: _Optional[str] = ..., ServerStartTime: _Optional[int] = ..., ServerUpTimeSeconds: _Optional[int] = ...) -> None: ...
 
 class Empty(_message.Message):
     __slots__ = ()
@@ -86,12 +74,7 @@ class Result(_message.Message):
     EventID: str
     Sent: bool
     Error: str
-    def __init__(
-        self,
-        EventID: str | None = ...,
-        Sent: bool = ...,
-        Error: str | None = ...,
-    ) -> None: ...
+    def __init__(self, EventID: _Optional[str] = ..., Sent: bool = ..., Error: _Optional[str] = ...) -> None: ...
 
 class Event(_message.Message):
     __slots__ = ("EventID", "ClientID", "Channel", "Metadata", "Body", "Store", "Tags")
@@ -101,8 +84,7 @@ class Event(_message.Message):
         VALUE_FIELD_NUMBER: _ClassVar[int]
         key: str
         value: str
-        def __init__(self, key: str | None = ..., value: str | None = ...) -> None: ...
-
+        def __init__(self, key: _Optional[str] = ..., value: _Optional[str] = ...) -> None: ...
     EVENTID_FIELD_NUMBER: _ClassVar[int]
     CLIENTID_FIELD_NUMBER: _ClassVar[int]
     CHANNEL_FIELD_NUMBER: _ClassVar[int]
@@ -117,35 +99,17 @@ class Event(_message.Message):
     Body: bytes
     Store: bool
     Tags: _containers.ScalarMap[str, str]
-    def __init__(
-        self,
-        EventID: str | None = ...,
-        ClientID: str | None = ...,
-        Channel: str | None = ...,
-        Metadata: str | None = ...,
-        Body: bytes | None = ...,
-        Store: bool = ...,
-        Tags: _Mapping[str, str] | None = ...,
-    ) -> None: ...
+    def __init__(self, EventID: _Optional[str] = ..., ClientID: _Optional[str] = ..., Channel: _Optional[str] = ..., Metadata: _Optional[str] = ..., Body: _Optional[bytes] = ..., Store: bool = ..., Tags: _Optional[_Mapping[str, str]] = ...) -> None: ...
 
 class EventReceive(_message.Message):
-    __slots__ = (
-        "EventID",
-        "Channel",
-        "Metadata",
-        "Body",
-        "Timestamp",
-        "Sequence",
-        "Tags",
-    )
+    __slots__ = ("EventID", "Channel", "Metadata", "Body", "Timestamp", "Sequence", "Tags")
     class TagsEntry(_message.Message):
         __slots__ = ("key", "value")
         KEY_FIELD_NUMBER: _ClassVar[int]
         VALUE_FIELD_NUMBER: _ClassVar[int]
         key: str
         value: str
-        def __init__(self, key: str | None = ..., value: str | None = ...) -> None: ...
-
+        def __init__(self, key: _Optional[str] = ..., value: _Optional[str] = ...) -> None: ...
     EVENTID_FIELD_NUMBER: _ClassVar[int]
     CHANNEL_FIELD_NUMBER: _ClassVar[int]
     METADATA_FIELD_NUMBER: _ClassVar[int]
@@ -160,26 +124,10 @@ class EventReceive(_message.Message):
     Timestamp: int
     Sequence: int
     Tags: _containers.ScalarMap[str, str]
-    def __init__(
-        self,
-        EventID: str | None = ...,
-        Channel: str | None = ...,
-        Metadata: str | None = ...,
-        Body: bytes | None = ...,
-        Timestamp: int | None = ...,
-        Sequence: int | None = ...,
-        Tags: _Mapping[str, str] | None = ...,
-    ) -> None: ...
+    def __init__(self, EventID: _Optional[str] = ..., Channel: _Optional[str] = ..., Metadata: _Optional[str] = ..., Body: _Optional[bytes] = ..., Timestamp: _Optional[int] = ..., Sequence: _Optional[int] = ..., Tags: _Optional[_Mapping[str, str]] = ...) -> None: ...
 
 class Subscribe(_message.Message):
-    __slots__ = (
-        "SubscribeTypeData",
-        "ClientID",
-        "Channel",
-        "Group",
-        "EventsStoreTypeData",
-        "EventsStoreTypeValue",
-    )
+    __slots__ = ("SubscribeTypeData", "ClientID", "Channel", "Group", "EventsStoreTypeData", "EventsStoreTypeValue")
     class SubscribeType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
         __slots__ = ()
         SubscribeTypeUndefined: _ClassVar[Subscribe.SubscribeType]
@@ -187,7 +135,6 @@ class Subscribe(_message.Message):
         EventsStore: _ClassVar[Subscribe.SubscribeType]
         Commands: _ClassVar[Subscribe.SubscribeType]
         Queries: _ClassVar[Subscribe.SubscribeType]
-
     SubscribeTypeUndefined: Subscribe.SubscribeType
     Events: Subscribe.SubscribeType
     EventsStore: Subscribe.SubscribeType
@@ -202,7 +149,6 @@ class Subscribe(_message.Message):
         StartAtSequence: _ClassVar[Subscribe.EventsStoreType]
         StartAtTime: _ClassVar[Subscribe.EventsStoreType]
         StartAtTimeDelta: _ClassVar[Subscribe.EventsStoreType]
-
     EventsStoreTypeUndefined: Subscribe.EventsStoreType
     StartNewOnly: Subscribe.EventsStoreType
     StartFromFirst: Subscribe.EventsStoreType
@@ -222,37 +168,15 @@ class Subscribe(_message.Message):
     Group: str
     EventsStoreTypeData: Subscribe.EventsStoreType
     EventsStoreTypeValue: int
-    def __init__(
-        self,
-        SubscribeTypeData: Subscribe.SubscribeType | str | None = ...,
-        ClientID: str | None = ...,
-        Channel: str | None = ...,
-        Group: str | None = ...,
-        EventsStoreTypeData: Subscribe.EventsStoreType | str | None = ...,
-        EventsStoreTypeValue: int | None = ...,
-    ) -> None: ...
+    def __init__(self, SubscribeTypeData: _Optional[_Union[Subscribe.SubscribeType, str]] = ..., ClientID: _Optional[str] = ..., Channel: _Optional[str] = ..., Group: _Optional[str] = ..., EventsStoreTypeData: _Optional[_Union[Subscribe.EventsStoreType, str]] = ..., EventsStoreTypeValue: _Optional[int] = ...) -> None: ...
 
 class Request(_message.Message):
-    __slots__ = (
-        "RequestID",
-        "RequestTypeData",
-        "ClientID",
-        "Channel",
-        "Metadata",
-        "Body",
-        "ReplyChannel",
-        "Timeout",
-        "CacheKey",
-        "CacheTTL",
-        "Span",
-        "Tags",
-    )
+    __slots__ = ("RequestID", "RequestTypeData", "ClientID", "Channel", "Metadata", "Body", "ReplyChannel", "Timeout", "CacheKey", "CacheTTL", "Span", "Tags")
     class RequestType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
         __slots__ = ()
         RequestTypeUnknown: _ClassVar[Request.RequestType]
         Command: _ClassVar[Request.RequestType]
         Query: _ClassVar[Request.RequestType]
-
     RequestTypeUnknown: Request.RequestType
     Command: Request.RequestType
     Query: Request.RequestType
@@ -262,8 +186,7 @@ class Request(_message.Message):
         VALUE_FIELD_NUMBER: _ClassVar[int]
         key: str
         value: str
-        def __init__(self, key: str | None = ..., value: str | None = ...) -> None: ...
-
+        def __init__(self, key: _Optional[str] = ..., value: _Optional[str] = ...) -> None: ...
     REQUESTID_FIELD_NUMBER: _ClassVar[int]
     REQUESTTYPEDATA_FIELD_NUMBER: _ClassVar[int]
     CLIENTID_FIELD_NUMBER: _ClassVar[int]
@@ -288,44 +211,17 @@ class Request(_message.Message):
     CacheTTL: int
     Span: bytes
     Tags: _containers.ScalarMap[str, str]
-    def __init__(
-        self,
-        RequestID: str | None = ...,
-        RequestTypeData: Request.RequestType | str | None = ...,
-        ClientID: str | None = ...,
-        Channel: str | None = ...,
-        Metadata: str | None = ...,
-        Body: bytes | None = ...,
-        ReplyChannel: str | None = ...,
-        Timeout: int | None = ...,
-        CacheKey: str | None = ...,
-        CacheTTL: int | None = ...,
-        Span: bytes | None = ...,
-        Tags: _Mapping[str, str] | None = ...,
-    ) -> None: ...
+    def __init__(self, RequestID: _Optional[str] = ..., RequestTypeData: _Optional[_Union[Request.RequestType, str]] = ..., ClientID: _Optional[str] = ..., Channel: _Optional[str] = ..., Metadata: _Optional[str] = ..., Body: _Optional[bytes] = ..., ReplyChannel: _Optional[str] = ..., Timeout: _Optional[int] = ..., CacheKey: _Optional[str] = ..., CacheTTL: _Optional[int] = ..., Span: _Optional[bytes] = ..., Tags: _Optional[_Mapping[str, str]] = ...) -> None: ...
 
 class Response(_message.Message):
-    __slots__ = (
-        "ClientID",
-        "RequestID",
-        "ReplyChannel",
-        "Metadata",
-        "Body",
-        "CacheHit",
-        "Timestamp",
-        "Executed",
-        "Error",
-        "Span",
-        "Tags",
-    )
+    __slots__ = ("ClientID", "RequestID", "ReplyChannel", "Metadata", "Body", "CacheHit", "Timestamp", "Executed", "Error", "Span", "Tags")
     class TagsEntry(_message.Message):
         __slots__ = ("key", "value")
         KEY_FIELD_NUMBER: _ClassVar[int]
         VALUE_FIELD_NUMBER: _ClassVar[int]
         key: str
         value: str
-        def __init__(self, key: str | None = ..., value: str | None = ...) -> None: ...
-
+        def __init__(self, key: _Optional[str] = ..., value: _Optional[str] = ...) -> None: ...
     CLIENTID_FIELD_NUMBER: _ClassVar[int]
     REQUESTID_FIELD_NUMBER: _ClassVar[int]
     REPLYCHANNEL_FIELD_NUMBER: _ClassVar[int]
@@ -348,43 +244,17 @@ class Response(_message.Message):
     Error: str
     Span: bytes
     Tags: _containers.ScalarMap[str, str]
-    def __init__(
-        self,
-        ClientID: str | None = ...,
-        RequestID: str | None = ...,
-        ReplyChannel: str | None = ...,
-        Metadata: str | None = ...,
-        Body: bytes | None = ...,
-        CacheHit: bool = ...,
-        Timestamp: int | None = ...,
-        Executed: bool = ...,
-        Error: str | None = ...,
-        Span: bytes | None = ...,
-        Tags: _Mapping[str, str] | None = ...,
-    ) -> None: ...
+    def __init__(self, ClientID: _Optional[str] = ..., RequestID: _Optional[str] = ..., ReplyChannel: _Optional[str] = ..., Metadata: _Optional[str] = ..., Body: _Optional[bytes] = ..., CacheHit: bool = ..., Timestamp: _Optional[int] = ..., Executed: bool = ..., Error: _Optional[str] = ..., Span: _Optional[bytes] = ..., Tags: _Optional[_Mapping[str, str]] = ...) -> None: ...
 
 class QueueMessage(_message.Message):
-    __slots__ = (
-        "MessageID",
-        "ClientID",
-        "Channel",
-        "Metadata",
-        "Body",
-        "Tags",
-        "Attributes",
-        "Policy",
-        "Topic",
-        "Partition",
-        "PartitionKey",
-    )
+    __slots__ = ("MessageID", "ClientID", "Channel", "Metadata", "Body", "Tags", "Attributes", "Policy")
     class TagsEntry(_message.Message):
         __slots__ = ("key", "value")
         KEY_FIELD_NUMBER: _ClassVar[int]
         VALUE_FIELD_NUMBER: _ClassVar[int]
         key: str
         value: str
-        def __init__(self, key: str | None = ..., value: str | None = ...) -> None: ...
-
+        def __init__(self, key: _Optional[str] = ..., value: _Optional[str] = ...) -> None: ...
     MESSAGEID_FIELD_NUMBER: _ClassVar[int]
     CLIENTID_FIELD_NUMBER: _ClassVar[int]
     CHANNEL_FIELD_NUMBER: _ClassVar[int]
@@ -393,9 +263,6 @@ class QueueMessage(_message.Message):
     TAGS_FIELD_NUMBER: _ClassVar[int]
     ATTRIBUTES_FIELD_NUMBER: _ClassVar[int]
     POLICY_FIELD_NUMBER: _ClassVar[int]
-    TOPIC_FIELD_NUMBER: _ClassVar[int]
-    PARTITION_FIELD_NUMBER: _ClassVar[int]
-    PARTITIONKEY_FIELD_NUMBER: _ClassVar[int]
     MessageID: str
     ClientID: str
     Channel: str
@@ -404,23 +271,7 @@ class QueueMessage(_message.Message):
     Tags: _containers.ScalarMap[str, str]
     Attributes: QueueMessageAttributes
     Policy: QueueMessagePolicy
-    Topic: str
-    Partition: int
-    PartitionKey: str
-    def __init__(
-        self,
-        MessageID: str | None = ...,
-        ClientID: str | None = ...,
-        Channel: str | None = ...,
-        Metadata: str | None = ...,
-        Body: bytes | None = ...,
-        Tags: _Mapping[str, str] | None = ...,
-        Attributes: QueueMessageAttributes | _Mapping | None = ...,
-        Policy: QueueMessagePolicy | _Mapping | None = ...,
-        Topic: str | None = ...,
-        Partition: int | None = ...,
-        PartitionKey: str | None = ...,
-    ) -> None: ...
+    def __init__(self, MessageID: _Optional[str] = ..., ClientID: _Optional[str] = ..., Channel: _Optional[str] = ..., Metadata: _Optional[str] = ..., Body: _Optional[bytes] = ..., Tags: _Optional[_Mapping[str, str]] = ..., Attributes: _Optional[_Union[QueueMessageAttributes, _Mapping]] = ..., Policy: _Optional[_Union[QueueMessagePolicy, _Mapping]] = ...) -> None: ...
 
 class QueueMessagesBatchRequest(_message.Message):
     __slots__ = ("BatchID", "Messages")
@@ -428,11 +279,7 @@ class QueueMessagesBatchRequest(_message.Message):
     MESSAGES_FIELD_NUMBER: _ClassVar[int]
     BatchID: str
     Messages: _containers.RepeatedCompositeFieldContainer[QueueMessage]
-    def __init__(
-        self,
-        BatchID: str | None = ...,
-        Messages: _Iterable[QueueMessage | _Mapping] | None = ...,
-    ) -> None: ...
+    def __init__(self, BatchID: _Optional[str] = ..., Messages: _Optional[_Iterable[_Union[QueueMessage, _Mapping]]] = ...) -> None: ...
 
 class QueueMessagesBatchResponse(_message.Message):
     __slots__ = ("BatchID", "Results", "HaveErrors")
@@ -442,24 +289,10 @@ class QueueMessagesBatchResponse(_message.Message):
     BatchID: str
     Results: _containers.RepeatedCompositeFieldContainer[SendQueueMessageResult]
     HaveErrors: bool
-    def __init__(
-        self,
-        BatchID: str | None = ...,
-        Results: _Iterable[SendQueueMessageResult | _Mapping] | None = ...,
-        HaveErrors: bool = ...,
-    ) -> None: ...
+    def __init__(self, BatchID: _Optional[str] = ..., Results: _Optional[_Iterable[_Union[SendQueueMessageResult, _Mapping]]] = ..., HaveErrors: bool = ...) -> None: ...
 
 class QueueMessageAttributes(_message.Message):
-    __slots__ = (
-        "Timestamp",
-        "Sequence",
-        "MD5OfBody",
-        "ReceiveCount",
-        "ReRouted",
-        "ReRoutedFromQueue",
-        "ExpirationAt",
-        "DelayedTo",
-    )
+    __slots__ = ("Timestamp", "Sequence", "MD5OfBody", "ReceiveCount", "ReRouted", "ReRoutedFromQueue", "ExpirationAt", "DelayedTo")
     TIMESTAMP_FIELD_NUMBER: _ClassVar[int]
     SEQUENCE_FIELD_NUMBER: _ClassVar[int]
     MD5OFBODY_FIELD_NUMBER: _ClassVar[int]
@@ -476,25 +309,10 @@ class QueueMessageAttributes(_message.Message):
     ReRoutedFromQueue: str
     ExpirationAt: int
     DelayedTo: int
-    def __init__(
-        self,
-        Timestamp: int | None = ...,
-        Sequence: int | None = ...,
-        MD5OfBody: str | None = ...,
-        ReceiveCount: int | None = ...,
-        ReRouted: bool = ...,
-        ReRoutedFromQueue: str | None = ...,
-        ExpirationAt: int | None = ...,
-        DelayedTo: int | None = ...,
-    ) -> None: ...
+    def __init__(self, Timestamp: _Optional[int] = ..., Sequence: _Optional[int] = ..., MD5OfBody: _Optional[str] = ..., ReceiveCount: _Optional[int] = ..., ReRouted: bool = ..., ReRoutedFromQueue: _Optional[str] = ..., ExpirationAt: _Optional[int] = ..., DelayedTo: _Optional[int] = ...) -> None: ...
 
 class QueueMessagePolicy(_message.Message):
-    __slots__ = (
-        "ExpirationSeconds",
-        "DelaySeconds",
-        "MaxReceiveCount",
-        "MaxReceiveQueue",
-    )
+    __slots__ = ("ExpirationSeconds", "DelaySeconds", "MaxReceiveCount", "MaxReceiveQueue")
     EXPIRATIONSECONDS_FIELD_NUMBER: _ClassVar[int]
     DELAYSECONDS_FIELD_NUMBER: _ClassVar[int]
     MAXRECEIVECOUNT_FIELD_NUMBER: _ClassVar[int]
@@ -503,70 +321,26 @@ class QueueMessagePolicy(_message.Message):
     DelaySeconds: int
     MaxReceiveCount: int
     MaxReceiveQueue: str
-    def __init__(
-        self,
-        ExpirationSeconds: int | None = ...,
-        DelaySeconds: int | None = ...,
-        MaxReceiveCount: int | None = ...,
-        MaxReceiveQueue: str | None = ...,
-    ) -> None: ...
+    def __init__(self, ExpirationSeconds: _Optional[int] = ..., DelaySeconds: _Optional[int] = ..., MaxReceiveCount: _Optional[int] = ..., MaxReceiveQueue: _Optional[str] = ...) -> None: ...
 
 class SendQueueMessageResult(_message.Message):
-    __slots__ = (
-        "MessageID",
-        "SentAt",
-        "ExpirationAt",
-        "DelayedTo",
-        "IsError",
-        "Error",
-        "RefChannel",
-        "RefTopic",
-        "RefPartition",
-        "RefHash",
-    )
+    __slots__ = ("MessageID", "SentAt", "ExpirationAt", "DelayedTo", "IsError", "Error")
     MESSAGEID_FIELD_NUMBER: _ClassVar[int]
     SENTAT_FIELD_NUMBER: _ClassVar[int]
     EXPIRATIONAT_FIELD_NUMBER: _ClassVar[int]
     DELAYEDTO_FIELD_NUMBER: _ClassVar[int]
     ISERROR_FIELD_NUMBER: _ClassVar[int]
     ERROR_FIELD_NUMBER: _ClassVar[int]
-    REFCHANNEL_FIELD_NUMBER: _ClassVar[int]
-    REFTOPIC_FIELD_NUMBER: _ClassVar[int]
-    REFPARTITION_FIELD_NUMBER: _ClassVar[int]
-    REFHASH_FIELD_NUMBER: _ClassVar[int]
     MessageID: str
     SentAt: int
     ExpirationAt: int
     DelayedTo: int
     IsError: bool
     Error: str
-    RefChannel: str
-    RefTopic: str
-    RefPartition: int
-    RefHash: str
-    def __init__(
-        self,
-        MessageID: str | None = ...,
-        SentAt: int | None = ...,
-        ExpirationAt: int | None = ...,
-        DelayedTo: int | None = ...,
-        IsError: bool = ...,
-        Error: str | None = ...,
-        RefChannel: str | None = ...,
-        RefTopic: str | None = ...,
-        RefPartition: int | None = ...,
-        RefHash: str | None = ...,
-    ) -> None: ...
+    def __init__(self, MessageID: _Optional[str] = ..., SentAt: _Optional[int] = ..., ExpirationAt: _Optional[int] = ..., DelayedTo: _Optional[int] = ..., IsError: bool = ..., Error: _Optional[str] = ...) -> None: ...
 
 class ReceiveQueueMessagesRequest(_message.Message):
-    __slots__ = (
-        "RequestID",
-        "ClientID",
-        "Channel",
-        "MaxNumberOfMessages",
-        "WaitTimeSeconds",
-        "IsPeak",
-    )
+    __slots__ = ("RequestID", "ClientID", "Channel", "MaxNumberOfMessages", "WaitTimeSeconds", "IsPeak")
     REQUESTID_FIELD_NUMBER: _ClassVar[int]
     CLIENTID_FIELD_NUMBER: _ClassVar[int]
     CHANNEL_FIELD_NUMBER: _ClassVar[int]
@@ -579,26 +353,10 @@ class ReceiveQueueMessagesRequest(_message.Message):
     MaxNumberOfMessages: int
     WaitTimeSeconds: int
     IsPeak: bool
-    def __init__(
-        self,
-        RequestID: str | None = ...,
-        ClientID: str | None = ...,
-        Channel: str | None = ...,
-        MaxNumberOfMessages: int | None = ...,
-        WaitTimeSeconds: int | None = ...,
-        IsPeak: bool = ...,
-    ) -> None: ...
+    def __init__(self, RequestID: _Optional[str] = ..., ClientID: _Optional[str] = ..., Channel: _Optional[str] = ..., MaxNumberOfMessages: _Optional[int] = ..., WaitTimeSeconds: _Optional[int] = ..., IsPeak: bool = ...) -> None: ...
 
 class ReceiveQueueMessagesResponse(_message.Message):
-    __slots__ = (
-        "RequestID",
-        "Messages",
-        "MessagesReceived",
-        "MessagesExpired",
-        "IsPeak",
-        "IsError",
-        "Error",
-    )
+    __slots__ = ("RequestID", "Messages", "MessagesReceived", "MessagesExpired", "IsPeak", "IsError", "Error")
     REQUESTID_FIELD_NUMBER: _ClassVar[int]
     MESSAGES_FIELD_NUMBER: _ClassVar[int]
     MESSAGESRECEIVED_FIELD_NUMBER: _ClassVar[int]
@@ -613,16 +371,7 @@ class ReceiveQueueMessagesResponse(_message.Message):
     IsPeak: bool
     IsError: bool
     Error: str
-    def __init__(
-        self,
-        RequestID: str | None = ...,
-        Messages: _Iterable[QueueMessage | _Mapping] | None = ...,
-        MessagesReceived: int | None = ...,
-        MessagesExpired: int | None = ...,
-        IsPeak: bool = ...,
-        IsError: bool = ...,
-        Error: str | None = ...,
-    ) -> None: ...
+    def __init__(self, RequestID: _Optional[str] = ..., Messages: _Optional[_Iterable[_Union[QueueMessage, _Mapping]]] = ..., MessagesReceived: _Optional[int] = ..., MessagesExpired: _Optional[int] = ..., IsPeak: bool = ..., IsError: bool = ..., Error: _Optional[str] = ...) -> None: ...
 
 class AckAllQueueMessagesRequest(_message.Message):
     __slots__ = ("RequestID", "ClientID", "Channel", "WaitTimeSeconds")
@@ -634,13 +383,7 @@ class AckAllQueueMessagesRequest(_message.Message):
     ClientID: str
     Channel: str
     WaitTimeSeconds: int
-    def __init__(
-        self,
-        RequestID: str | None = ...,
-        ClientID: str | None = ...,
-        Channel: str | None = ...,
-        WaitTimeSeconds: int | None = ...,
-    ) -> None: ...
+    def __init__(self, RequestID: _Optional[str] = ..., ClientID: _Optional[str] = ..., Channel: _Optional[str] = ..., WaitTimeSeconds: _Optional[int] = ...) -> None: ...
 
 class AckAllQueueMessagesResponse(_message.Message):
     __slots__ = ("RequestID", "AffectedMessages", "IsError", "Error")
@@ -652,25 +395,10 @@ class AckAllQueueMessagesResponse(_message.Message):
     AffectedMessages: int
     IsError: bool
     Error: str
-    def __init__(
-        self,
-        RequestID: str | None = ...,
-        AffectedMessages: int | None = ...,
-        IsError: bool = ...,
-        Error: str | None = ...,
-    ) -> None: ...
+    def __init__(self, RequestID: _Optional[str] = ..., AffectedMessages: _Optional[int] = ..., IsError: bool = ..., Error: _Optional[str] = ...) -> None: ...
 
 class StreamQueueMessagesRequest(_message.Message):
-    __slots__ = (
-        "RequestID",
-        "ClientID",
-        "StreamRequestTypeData",
-        "Channel",
-        "VisibilitySeconds",
-        "WaitTimeSeconds",
-        "RefSequence",
-        "ModifiedMessage",
-    )
+    __slots__ = ("RequestID", "ClientID", "StreamRequestTypeData", "Channel", "VisibilitySeconds", "WaitTimeSeconds", "RefSequence", "ModifiedMessage")
     REQUESTID_FIELD_NUMBER: _ClassVar[int]
     CLIENTID_FIELD_NUMBER: _ClassVar[int]
     STREAMREQUESTTYPEDATA_FIELD_NUMBER: _ClassVar[int]
@@ -687,17 +415,7 @@ class StreamQueueMessagesRequest(_message.Message):
     WaitTimeSeconds: int
     RefSequence: int
     ModifiedMessage: QueueMessage
-    def __init__(
-        self,
-        RequestID: str | None = ...,
-        ClientID: str | None = ...,
-        StreamRequestTypeData: StreamRequestType | str | None = ...,
-        Channel: str | None = ...,
-        VisibilitySeconds: int | None = ...,
-        WaitTimeSeconds: int | None = ...,
-        RefSequence: int | None = ...,
-        ModifiedMessage: QueueMessage | _Mapping | None = ...,
-    ) -> None: ...
+    def __init__(self, RequestID: _Optional[str] = ..., ClientID: _Optional[str] = ..., StreamRequestTypeData: _Optional[_Union[StreamRequestType, str]] = ..., Channel: _Optional[str] = ..., VisibilitySeconds: _Optional[int] = ..., WaitTimeSeconds: _Optional[int] = ..., RefSequence: _Optional[int] = ..., ModifiedMessage: _Optional[_Union[QueueMessage, _Mapping]] = ...) -> None: ...
 
 class StreamQueueMessagesResponse(_message.Message):
     __slots__ = ("RequestID", "StreamRequestTypeData", "Message", "IsError", "Error")
@@ -711,14 +429,7 @@ class StreamQueueMessagesResponse(_message.Message):
     Message: QueueMessage
     IsError: bool
     Error: str
-    def __init__(
-        self,
-        RequestID: str | None = ...,
-        StreamRequestTypeData: StreamRequestType | str | None = ...,
-        Message: QueueMessage | _Mapping | None = ...,
-        IsError: bool = ...,
-        Error: str | None = ...,
-    ) -> None: ...
+    def __init__(self, RequestID: _Optional[str] = ..., StreamRequestTypeData: _Optional[_Union[StreamRequestType, str]] = ..., Message: _Optional[_Union[QueueMessage, _Mapping]] = ..., IsError: bool = ..., Error: _Optional[str] = ...) -> None: ...
 
 class QueuesUpstreamRequest(_message.Message):
     __slots__ = ("RequestID", "Messages")
@@ -726,11 +437,7 @@ class QueuesUpstreamRequest(_message.Message):
     MESSAGES_FIELD_NUMBER: _ClassVar[int]
     RequestID: str
     Messages: _containers.RepeatedCompositeFieldContainer[QueueMessage]
-    def __init__(
-        self,
-        RequestID: str | None = ...,
-        Messages: _Iterable[QueueMessage | _Mapping] | None = ...,
-    ) -> None: ...
+    def __init__(self, RequestID: _Optional[str] = ..., Messages: _Optional[_Iterable[_Union[QueueMessage, _Mapping]]] = ...) -> None: ...
 
 class QueuesUpstreamResponse(_message.Message):
     __slots__ = ("RefRequestID", "Results", "IsError", "Error")
@@ -742,36 +449,17 @@ class QueuesUpstreamResponse(_message.Message):
     Results: _containers.RepeatedCompositeFieldContainer[SendQueueMessageResult]
     IsError: bool
     Error: str
-    def __init__(
-        self,
-        RefRequestID: str | None = ...,
-        Results: _Iterable[SendQueueMessageResult | _Mapping] | None = ...,
-        IsError: bool = ...,
-        Error: str | None = ...,
-    ) -> None: ...
+    def __init__(self, RefRequestID: _Optional[str] = ..., Results: _Optional[_Iterable[_Union[SendQueueMessageResult, _Mapping]]] = ..., IsError: bool = ..., Error: _Optional[str] = ...) -> None: ...
 
 class QueuesDownstreamRequest(_message.Message):
-    __slots__ = (
-        "RequestID",
-        "ClientID",
-        "RequestTypeData",
-        "Channel",
-        "MaxItems",
-        "WaitTimeout",
-        "AutoAck",
-        "ReQueueChannel",
-        "SequenceRange",
-        "RefTransactionId",
-        "Metadata",
-    )
+    __slots__ = ("RequestID", "ClientID", "RequestTypeData", "Channel", "MaxItems", "WaitTimeout", "AutoAck", "ReQueueChannel", "SequenceRange", "RefTransactionId", "Metadata")
     class MetadataEntry(_message.Message):
         __slots__ = ("key", "value")
         KEY_FIELD_NUMBER: _ClassVar[int]
         VALUE_FIELD_NUMBER: _ClassVar[int]
         key: str
         value: str
-        def __init__(self, key: str | None = ..., value: str | None = ...) -> None: ...
-
+        def __init__(self, key: _Optional[str] = ..., value: _Optional[str] = ...) -> None: ...
     REQUESTID_FIELD_NUMBER: _ClassVar[int]
     CLIENTID_FIELD_NUMBER: _ClassVar[int]
     REQUESTTYPEDATA_FIELD_NUMBER: _ClassVar[int]
@@ -794,41 +482,17 @@ class QueuesDownstreamRequest(_message.Message):
     SequenceRange: _containers.RepeatedScalarFieldContainer[int]
     RefTransactionId: str
     Metadata: _containers.ScalarMap[str, str]
-    def __init__(
-        self,
-        RequestID: str | None = ...,
-        ClientID: str | None = ...,
-        RequestTypeData: QueuesDownstreamRequestType | str | None = ...,
-        Channel: str | None = ...,
-        MaxItems: int | None = ...,
-        WaitTimeout: int | None = ...,
-        AutoAck: bool = ...,
-        ReQueueChannel: str | None = ...,
-        SequenceRange: _Iterable[int] | None = ...,
-        RefTransactionId: str | None = ...,
-        Metadata: _Mapping[str, str] | None = ...,
-    ) -> None: ...
+    def __init__(self, RequestID: _Optional[str] = ..., ClientID: _Optional[str] = ..., RequestTypeData: _Optional[_Union[QueuesDownstreamRequestType, str]] = ..., Channel: _Optional[str] = ..., MaxItems: _Optional[int] = ..., WaitTimeout: _Optional[int] = ..., AutoAck: bool = ..., ReQueueChannel: _Optional[str] = ..., SequenceRange: _Optional[_Iterable[int]] = ..., RefTransactionId: _Optional[str] = ..., Metadata: _Optional[_Mapping[str, str]] = ...) -> None: ...
 
 class QueuesDownstreamResponse(_message.Message):
-    __slots__ = (
-        "TransactionId",
-        "RefRequestId",
-        "RequestTypeData",
-        "Messages",
-        "ActiveOffsets",
-        "IsError",
-        "Error",
-        "TransactionComplete",
-        "Metadata",
-    )
+    __slots__ = ("TransactionId", "RefRequestId", "RequestTypeData", "Messages", "ActiveOffsets", "IsError", "Error", "TransactionComplete", "Metadata")
     class MetadataEntry(_message.Message):
         __slots__ = ("key", "value")
         KEY_FIELD_NUMBER: _ClassVar[int]
         VALUE_FIELD_NUMBER: _ClassVar[int]
         key: str
         value: str
-        def __init__(self, key: str | None = ..., value: str | None = ...) -> None: ...
-
+        def __init__(self, key: _Optional[str] = ..., value: _Optional[str] = ...) -> None: ...
     TRANSACTIONID_FIELD_NUMBER: _ClassVar[int]
     REFREQUESTID_FIELD_NUMBER: _ClassVar[int]
     REQUESTTYPEDATA_FIELD_NUMBER: _ClassVar[int]
@@ -847,99 +511,4 @@ class QueuesDownstreamResponse(_message.Message):
     Error: str
     TransactionComplete: bool
     Metadata: _containers.ScalarMap[str, str]
-    def __init__(
-        self,
-        TransactionId: str | None = ...,
-        RefRequestId: str | None = ...,
-        RequestTypeData: QueuesDownstreamRequestType | str | None = ...,
-        Messages: _Iterable[QueueMessage | _Mapping] | None = ...,
-        ActiveOffsets: _Iterable[int] | None = ...,
-        IsError: bool = ...,
-        Error: str | None = ...,
-        TransactionComplete: bool = ...,
-        Metadata: _Mapping[str, str] | None = ...,
-    ) -> None: ...
-
-class QueueInfo(_message.Message):
-    __slots__ = (
-        "Name",
-        "Messages",
-        "Bytes",
-        "FirstSequence",
-        "LastSequence",
-        "Sent",
-        "Delivered",
-        "Waiting",
-        "Subscribers",
-    )
-    NAME_FIELD_NUMBER: _ClassVar[int]
-    MESSAGES_FIELD_NUMBER: _ClassVar[int]
-    BYTES_FIELD_NUMBER: _ClassVar[int]
-    FIRSTSEQUENCE_FIELD_NUMBER: _ClassVar[int]
-    LASTSEQUENCE_FIELD_NUMBER: _ClassVar[int]
-    SENT_FIELD_NUMBER: _ClassVar[int]
-    DELIVERED_FIELD_NUMBER: _ClassVar[int]
-    WAITING_FIELD_NUMBER: _ClassVar[int]
-    SUBSCRIBERS_FIELD_NUMBER: _ClassVar[int]
-    Name: str
-    Messages: int
-    Bytes: int
-    FirstSequence: int
-    LastSequence: int
-    Sent: int
-    Delivered: int
-    Waiting: int
-    Subscribers: int
-    def __init__(
-        self,
-        Name: str | None = ...,
-        Messages: int | None = ...,
-        Bytes: int | None = ...,
-        FirstSequence: int | None = ...,
-        LastSequence: int | None = ...,
-        Sent: int | None = ...,
-        Delivered: int | None = ...,
-        Waiting: int | None = ...,
-        Subscribers: int | None = ...,
-    ) -> None: ...
-
-class QueuesInfo(_message.Message):
-    __slots__ = ("TotalQueue", "Sent", "Delivered", "Waiting", "Queues")
-    TOTALQUEUE_FIELD_NUMBER: _ClassVar[int]
-    SENT_FIELD_NUMBER: _ClassVar[int]
-    DELIVERED_FIELD_NUMBER: _ClassVar[int]
-    WAITING_FIELD_NUMBER: _ClassVar[int]
-    QUEUES_FIELD_NUMBER: _ClassVar[int]
-    TotalQueue: int
-    Sent: int
-    Delivered: int
-    Waiting: int
-    Queues: _containers.RepeatedCompositeFieldContainer[QueueInfo]
-    def __init__(
-        self,
-        TotalQueue: int | None = ...,
-        Sent: int | None = ...,
-        Delivered: int | None = ...,
-        Waiting: int | None = ...,
-        Queues: _Iterable[QueueInfo | _Mapping] | None = ...,
-    ) -> None: ...
-
-class QueuesInfoRequest(_message.Message):
-    __slots__ = ("RequestID", "QueueName")
-    REQUESTID_FIELD_NUMBER: _ClassVar[int]
-    QUEUENAME_FIELD_NUMBER: _ClassVar[int]
-    RequestID: str
-    QueueName: str
-    def __init__(self, RequestID: str | None = ..., QueueName: str | None = ...) -> None: ...
-
-class QueuesInfoResponse(_message.Message):
-    __slots__ = ("RefRequestID", "Info")
-    REFREQUESTID_FIELD_NUMBER: _ClassVar[int]
-    INFO_FIELD_NUMBER: _ClassVar[int]
-    RefRequestID: str
-    Info: QueuesInfo
-    def __init__(
-        self,
-        RefRequestID: str | None = ...,
-        Info: QueuesInfo | _Mapping | None = ...,
-    ) -> None: ...
+    def __init__(self, TransactionId: _Optional[str] = ..., RefRequestId: _Optional[str] = ..., RequestTypeData: _Optional[_Union[QueuesDownstreamRequestType, str]] = ..., Messages: _Optional[_Iterable[_Union[QueueMessage, _Mapping]]] = ..., ActiveOffsets: _Optional[_Iterable[int]] = ..., IsError: bool = ..., Error: _Optional[str] = ..., TransactionComplete: bool = ..., Metadata: _Optional[_Mapping[str, str]] = ...) -> None: ...

@@ -302,3 +302,60 @@ class TestListChannelsRetry:
 
         assert result == []
         assert transport.kubemq_client.return_value.SendRequest.call_count == 3
+
+
+class TestListChannelsRetryGrpcRetryable:
+    """Test _list_channels_with_retry: retryable gRPC error on first attempt, success on second."""
+
+    def test_grpc_deadline_retry_then_success(self):
+        class DeadlineExceeded(grpc.RpcError):
+            def code(self):
+                return grpc.StatusCode.DEADLINE_EXCEEDED
+            def details(self):
+                return "Deadline Exceeded"
+
+        success_resp = _make_response(executed=True, body=b"decoded")
+        transport = MagicMock()
+        transport.kubemq_client.return_value.SendRequest.side_effect = [
+            DeadlineExceeded(),
+            success_resp,
+        ]
+
+        decode_fn = MagicMock(return_value=["channel-a"])
+
+        from kubemq.common.requests import _list_channels_with_retry
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            with unittest.mock.patch("kubemq.common.requests.time.sleep"):
+                result = _list_channels_with_retry(
+                    transport, "client-1", "queues", "", decode_fn
+                )
+
+        assert result == ["channel-a"]
+        decode_fn.assert_called_once_with(b"decoded")
+        assert transport.kubemq_client.return_value.SendRequest.call_count == 2
+
+
+# ==============================================================================
+# Coverage Gap Tests
+# ==============================================================================
+
+
+class TestListChannelsRetryExhausted:
+    """Cover lines 165-167: loop exhaustion paths in _list_channels_with_retry."""
+
+    def test_returns_empty_when_max_retries_is_zero(self):
+        from kubemq.common.requests import _list_channels_with_retry
+
+        transport = MagicMock()
+        decode_fn = MagicMock()
+
+        with patch("kubemq.common.requests._LIST_MAX_RETRIES", 0):
+            result = _list_channels_with_retry(
+                transport, "client", "queues", "", decode_fn
+            )
+
+        assert result == []
+        decode_fn.assert_not_called()
+        transport.kubemq_client.assert_not_called()

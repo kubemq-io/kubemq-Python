@@ -97,8 +97,8 @@ class TestEventMessageEncode:
         assert pb_event.Body == b"encode body"
         assert pb_event.Store is False  # EventMessage sets Store=False
 
-    def test_encode_adds_client_id_tag(self):
-        """Test encoding adds x-kubemq-client-id tag."""
+    def test_encode_does_not_add_client_id_tag(self):
+        """Test encoding does not inject x-kubemq-client-id tag."""
         event = EventMessage(
             channel="test-channel",
             body=b"test",
@@ -106,7 +106,7 @@ class TestEventMessageEncode:
 
         pb_event = event.encode("tagged-client")
 
-        assert pb_event.Tags["x-kubemq-client-id"] == "tagged-client"
+        assert "x-kubemq-client-id" not in pb_event.Tags
 
     def test_encode_with_tags(self):
         """Test encoding preserves custom tags."""
@@ -169,8 +169,8 @@ class TestEventStoreMessageEncode:
         assert pb_event.ClientID == "test-client"
         assert pb_event.Store is True  # EventStoreMessage sets Store=True
 
-    def test_encode_adds_client_id_tag(self):
-        """Test encoding adds x-kubemq-client-id tag."""
+    def test_encode_does_not_add_client_id_tag(self):
+        """Test encoding does not inject x-kubemq-client-id tag."""
         event = EventStoreMessage(
             channel="test-channel",
             body=b"test",
@@ -178,7 +178,7 @@ class TestEventStoreMessageEncode:
 
         pb_event = event.encode("tagged-client")
 
-        assert pb_event.Tags["x-kubemq-client-id"] == "tagged-client"
+        assert "x-kubemq-client-id" not in pb_event.Tags
 
 
 class TestEventStoreMessageModelDump:

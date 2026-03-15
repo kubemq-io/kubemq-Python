@@ -25,10 +25,6 @@ class TestQueueSendResultDecode:
         pb_result.DelayedTo = 0
         pb_result.IsError = False
         pb_result.Error = ""
-        pb_result.RefChannel = ""
-        pb_result.RefTopic = ""
-        pb_result.RefPartition = 0
-        pb_result.RefHash = ""
 
         result = QueueSendResult.decode(pb_result)
 
@@ -46,10 +42,6 @@ class TestQueueSendResultDecode:
         pb_result.DelayedTo = 0
         pb_result.IsError = True
         pb_result.Error = "Queue not found"
-        pb_result.RefChannel = ""
-        pb_result.RefTopic = ""
-        pb_result.RefPartition = 0
-        pb_result.RefHash = ""
 
         result = QueueSendResult.decode(pb_result)
 
@@ -67,10 +59,6 @@ class TestQueueSendResultDecode:
         pb_result.DelayedTo = int(future_time.timestamp() * 1e9)
         pb_result.IsError = False
         pb_result.Error = ""
-        pb_result.RefChannel = ""
-        pb_result.RefTopic = ""
-        pb_result.RefPartition = 0
-        pb_result.RefHash = ""
 
         result = QueueSendResult.decode(pb_result)
 
@@ -87,10 +75,6 @@ class TestQueueSendResultDecode:
         pb_result.DelayedTo = 0
         pb_result.IsError = False
         pb_result.Error = ""
-        pb_result.RefChannel = ""
-        pb_result.RefTopic = ""
-        pb_result.RefPartition = 0
-        pb_result.RefHash = ""
 
         result = QueueSendResult.decode(pb_result)
 
@@ -298,26 +282,3 @@ class TestQueueSendResultStrException:
         assert "r1" in r
 
 
-class TestQueueSendResultRefFields:
-    """GAP-M2: Tests for Ref fields in QueueSendResult."""
-
-    def test_decode_ref_fields(self):
-        from unittest.mock import MagicMock
-        pb_result = MagicMock()
-        pb_result.MessageID = "msg-1"
-        pb_result.SentAt = int(datetime.now().timestamp() * 1e9)
-        pb_result.ExpirationAt = 0
-        pb_result.DelayedTo = 0
-        pb_result.IsError = False
-        pb_result.Error = ""
-        pb_result.RefChannel = "ref-ch"
-        pb_result.RefTopic = "ref-topic"
-        pb_result.RefPartition = 3
-        pb_result.RefHash = "abc123"
-
-        result = QueueSendResult.decode(pb_result)
-
-        assert result.ref_channel == "ref-ch"
-        assert result.ref_topic == "ref-topic"
-        assert result.ref_partition == 3
-        assert result.ref_hash == "abc123"

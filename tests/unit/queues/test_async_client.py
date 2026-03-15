@@ -138,10 +138,6 @@ class TestAsyncClientSendBatch:
             r.MessageID = f"msg-{i}"
             r.IsError = False
             r.SentAt = 1234567890
-            r.RefChannel = ""
-            r.RefTopic = ""
-            r.RefPartition = 0
-            r.RefHash = ""
         mock_transport.send_queue_messages_batch.return_value = mock_response
 
         messages = [QueueMessage(channel="test", body=f"msg-{i}".encode()) for i in range(3)]
@@ -504,18 +500,10 @@ class TestAsyncClientSendBatchPartialErrors:
         r1.MessageID = "msg-0"
         r1.IsError = False
         r1.SentAt = 1234567890
-        r1.RefChannel = ""
-        r1.RefTopic = ""
-        r1.RefPartition = 0
-        r1.RefHash = ""
         r2 = mock_response.Results.add()
         r2.MessageID = "msg-1"
         r2.IsError = True
         r2.Error = "channel not found"
-        r2.RefChannel = ""
-        r2.RefTopic = ""
-        r2.RefPartition = 0
-        r2.RefHash = ""
         mock_transport.send_queue_messages_batch.return_value = mock_response
 
         messages = [
@@ -1208,34 +1196,409 @@ class TestAckAllCustomWaitTime:
         assert req_arg.WaitTimeSeconds == 120
 
 
-class TestAsyncClientQueuesInfo:
-    """GAP-H7: Tests for queues_info on async client."""
+# ==============================================================================
+# Extended Coverage Tests — 95% target
+# ==============================================================================
+
+from kubemq.core.exceptions import KubeMQValidationError
+
+
+class TestAsyncClientSendQueueMessageSimple:
+    """Tests for send_queue_message_simple() (lines 259-306)."""
 
     @pytest.mark.asyncio
-    async def test_queues_info_calls_transport(self, mock_transport):
+    async def test_send_queue_message_simple_success(self, mock_transport):
+        client = AsyncClient(address="localhost:50000")
+        client._transport = mock_transport
+        client._connected = True
+
+        mock_pb_result = MagicMock()
+        mock_pb_result.MessageID = "msg-simple-1"
+        mock_pb_result.SentAt = 0
+        mock_pb_result.ExpirationAt = 0
+        mock_pb_result.DelayedTo = 0
+        mock_pb_result.IsError = False
+        mock_pb_result.Error = ""
+        mock_transport.send_queue_message.return_value = mock_pb_result
+
+        message = QueueMessage(channel="test-queue", body=b"hello")
+        result = await client.send_queue_message_simple(message)
+
+        assert result is not None
+        mock_transport.send_queue_message.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_send_queue_message_simple_validation_error(self, mock_transport):
+        from pydantic import ValidationError as PydanticValidationError
+
+        client = AsyncClient(address="localhost:50000")
+        client._transport = mock_transport
+        client._connected = True
+
+        message = QueueMessage(channel="test-queue", body=b"test")
+        validation_err = PydanticValidationError.from_exception_data(
+            title="QueueMessage", line_errors=[]
+        )
+        with patch.object(QueueMessage, "encode_message", side_effect=validation_err):
+            with pytest.raises(KubeMQValidationError) as exc_info:
+                await client.send_queue_message_simple(message)
+            assert exc_info.value.__cause__ is validation_err
+
+    @pytest.mark.asyncio
+    async def test_send_queue_message_simple_transport_error(self, mock_transport):
+        client = AsyncClient(address="localhost:50000")
+        client._transport = mock_transport
+        client._connected = True
+
+        mock_transport.send_queue_message.side_effect = RuntimeError("transport down")
+
+        message = QueueMessage(channel="test-queue", body=b"test")
+        with pytest.raises(RuntimeError, match="transport down"):
+            await client.send_queue_message_simple(message)
+
+
+class TestAsyncClientSendQueueMessageBidiErrors:
+    """Tests for send_queue_message() bidi error paths (lines 342-354)."""
+
+    @pytest.mark.asyncio
+    async def test_send_queue_message_validation_error(self, mock_transport):
+        from pydantic import ValidationError as PydanticValidationError
+
+        client = AsyncClient(address="localhost:50000")
+        client._transport = mock_transport
+        client._connected = True
+
+        mock_sender = AsyncMock()
+        client._upstream_sender = mock_sender
+
+        message = QueueMessage(channel="test-queue", body=b"test")
+        validation_err = PydanticValidationError.from_exception_data(
+            title="QueueMessage", line_errors=[]
+        )
+        with patch.object(QueueMessage, "encode_message", side_effect=validation_err):
+            with pytest.raises(KubeMQValidationError):
+                await client.send_queue_message(message)
+
+    @pytest.mark.asyncio
+    async def test_send_queue_message_generic_error(self, mock_transport):
+        client = AsyncClient(address="localhost:50000")
+        client._transport = mock_transport
+        client._connected = True
+
+        mock_sender = AsyncMock()
+        mock_sender.send = AsyncMock(side_effect=RuntimeError("bidi boom"))
+        client._upstream_sender = mock_sender
+
+        message = QueueMessage(channel="test-queue", body=b"test")
+        with pytest.raises(RuntimeError, match="bidi boom"):
+            await client.send_queue_message(message)
+
+
+class TestAsyncClientGetUpstreamSender:
+    """Tests for _get_upstream_sender() lazy init (lines 239-246)."""
+
+    @pytest.mark.asyncio
+    async def test_get_upstream_sender_creates_on_first_call(self, mock_transport):
+        client = AsyncClient(address="localhost:50000")
+        client._transport = mock_transport
+        client._connected = True
+
+        assert client._upstream_sender is None
+
+        with patch(
+            "kubemq.queues.async_client.AsyncUpstreamSender"
+        ) as mock_sender_class:
+            mock_sender = AsyncMock()
+            mock_sender.start = AsyncMock()
+            mock_sender_class.return_value = mock_sender
+
+            sender = await client._get_upstream_sender()
+
+            assert sender is mock_sender
+            mock_sender.start.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_get_upstream_sender_returns_same_instance(self, mock_transport):
+        client = AsyncClient(address="localhost:50000")
+        client._transport = mock_transport
+        client._connected = True
+
+        mock_sender = AsyncMock()
+        client._upstream_sender = mock_sender
+
+        sender = await client._get_upstream_sender()
+        assert sender is mock_sender
+
+
+class TestDoOperationWithMetadata:
+    """Tests for _do_operation with metadata (lines 113-115)."""
+
+    @pytest.mark.asyncio
+    async def test_do_operation_sets_metadata(self):
+        captured = []
+
+        async def fake_downstream(request_iter):
+            async for req in request_iter:
+                captured.append(req)
+            yield pb.QueuesDownstreamResponse()
+
+        transport = MagicMock()
+        transport.queues_downstream = fake_downstream
+
+        response = AsyncQueuesPollResponse(
+            ref_request_id="req-1",
+            transaction_id="tx-1",
+            messages=[],
+            error="",
+            is_error=False,
+            is_transaction_completed=False,
+            active_offsets=[1],
+            receiver_client_id="client-1",
+            visibility_seconds=0,
+            is_auto_acked=False,
+            transport=transport,
+        )
+
+        await response._do_operation(
+            pb.QueuesDownstreamRequestType.AckAll,
+            metadata={"trace_id": "abc-123", "env": "test"},
+        )
+
+        assert len(captured) == 1
+        assert captured[0].Metadata["trace_id"] == "abc-123"
+        assert captured[0].Metadata["env"] == "test"
+        assert response.is_transaction_completed is True
+
+
+class TestAsyncClientCloseWithSender:
+    """Tests for close() with active sender."""
+
+    @pytest.mark.asyncio
+    async def test_close_closes_upstream_sender(self, mock_transport):
+        client = AsyncClient(address="localhost:50000")
+        client._transport = mock_transport
+        client._connected = True
+
+        mock_sender = AsyncMock()
+        mock_sender.close = AsyncMock()
+        client._upstream_sender = mock_sender
+
+        with patch.object(type(client).__bases__[0], "close", new_callable=AsyncMock):
+            await client.close()
+
+        mock_sender.close.assert_called_once()
+        assert client._upstream_sender is None
+
+
+class TestReceiveQueueMessagesValidation:
+    """Tests for receive_queue_messages validation (lines 427-432)."""
+
+    @pytest.mark.asyncio
+    async def test_receive_no_client_id_raises(self, mock_transport):
+        client = AsyncClient(address="localhost:50000")
+        client._transport = mock_transport
+        client._connected = True
+        client._config.client_id = ""
+
+        with pytest.raises(ValueError, match="ClientID required"):
+            await client.receive_queue_messages(channel="test")
+
+    @pytest.mark.asyncio
+    async def test_receive_invalid_max_messages(self, mock_transport):
+        client = AsyncClient(address="localhost:50000")
+        client._transport = mock_transport
+        client._connected = True
+
+        with pytest.raises(ValueError, match="max_messages must be between 1 and 1024"):
+            await client.receive_queue_messages(channel="test", max_messages=0)
+
+    @pytest.mark.asyncio
+    async def test_receive_invalid_timeout(self, mock_transport):
+        client = AsyncClient(address="localhost:50000")
+        client._transport = mock_transport
+        client._connected = True
+
+        with pytest.raises(ValueError, match="wait_timeout_seconds must be between 0 and 3600"):
+            await client.receive_queue_messages(channel="test", wait_timeout_seconds=-1)
+
+
+class TestPeekQueueMessagesValidation:
+    """Tests for peek_queue_messages validation (lines 508-511)."""
+
+    @pytest.mark.asyncio
+    async def test_peek_invalid_max_messages(self, mock_transport):
+        client = AsyncClient(address="localhost:50000")
+        client._transport = mock_transport
+        client._connected = True
+
+        with pytest.raises(ValueError, match="max_messages must be between 1 and 1024"):
+            await client.peek_queue_messages(channel="test", max_messages=0)
+
+    @pytest.mark.asyncio
+    async def test_peek_invalid_timeout(self, mock_transport):
+        client = AsyncClient(address="localhost:50000")
+        client._transport = mock_transport
+        client._connected = True
+
+        with pytest.raises(ValueError, match="wait_timeout_seconds must be between 0 and 3600"):
+            await client.peek_queue_messages(channel="test", wait_timeout_seconds=-1)
+
+
+class TestSubscribeToQueueYield:
+    """Tests for subscribe_to_queue yielding and error paths."""
+
+    @pytest.mark.asyncio
+    async def test_subscribe_yields_non_empty_response(self, mock_transport):
+        from kubemq.common.async_cancellation_token import AsyncCancellationToken
+        from kubemq.queues.async_client import AsyncQueuesPollResponse
+
+        client = AsyncClient(address="localhost:50000")
+        client._transport = mock_transport
+        client._connected = True
+
+        token = AsyncCancellationToken()
+        call_count = 0
+
+        fake_response = MagicMock(spec=AsyncQueuesPollResponse)
+        fake_response.is_empty.return_value = False
+        fake_response.messages = []
+
+        async def fake_receive(**kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count >= 2:
+                token.cancel()
+            return fake_response
+
+        with patch.object(client, "receive_queue_messages", side_effect=fake_receive):
+            results = []
+            async for resp in client.subscribe_to_queue(
+                channel="q1", cancellation_token=token
+            ):
+                results.append(resp)
+            assert len(results) >= 1
+
+    @pytest.mark.asyncio
+    async def test_subscribe_breaks_on_cancel_during_error(self, mock_transport):
+        from kubemq.common.async_cancellation_token import AsyncCancellationToken
+
+        client = AsyncClient(address="localhost:50000")
+        client._transport = mock_transport
+        client._connected = True
+
+        token = AsyncCancellationToken()
+
+        async def failing_receive(**kwargs):
+            token.cancel()
+            raise RuntimeError("connection lost")
+
+        with patch.object(client, "receive_queue_messages", side_effect=failing_receive):
+            results = []
+            async for resp in client.subscribe_to_queue(
+                channel="q1", cancellation_token=token
+            ):
+                results.append(resp)
+            assert results == []
+
+
+class TestAckAllQueueMessagesSuccess:
+    """Tests for ack_all_queue_messages success path."""
+
+    @pytest.mark.asyncio
+    async def test_ack_all_returns_affected_count(self, mock_transport):
         client = AsyncClient(address="localhost:50000")
         client._transport = mock_transport
         client._connected = True
 
         mock_response = MagicMock()
-        mock_transport.queues_info.return_value = mock_response
+        mock_response.IsError = False
+        mock_response.AffectedMessages = 42
 
-        result = await client.queues_info()
+        mock_transport.ack_all_queue_messages = AsyncMock(return_value=mock_response)
+        count = await client.ack_all_queue_messages(channel="q1")
+        assert count == 42
 
-        mock_transport.queues_info.assert_called_once()
-        assert result is mock_response
+
+class TestProcessQueueMessagesCallbacks:
+    """Tests for process_queue_messages error callback paths."""
 
     @pytest.mark.asyncio
-    async def test_queues_info_with_specific_queue(self, mock_transport):
+    async def test_error_response_calls_error_callback(self, mock_transport):
+        from kubemq.common.async_cancellation_token import AsyncCancellationToken
+        from kubemq.queues.async_client import AsyncQueuesPollResponse
+
         client = AsyncClient(address="localhost:50000")
         client._transport = mock_transport
         client._connected = True
 
-        mock_response = MagicMock()
-        mock_transport.queues_info.return_value = mock_response
+        token = AsyncCancellationToken()
+        errors = []
 
-        result = await client.queues_info("my-queue")
+        error_response = MagicMock(spec=AsyncQueuesPollResponse)
+        error_response.is_error = True
+        error_response.error = "server error"
+        error_response.is_empty.return_value = False
+        error_response.messages = []
 
-        req_arg = mock_transport.queues_info.call_args[0][0]
-        assert req_arg.QueueName == "my-queue"
-        assert result is mock_response
+        call_count = 0
+        original = client.subscribe_to_queue
+
+        async def fake_subscribe(**kwargs):
+            nonlocal call_count
+            call_count += 1
+            yield error_response
+            token.cancel()
+
+        async def error_cb(err):
+            errors.append(str(err))
+
+        with patch.object(client, "subscribe_to_queue", side_effect=fake_subscribe):
+            await client.process_queue_messages(
+                channel="q1",
+                callback=AsyncMock(),
+                error_callback=error_cb,
+                cancellation_token=token,
+            )
+
+        assert len(errors) >= 1
+
+    @pytest.mark.asyncio
+    async def test_handler_error_calls_error_callback(self, mock_transport):
+        from kubemq.common.async_cancellation_token import AsyncCancellationToken
+        from kubemq.queues.async_client import AsyncQueuesPollResponse
+
+        client = AsyncClient(address="localhost:50000")
+        client._transport = mock_transport
+        client._connected = True
+
+        token = AsyncCancellationToken()
+        errors = []
+
+        mock_msg = MagicMock()
+        success_response = MagicMock(spec=AsyncQueuesPollResponse)
+        success_response.is_error = False
+        success_response.is_empty.return_value = False
+        success_response.messages = [mock_msg]
+        success_response.is_transaction_completed = True
+
+        async def failing_handler(msg):
+            raise ValueError("processing failed")
+
+        async def error_cb(err):
+            errors.append(err)
+
+        async def fake_subscribe(**kwargs):
+            yield success_response
+            token.cancel()
+
+        with patch.object(client, "subscribe_to_queue", side_effect=fake_subscribe):
+            await client.process_queue_messages(
+                channel="q1",
+                callback=failing_handler,
+                error_callback=error_cb,
+                cancellation_token=token,
+            )
+
+        assert len(errors) >= 1
+
+

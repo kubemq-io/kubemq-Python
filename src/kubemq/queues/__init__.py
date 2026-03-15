@@ -1,5 +1,4 @@
 from .async_client import AsyncClient, AsyncQueuesClient, AsyncQueuesPollResponse
-from .queues_info_response import QueueInfoModel, QueuesInfoModel
 from .queues_send_result import QueueBatchSendResult
 from .client import *  # noqa: F403
 from .downstream_receiver import *  # noqa: F403

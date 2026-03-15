@@ -195,8 +195,8 @@ class TestAsyncPubSubClientSubscription:
 
             sub_task = asyncio.create_task(subscribe())
 
-            # Wait for subscription to be established
-            await asyncio.sleep(0.5)
+            # Wait for subscription to be established on the server
+            await asyncio.sleep(2)
 
             # Send some events
             async with AsyncPubSubClient(
@@ -210,9 +210,10 @@ class TestAsyncPubSubClientSubscription:
                             body=f"event {i}".encode(),
                         )
                     )
+                    await asyncio.sleep(0.1)
 
             # Wait for events to be received
-            await asyncio.sleep(1)
+            await asyncio.sleep(2)
             token.cancel()
 
             with contextlib.suppress(asyncio.TimeoutError):

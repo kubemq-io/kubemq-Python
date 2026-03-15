@@ -6,6 +6,7 @@ from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from kubemq.common.channel_validators import validate_channel_name
 from kubemq.grpc import Event as pbEvent
 
 if sys.version_info >= (3, 11):
@@ -39,6 +40,7 @@ class EventStoreMessage(BaseModel):
     def channel_must_exist(cls, v):
         if not v:
             raise ValueError("Event Store message must have a channel.")
+        validate_channel_name(v)
         return v
 
     @field_validator("metadata", "body", "tags")
@@ -54,9 +56,6 @@ class EventStoreMessage(BaseModel):
         return v
 
     def encode(self, client_id: str) -> pbEvent:
-        tags = self.tags.copy()
-        tags["x-kubemq-client-id"] = client_id
-
         pb_event = pbEvent()
         pb_event.EventID = self.id or str(uuid4())
         pb_event.ClientID = client_id
@@ -64,7 +63,7 @@ class EventStoreMessage(BaseModel):
         pb_event.Metadata = self.metadata or ""
         pb_event.Body = self.body
         pb_event.Store = True
-        pb_event.Tags.update(tags)
+        pb_event.Tags.update(self.tags)
         return pb_event
 
     def with_updates(self, **kwargs) -> Self:
