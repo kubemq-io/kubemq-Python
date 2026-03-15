@@ -403,3 +403,92 @@ class TestChannelManagerCloseEdge:
         manager._client = None
         manager.close()
         assert manager.connection_state.is_connected is False
+
+
+# ==============================================================================
+# Coverage Gap Tests
+# ==============================================================================
+
+
+class TestChannelManagerIsChannelHealthyException:
+    """Cover lines 139-140: is_channel_healthy when _test_connection raises."""
+
+    @patch("kubemq.transport.channel_manager.grpc.insecure_channel")
+    @patch("kubemq.transport.channel_manager.grpc.intercept_channel")
+    @patch("kubemq.transport.channel_manager.kubemq_pb2_grpc.kubemqStub")
+    def test_exception_in_test_connection_returns_false(
+        self, mock_stub, mock_intercept, mock_insecure
+    ):
+        mock_channel = MagicMock()
+        mock_insecure.return_value = mock_channel
+        mock_intercept.return_value = mock_channel
+        mock_stub.return_value = MagicMock()
+
+        connection = Connection(address="localhost:50000", client_id="test")
+        logger = logging.getLogger("test")
+        manager = ChannelManager(connection, logger)
+
+        with patch.object(manager, "_test_connection", side_effect=RuntimeError("boom")):
+            assert manager.is_channel_healthy() is False
+
+
+class TestChannelManagerRecreateNoExistingChannel:
+    """Cover branch 161->169: recreate when _channel is already None."""
+
+    @patch("kubemq.transport.channel_manager.time.sleep")
+    @patch("kubemq.transport.channel_manager.grpc.insecure_channel")
+    @patch("kubemq.transport.channel_manager.grpc.intercept_channel")
+    @patch("kubemq.transport.channel_manager.kubemq_pb2_grpc.kubemqStub")
+    def test_recreate_when_channel_already_none(
+        self, mock_stub, mock_intercept, mock_insecure, mock_sleep
+    ):
+        mock_channel = MagicMock()
+        mock_insecure.return_value = mock_channel
+        mock_intercept.return_value = mock_channel
+        mock_client = MagicMock()
+        mock_client.Ping.return_value = MagicMock()
+        mock_stub.return_value = mock_client
+
+        connection = Connection(
+            address="localhost:50000",
+            client_id="test",
+            reconnect_interval_seconds=0,
+        )
+        logger = logging.getLogger("test")
+        manager = ChannelManager(connection, logger)
+
+        manager._channel = None
+        manager._client = None
+
+        new_client = manager.recreate_channel()
+        assert new_client is not None
+        assert manager.connection_state.is_connected is True
+
+
+class TestChannelManagerRecreateGenericException:
+    """Cover lines 203-205: recreate_channel fails with non-ConnectionError."""
+
+    @patch("kubemq.transport.channel_manager.time.sleep")
+    @patch("kubemq.transport.channel_manager.grpc.insecure_channel")
+    @patch("kubemq.transport.channel_manager.grpc.intercept_channel")
+    @patch("kubemq.transport.channel_manager.kubemq_pb2_grpc.kubemqStub")
+    def test_recreate_raises_on_generic_failure(
+        self, mock_stub, mock_intercept, mock_insecure, mock_sleep
+    ):
+        mock_channel = MagicMock()
+        mock_insecure.return_value = mock_channel
+        mock_intercept.return_value = mock_channel
+        mock_stub.return_value = MagicMock()
+
+        connection = Connection(
+            address="localhost:50000",
+            client_id="test",
+            reconnect_interval_seconds=0,
+        )
+        logger = logging.getLogger("test")
+        manager = ChannelManager(connection, logger)
+
+        mock_intercept.side_effect = RuntimeError("DNS resolution failed")
+
+        with pytest.raises(RuntimeError, match="DNS resolution"):
+            manager.recreate_channel()

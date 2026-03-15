@@ -2238,3 +2238,748 @@ class TestSubscribeStoreWithCallbackStreamErrors:
                 EventsStoreSubscription(channel="ch", on_receive_event_callback=lambda e: None),
                 AsyncMock(),
             )
+
+
+# ==============================================================================
+# Extended Coverage Tests — 95% target
+# ==============================================================================
+
+
+class TestAsyncClientGetEventSenderLazyInit:
+    """Tests for _get_event_sender() lazy init (lines 108-115)."""
+
+    @pytest.mark.asyncio
+    async def test_get_event_sender_creates_on_first_call(self, mock_transport):
+        client = AsyncClient(address="localhost:50000")
+        client._transport = mock_transport
+        client._connected = True
+
+        assert client._event_sender is None
+
+        with patch(
+            "kubemq.pubsub.async_client.AsyncEventSender"
+        ) as mock_sender_class:
+            mock_sender = AsyncMock()
+            mock_sender.start = AsyncMock()
+            mock_sender_class.return_value = mock_sender
+
+            sender = await client._get_event_sender()
+
+            assert sender is mock_sender
+            mock_sender.start.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_get_event_sender_returns_same_instance(self, mock_transport):
+        client = AsyncClient(address="localhost:50000")
+        client._transport = mock_transport
+        client._connected = True
+
+        mock_sender = AsyncMock()
+        client._event_sender = mock_sender
+
+        sender = await client._get_event_sender()
+        assert sender is mock_sender
+
+
+class TestAsyncClientSendEventUnary:
+    """Tests for send_event_unary() (lines 173-219)."""
+
+    @pytest.mark.asyncio
+    async def test_send_event_unary_success(self, mock_transport):
+        client = AsyncClient(address="localhost:50000")
+        client._transport = mock_transport
+        client._connected = True
+
+        mock_result = MagicMock()
+        mock_result.Sent = True
+        mock_result.Error = ""
+        mock_transport.send_event.return_value = mock_result
+
+        message = EventMessage(channel="ch", body=b"hello")
+        await client.send_event_unary(message)
+
+        mock_transport.send_event.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_send_event_unary_server_error_raises(self, mock_transport):
+        from kubemq.core.exceptions import KubeMQError
+
+        client = AsyncClient(address="localhost:50000")
+        client._transport = mock_transport
+        client._connected = True
+
+        mock_result = MagicMock()
+        mock_result.Sent = False
+        mock_result.Error = "channel does not exist"
+        mock_transport.send_event.return_value = mock_result
+
+        message = EventMessage(channel="bad-ch", body=b"hello")
+        with pytest.raises(KubeMQError, match="channel does not exist"):
+            await client.send_event_unary(message)
+
+    @pytest.mark.asyncio
+    async def test_send_event_unary_validation_error(self, mock_transport):
+        from pydantic import ValidationError as PydanticValidationError
+        from kubemq.core.exceptions import KubeMQValidationError
+
+        client = AsyncClient(address="localhost:50000")
+        client._transport = mock_transport
+        client._connected = True
+
+        message = EventMessage(channel="ch", body=b"test")
+        validation_err = PydanticValidationError.from_exception_data(
+            title="EventMessage", line_errors=[]
+        )
+        with patch.object(EventMessage, "encode", side_effect=validation_err):
+            with pytest.raises(KubeMQValidationError) as exc_info:
+                await client.send_event_unary(message)
+            assert exc_info.value.__cause__ is validation_err
+
+    @pytest.mark.asyncio
+    async def test_send_event_unary_transport_error(self, mock_transport):
+        client = AsyncClient(address="localhost:50000")
+        client._transport = mock_transport
+        client._connected = True
+
+        mock_transport.send_event.side_effect = RuntimeError("transport down")
+
+        message = EventMessage(channel="ch", body=b"test")
+        with pytest.raises(RuntimeError, match="transport down"):
+            await client.send_event_unary(message)
+
+    @pytest.mark.asyncio
+    async def test_send_event_unary_span_attributes(self, mock_transport):
+        client = _make_connected_client(mock_transport)
+        mock_transport.send_event = AsyncMock()
+
+        mock_result = MagicMock()
+        mock_result.Sent = True
+        mock_result.Error = ""
+        mock_transport.send_event.return_value = mock_result
+
+        mock_span = MagicMock()
+        mock_span.is_recording.return_value = True
+        mock_span.__enter__ = MagicMock(return_value=mock_span)
+        mock_span.__exit__ = MagicMock(return_value=False)
+
+        mock_instrumentor = MagicMock()
+        mock_instrumentor.start_span.return_value = mock_span
+        client._instrumentor = mock_instrumentor
+
+        message = EventMessage(channel="ch", body=b"data")
+        await client.send_event_unary(message)
+
+        assert mock_span.set_attribute.call_count == 2
+
+
+class TestAsyncClientSubscriptionCallbackErrorIsolation:
+    """Tests for subscription callback branches: error_callback raises logged (lines 462-463)."""
+
+    @pytest.mark.asyncio
+    async def test_handler_error_callback_raises_is_logged(self, mock_transport):
+        client = _make_connected_client(mock_transport)
+        pb_ev = _make_pb_event()
+        mock_transport.subscribe_to_events = MagicMock(
+            return_value=AsyncIteratorMock([pb_ev])
+        )
+
+        def bad_handler(event):
+            raise ValueError("handler crash")
+
+        async def bad_err_cb(msg):
+            raise RuntimeError("error callback crashed")
+
+        sub = EventsSubscription(
+            channel="ch",
+            on_receive_event_callback=bad_handler,
+            on_error_callback=bad_err_cb,
+        )
+
+        events = []
+        async for ev in client.subscribe_to_events(sub):
+            events.append(ev)
+
+        assert len(events) == 1
+
+    @pytest.mark.asyncio
+    async def test_subscribe_with_callback_error_callback_raises_is_logged(self, mock_transport):
+        client = _make_connected_client(mock_transport)
+        pb_ev = _make_pb_event()
+        mock_transport.subscribe_to_events = MagicMock(
+            return_value=AsyncIteratorMock([pb_ev])
+        )
+
+        async def bad_cb(event):
+            raise ValueError("handler boom")
+
+        async def bad_err_cb(error):
+            raise RuntimeError("error callback boom")
+
+        with patch("kubemq.pubsub.async_client._logger") as mock_logger:
+            await client.subscribe_with_callback(
+                EventsSubscription(channel="ch", on_receive_event_callback=lambda e: None),
+                bad_cb,
+                error_callback=bad_err_cb,
+                max_concurrent_callbacks=1,
+            )
+            mock_logger.exception.assert_called()
+
+
+class TestAsyncClientSubscribeToEventsStoreResumeSequence:
+    """Tests for subscribe_to_events_store resume from sequence (lines 565-570)."""
+
+    @pytest.mark.asyncio
+    async def test_store_subscription_resumes_from_sequence(self, mock_transport):
+        from kubemq.pubsub.events_store_subscription import EventsStoreSubscription
+
+        client = _make_connected_client(mock_transport)
+
+        pb_ev1 = MagicMock()
+        pb_ev1.EventID = "ev-1"
+        pb_ev1.Channel = "store-ch"
+        pb_ev1.Metadata = ""
+        pb_ev1.Body = b"data1"
+        pb_ev1.Timestamp = 1234567890
+        pb_ev1.Sequence = 42
+        pb_ev1.Tags = {}
+
+        retryable = KubeMQConnectionError("lost", is_retryable=True)
+
+        pb_ev2 = MagicMock()
+        pb_ev2.EventID = "ev-2"
+        pb_ev2.Channel = "store-ch"
+        pb_ev2.Metadata = ""
+        pb_ev2.Body = b"data2"
+        pb_ev2.Timestamp = 1234567891
+        pb_ev2.Sequence = 43
+        pb_ev2.Tags = {}
+
+        call_count = [0]
+        captured_requests = []
+
+        def mock_subscribe(request, token=None):
+            call_count[0] += 1
+            captured_requests.append(request)
+            if call_count[0] == 1:
+                return RaisingAsyncIterator([pb_ev1], retryable)
+            return AsyncIteratorMock([pb_ev2])
+
+        mock_transport.subscribe_to_events = mock_subscribe
+
+        errors = []
+
+        def err_cb(msg):
+            errors.append(msg)
+
+        sub = EventsStoreSubscription(
+            channel="store-ch",
+            on_receive_event_callback=lambda e: None,
+            on_error_callback=err_cb,
+        )
+
+        events = []
+        with patch("kubemq.pubsub.async_client.asyncio.sleep", new_callable=AsyncMock):
+            async for ev in client.subscribe_to_events_store(sub):
+                events.append(ev)
+
+        assert len(events) == 2
+        assert events[0].sequence == 42
+        assert events[1].sequence == 43
+        assert call_count[0] == 2
+
+
+class TestAsyncClientSubscribeStoreWithCallbackResumeSequence:
+    """Tests for subscribe_store_with_callback resume from sequence (lines 929-934)."""
+
+    @pytest.mark.asyncio
+    async def test_store_callback_resumes_from_sequence(self, mock_transport):
+        from kubemq.pubsub.events_store_subscription import EventsStoreSubscription
+
+        client = _make_connected_client(mock_transport)
+
+        pb_ev1 = MagicMock()
+        pb_ev1.EventID = "ev-1"
+        pb_ev1.Channel = "store-ch"
+        pb_ev1.Metadata = ""
+        pb_ev1.Body = b"data1"
+        pb_ev1.Timestamp = 1234567890
+        pb_ev1.Sequence = 10
+        pb_ev1.Tags = {}
+
+        retryable = KubeMQConnectionError("lost", is_retryable=True)
+
+        pb_ev2 = MagicMock()
+        pb_ev2.EventID = "ev-2"
+        pb_ev2.Channel = "store-ch"
+        pb_ev2.Metadata = ""
+        pb_ev2.Body = b"data2"
+        pb_ev2.Timestamp = 1234567891
+        pb_ev2.Sequence = 11
+        pb_ev2.Tags = {}
+
+        call_count = [0]
+
+        def mock_subscribe(request, token=None):
+            call_count[0] += 1
+            if call_count[0] == 1:
+                return RaisingAsyncIterator([pb_ev1], retryable)
+            return AsyncIteratorMock([pb_ev2])
+
+        mock_transport.subscribe_to_events = mock_subscribe
+
+        received = []
+        errors = []
+
+        async def cb(event):
+            received.append(event)
+
+        async def err_cb(error):
+            errors.append(error)
+
+        with patch("kubemq.pubsub.async_client.asyncio.sleep", new_callable=AsyncMock):
+            await client.subscribe_store_with_callback(
+                EventsStoreSubscription(
+                    channel="store-ch",
+                    on_receive_event_callback=lambda e: None,
+                ),
+                cb,
+                error_callback=err_cb,
+            )
+
+        assert len(received) == 2
+        assert call_count[0] == 2
+
+
+class TestAsyncClientCloseWithEventSender:
+    """Tests for close() with active event sender."""
+
+    @pytest.mark.asyncio
+    async def test_close_closes_event_sender(self, mock_transport):
+        client = AsyncClient(address="localhost:50000")
+        client._transport = mock_transport
+        client._connected = True
+
+        mock_sender = AsyncMock()
+        mock_sender.close = AsyncMock()
+        client._event_sender = mock_sender
+
+        with patch.object(type(client).__bases__[0], "close", new_callable=AsyncMock):
+            await client.close()
+
+        mock_sender.close.assert_called_once()
+        assert client._event_sender is None
+
+
+class TestAsyncClientSubscribeWithCallbackErrorCallbackRaisesStore:
+    """Test error_callback itself raising in store with callback (lines 968-969)."""
+
+    @pytest.mark.asyncio
+    async def test_store_callback_error_callback_raises_is_logged(self, mock_transport):
+        from kubemq.pubsub.events_store_subscription import EventsStoreSubscription
+
+        client = _make_connected_client(mock_transport)
+        pb_ev = _make_pb_event()
+        mock_transport.subscribe_to_events = MagicMock(
+            return_value=AsyncIteratorMock([pb_ev])
+        )
+
+        async def bad_cb(event):
+            raise ValueError("store handler boom")
+
+        async def bad_err_cb(error):
+            raise RuntimeError("error callback boom")
+
+        with patch("kubemq.pubsub.async_client._logger") as mock_logger:
+            await client.subscribe_store_with_callback(
+                EventsStoreSubscription(
+                    channel="ch", on_receive_event_callback=lambda e: None
+                ),
+                bad_cb,
+                error_callback=bad_err_cb,
+                max_concurrent_callbacks=1,
+            )
+            mock_logger.exception.assert_called()
+
+
+class TestAsyncClientPublishEventStoreNoneResult:
+    """Test publish_event_store returns empty result on None."""
+
+    @pytest.mark.asyncio
+    async def test_publish_event_store_none_result(self, mock_transport):
+        client = _make_connected_client(mock_transport)
+        client._event_sender.send = AsyncMock(return_value=None)
+
+        msg = EventStoreMessage(channel="ch", body=b"x")
+        result = await client.publish_event_store(msg)
+
+        assert result.sent is False
+
+
+# ==============================================================================
+# Additional Targeted Coverage Tests — 95% target
+# ==============================================================================
+
+from kubemq.pubsub.event_message_received import EventMessageReceived
+from kubemq.pubsub.event_store_message_received import EventStoreMessageReceived
+from kubemq.pubsub.events_store_subscription import EventsStoreSubscription
+
+
+class TestSubscribeToEventsProcessingError:
+    """Cover lines 470-475: processing error in subscribe_to_events."""
+
+    @pytest.mark.asyncio
+    async def test_decode_error_propagates(self, mock_transport):
+        """EventMessageReceived.decode raising -> proc_err path."""
+        client = _make_connected_client(mock_transport)
+        pb_ev = _make_pb_event()
+        mock_transport.subscribe_to_events = MagicMock(
+            return_value=AsyncIteratorMock([pb_ev])
+        )
+
+        sub = EventsSubscription(
+            channel="ch",
+            on_receive_event_callback=lambda e: None,
+        )
+
+        with patch.object(
+            EventMessageReceived, "decode", side_effect=RuntimeError("decode failed")
+        ):
+            with pytest.raises(RuntimeError, match="decode failed"):
+                async for _ in client.subscribe_to_events(sub):
+                    pass
+
+
+class TestSubscribeToEventsStoreErrorCallbackRaises:
+    """Cover lines 613-614: error callback itself raises in store subscribe."""
+
+    @pytest.mark.asyncio
+    async def test_store_error_callback_raises_is_logged(self, mock_transport):
+        """error_callback raises in store async-iter subscribe -> logged."""
+        client = _make_connected_client(mock_transport)
+        pb_ev = _make_pb_event()
+        mock_transport.subscribe_to_events = MagicMock(
+            return_value=AsyncIteratorMock([pb_ev])
+        )
+
+        def bad_handler(event):
+            raise ValueError("handler crash")
+
+        async def bad_err_cb(msg):
+            raise RuntimeError("error callback crashed")
+
+        sub = EventsStoreSubscription(
+            channel="ch",
+            on_receive_event_callback=bad_handler,
+            on_error_callback=bad_err_cb,
+        )
+
+        events = []
+        async for ev in client.subscribe_to_events_store(sub):
+            events.append(ev)
+
+        assert len(events) == 1
+
+
+class TestSubscribeToEventsStoreProcessingError:
+    """Cover lines 621-626: processing error in subscribe_to_events_store."""
+
+    @pytest.mark.asyncio
+    async def test_store_decode_error_propagates(self, mock_transport):
+        """EventStoreMessageReceived.decode raising -> proc_err path."""
+        client = _make_connected_client(mock_transport)
+        pb_ev = _make_pb_event()
+        mock_transport.subscribe_to_events = MagicMock(
+            return_value=AsyncIteratorMock([pb_ev])
+        )
+
+        sub = EventsStoreSubscription(
+            channel="ch",
+            on_receive_event_callback=lambda e: None,
+        )
+
+        with patch.object(
+            EventStoreMessageReceived, "decode", side_effect=RuntimeError("store decode")
+        ):
+            with pytest.raises(RuntimeError, match="store decode"):
+                async for _ in client.subscribe_to_events_store(sub):
+                    pass
+
+
+class TestSubscribeToEventsStoreNonRetryableAsyncCallback:
+    """Cover line 642: non-retryable error with async on_error_callback in store."""
+
+    @pytest.mark.asyncio
+    async def test_non_retryable_async_callback(self, mock_transport):
+        client = _make_connected_client(mock_transport)
+        non_retryable = KubeMQError("fatal store", is_retryable=False)
+        mock_transport.subscribe_to_events = MagicMock(
+            return_value=RaisingAsyncIterator([], non_retryable)
+        )
+
+        errors = []
+
+        async def async_err_cb(msg):
+            errors.append(msg)
+
+        sub = EventsStoreSubscription(
+            channel="ch",
+            on_receive_event_callback=lambda e: None,
+            on_error_callback=async_err_cb,
+        )
+
+        with pytest.raises(KubeMQError, match="fatal store"):
+            async for _ in client.subscribe_to_events_store(sub):
+                pass
+
+        assert len(errors) == 1
+
+
+class TestSubscribeToEventsStoreGenericExceptionAsyncCallback:
+    """Cover line 673: generic exception with async on_error_callback in store."""
+
+    @pytest.mark.asyncio
+    async def test_generic_exception_async_callback(self, mock_transport):
+        client = _make_connected_client(mock_transport)
+        mock_transport.subscribe_to_events = MagicMock(
+            return_value=RaisingAsyncIterator([], RuntimeError("store async err"))
+        )
+
+        errors = []
+
+        async def async_err_cb(msg):
+            errors.append(msg)
+
+        sub = EventsStoreSubscription(
+            channel="ch",
+            on_receive_event_callback=lambda e: None,
+            on_error_callback=async_err_cb,
+        )
+
+        with pytest.raises(RuntimeError, match="store async err"):
+            async for _ in client.subscribe_to_events_store(sub):
+                pass
+
+        assert len(errors) == 1
+
+
+class TestSubscribeToEventsRetryableAsyncCallback:
+    """Cover line 505: retryable error with async on_error_callback in events."""
+
+    @pytest.mark.asyncio
+    async def test_retryable_async_callback(self, mock_transport):
+        client = _make_connected_client(mock_transport)
+        retryable = KubeMQConnectionError("events lost", is_retryable=True)
+        pb_ev = _make_pb_event()
+        mock_transport.subscribe_to_events = OneShotRetryIterator(retryable, [pb_ev])
+
+        errors = []
+
+        async def async_err_cb(msg):
+            errors.append(msg)
+
+        sub = EventsSubscription(
+            channel="ch",
+            on_receive_event_callback=lambda e: None,
+            on_error_callback=async_err_cb,
+        )
+
+        events = []
+        with patch("kubemq.pubsub.async_client.asyncio.sleep", new_callable=AsyncMock):
+            async for ev in client.subscribe_to_events(sub):
+                events.append(ev)
+
+        assert len(events) == 1
+        assert len(errors) == 1
+        assert "Stream broken" in errors[0]
+
+
+class TestSubscribeToEventsNonRetryableAsyncCallback:
+    """Cover line 491: non-retryable error with async on_error_callback in events."""
+
+    @pytest.mark.asyncio
+    async def test_non_retryable_async_callback(self, mock_transport):
+        client = _make_connected_client(mock_transport)
+        non_retryable = KubeMQError("fatal events", is_retryable=False)
+        mock_transport.subscribe_to_events = MagicMock(
+            return_value=RaisingAsyncIterator([], non_retryable)
+        )
+
+        errors = []
+
+        async def async_err_cb(msg):
+            errors.append(msg)
+
+        sub = EventsSubscription(
+            channel="ch",
+            on_receive_event_callback=lambda e: None,
+            on_error_callback=async_err_cb,
+        )
+
+        with pytest.raises(KubeMQError, match="fatal events"):
+            async for _ in client.subscribe_to_events(sub):
+                pass
+
+        assert len(errors) == 1
+
+
+class TestSubscribeToEventsStoreRetryableAsyncCallback:
+    """Cover line 656: retryable error with async on_error_callback in store."""
+
+    @pytest.mark.asyncio
+    async def test_retryable_async_callback(self, mock_transport):
+        client = _make_connected_client(mock_transport)
+        retryable = KubeMQConnectionError("store lost", is_retryable=True)
+        pb_ev = _make_pb_event()
+        mock_transport.subscribe_to_events = OneShotRetryIterator(retryable, [pb_ev])
+
+        errors = []
+
+        async def async_err_cb(msg):
+            errors.append(msg)
+
+        sub = EventsStoreSubscription(
+            channel="ch",
+            on_receive_event_callback=lambda e: None,
+            on_error_callback=async_err_cb,
+        )
+
+        events = []
+        with patch("kubemq.pubsub.async_client.asyncio.sleep", new_callable=AsyncMock):
+            async for ev in client.subscribe_to_events_store(sub):
+                events.append(ev)
+
+        assert len(events) == 1
+        assert len(errors) == 1
+        assert "Stream broken" in errors[0]
+
+
+class TestSubscribeWithCallbackProcessingError:
+    """Cover lines 786-791: processing error in subscribe_with_callback."""
+
+    @pytest.mark.asyncio
+    async def test_decode_error_propagates(self, mock_transport):
+        """EventMessageReceived.decode raising -> proc_err re-raised."""
+        client = _make_connected_client(mock_transport)
+        pb_ev = _make_pb_event()
+        mock_transport.subscribe_to_events = MagicMock(
+            return_value=AsyncIteratorMock([pb_ev])
+        )
+
+        async def callback(event):
+            pass
+
+        with patch.object(
+            EventMessageReceived, "decode", side_effect=RuntimeError("cb decode fail")
+        ):
+            with pytest.raises(RuntimeError, match="cb decode fail"):
+                await client.subscribe_with_callback(
+                    EventsSubscription(channel="ch", on_receive_event_callback=lambda e: None),
+                    callback,
+                )
+
+
+class TestSubscribeWithCallbackRetryableNoErrorCb:
+    """Cover line 846 false branch: retryable error without error_callback."""
+
+    @pytest.mark.asyncio
+    async def test_retryable_no_callback_retries(self, mock_transport):
+        """Retryable KubeMQError without error_callback still retries."""
+        client = _make_connected_client(mock_transport)
+        retryable = KubeMQConnectionError("conn lost", is_retryable=True)
+        pb_ev = _make_pb_event()
+        mock_transport.subscribe_to_events = OneShotRetryIterator(retryable, [pb_ev])
+
+        received = []
+
+        async def cb(event):
+            received.append(event)
+
+        with patch("kubemq.pubsub.async_client.asyncio.sleep", new_callable=AsyncMock):
+            await client.subscribe_with_callback(
+                EventsSubscription(channel="ch", on_receive_event_callback=lambda e: None),
+                cb,
+            )
+
+        assert len(received) == 1
+
+
+class TestSubscribeStoreWithCallbackProcessingError:
+    """Cover lines 975-980: processing error in subscribe_store_with_callback."""
+
+    @pytest.mark.asyncio
+    async def test_store_decode_error_propagates(self, mock_transport):
+        """EventStoreMessageReceived.decode raising -> proc_err re-raised."""
+        client = _make_connected_client(mock_transport)
+        pb_ev = _make_pb_event()
+        mock_transport.subscribe_to_events = MagicMock(
+            return_value=AsyncIteratorMock([pb_ev])
+        )
+
+        async def callback(event):
+            pass
+
+        with patch.object(
+            EventStoreMessageReceived, "decode", side_effect=RuntimeError("store cb decode")
+        ):
+            with pytest.raises(RuntimeError, match="store cb decode"):
+                await client.subscribe_store_with_callback(
+                    EventsStoreSubscription(
+                        channel="ch", on_receive_event_callback=lambda e: None
+                    ),
+                    callback,
+                )
+
+
+class TestSubscribeStoreWithCallbackRetryableNoErrorCb:
+    """Cover line 1036 false branch: retryable error without error_callback."""
+
+    @pytest.mark.asyncio
+    async def test_store_retryable_no_callback_retries(self, mock_transport):
+        """Retryable KubeMQError without error_callback still retries."""
+        client = _make_connected_client(mock_transport)
+        retryable = KubeMQConnectionError("store lost", is_retryable=True)
+        pb_ev = _make_pb_event()
+        mock_transport.subscribe_to_events = OneShotRetryIterator(retryable, [pb_ev])
+
+        received = []
+
+        async def cb(event):
+            received.append(event)
+
+        with patch("kubemq.pubsub.async_client.asyncio.sleep", new_callable=AsyncMock):
+            await client.subscribe_store_with_callback(
+                EventsStoreSubscription(
+                    channel="ch", on_receive_event_callback=lambda e: None
+                ),
+                cb,
+            )
+
+        assert len(received) == 1
+
+
+class TestSubscribeStoreWithCallbackConcurrentErrorCallbackRaises:
+    """Cover lines 996-997: concurrent store callback error_callback raises."""
+
+    @pytest.mark.asyncio
+    async def test_concurrent_store_error_callback_raises(self, mock_transport):
+        """error_callback raises in concurrent store path -> silently caught."""
+        client = _make_connected_client(mock_transport)
+        pb_ev = _make_pb_event()
+        mock_transport.subscribe_to_events = MagicMock(
+            return_value=AsyncIteratorMock([pb_ev])
+        )
+
+        async def bad_cb(event):
+            raise ValueError("concurrent store err")
+
+        async def bad_err_cb(error):
+            raise RuntimeError("err cb exploded")
+
+        await client.subscribe_store_with_callback(
+            EventsStoreSubscription(channel="ch", on_receive_event_callback=lambda e: None),
+            bad_cb,
+            error_callback=bad_err_cb,
+            max_concurrent_callbacks=3,
+        )
+
+        await asyncio.sleep(0.05)

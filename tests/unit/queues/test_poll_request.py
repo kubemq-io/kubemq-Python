@@ -213,3 +213,25 @@ class TestQueuesPollRequestChannelValidation:
     def test_trailing_dot_raises(self):
         with pytest.raises(ValueError, match="end with"):
             QueuesPollRequest(channel="q.")
+
+
+class TestQueuesPollRequestEncodeWithMetadata:
+    """Test encode() with non-empty metadata dict."""
+
+    def test_encode_metadata_set_on_protobuf(self):
+        request = QueuesPollRequest(
+            channel="test-queue",
+            metadata={"trace-id": "abc123", "env": "test"},
+        )
+
+        pb_request = request.encode("client-1")
+
+        assert pb_request.Metadata["trace-id"] == "abc123"
+        assert pb_request.Metadata["env"] == "test"
+
+    def test_encode_empty_metadata_no_keys(self):
+        request = QueuesPollRequest(channel="test-queue")
+
+        pb_request = request.encode("client-1")
+
+        assert len(pb_request.Metadata) == 0

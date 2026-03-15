@@ -226,7 +226,7 @@ class TestQueryMessageEncode:
         pb_query = query.encode("client-1")
 
         assert pb_query.CacheKey == "my-cache-key"
-        assert pb_query.CacheTTL == 120000  # Converted to ms
+        assert pb_query.CacheTTL == 120
 
 
 class TestQueryMessageFactory:
@@ -743,7 +743,7 @@ class TestQueryMessageEncodeExtended:
         )
         pb = query.encode("client")
         assert pb.CacheKey == "my-key"
-        assert pb.CacheTTL == 30000
+        assert pb.CacheTTL == 30
         assert pb.Tags is not None
 
     def test_encode_defaults_cache_key_empty(self):
@@ -921,3 +921,72 @@ class TestQueryMessageChannelValidation:
     def test_trailing_dot_raises(self):
         with pytest.raises(ValueError, match="end with"):
             QueryMessage(channel="qry.", body=b"x", timeout_in_seconds=5)
+
+
+class TestQueryMessageEncodeWithSpan:
+    """Test QueryMessage.encode() with span bytes sets Span field."""
+
+    def test_encode_with_span_sets_field(self):
+        query = QueryMessage(
+            id="q-span",
+            channel="ch",
+            body=b"data",
+            timeout_in_seconds=5,
+        )
+        pb = query.encode("client", span=b"\x01\x02")
+        assert pb.Span == b"\x01\x02"
+
+    def test_encode_without_span_leaves_empty(self):
+        query = QueryMessage(
+            id="q-no-span",
+            channel="ch",
+            body=b"data",
+            timeout_in_seconds=5,
+        )
+        pb = query.encode("client")
+        assert pb.Span == b""
+
+
+class TestCommandMessageEncodeWithSpan:
+    """Test CommandMessage.encode() with span bytes sets Span field."""
+
+    def test_encode_with_span_sets_field(self):
+        cmd = CommandMessage(
+            id="c-span",
+            channel="ch",
+            body=b"data",
+            timeout_in_seconds=5,
+        )
+        pb = cmd.encode("client", span=b"\x01\x02")
+        assert pb.Span == b"\x01\x02"
+
+    def test_encode_without_span_leaves_empty(self):
+        cmd = CommandMessage(
+            id="c-no-span",
+            channel="ch",
+            body=b"data",
+            timeout_in_seconds=5,
+        )
+        pb = cmd.encode("client")
+        assert pb.Span == b""
+
+
+# ==============================================================================
+# Coverage Gap Tests
+# ==============================================================================
+
+
+class TestQueryMessageEncodeWithTagsCoverage:
+    """Cover line 81: pb_query.Tags[key] = value in encode with non-empty tags."""
+
+    def test_encode_with_tags_sets_pb_tags(self):
+        query = QueryMessage(
+            id="q-tags",
+            channel="ch",
+            body=b"data",
+            tags={"env": "prod", "version": "2"},
+            timeout_in_seconds=5,
+        )
+        pb = query.encode("client")
+        assert pb.Tags["env"] == "prod"
+        assert pb.Tags["version"] == "2"

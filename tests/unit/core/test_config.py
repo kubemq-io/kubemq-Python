@@ -331,7 +331,7 @@ KUBEMQ_CLIENT_ID=dotenv-client
 
     def test_default_max_message_size(self):
         """Test the default max message size constant."""
-        assert ClientConfig.DEFAULT_MAX_MESSAGE_SIZE == 100 * 1024 * 1024  # 100MB
+        assert ClientConfig.DEFAULT_MAX_MESSAGE_SIZE == 4 * 1024 * 1024  # 4MB (spec default)
 
     def test_address_defaults_when_empty(self):
         """Test that empty address defaults to localhost:50000."""

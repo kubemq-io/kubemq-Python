@@ -24,7 +24,6 @@ from kubemq.grpc import kubemq_pb2 as pb
 from kubemq.queues.async_upstream_sender import AsyncUpstreamSender
 from kubemq.queues.queues_message import QueueMessage
 from kubemq.queues.queues_message_received import QueueMessageReceived
-from kubemq.queues.queues_info_response import QueuesInfoModel
 from kubemq.queues.queues_send_result import QueueBatchSendResult, QueueSendResult
 
 if TYPE_CHECKING:
@@ -257,6 +256,55 @@ class AsyncClient(NativeAsyncBaseClient):
     # Send Operations
     # =========================================================================
 
+    async def send_queue_message_simple(
+        self,
+        message: QueueMessage,
+    ) -> QueueSendResult:
+        """Send a single queue message via unary SendQueueMessage RPC.
+
+        Uses the unary ``SendQueueMessage`` RPC for single-shot delivery.
+
+        Args:
+            message: The queue message to send
+
+        Returns:
+            QueueSendResult with send confirmation
+        """
+        self._validate_message_size(message.body)
+        start = time.perf_counter()
+        error_type_val = None
+        with self._instrumentor.start_span("send", message.channel) as span:
+            try:
+                self._ensure_connected()
+                assert self._transport is not None
+                pb_message = message.encode_message(self._config.client_id or "")
+                tags_dict = dict(pb_message.Tags)
+                KubeMQTagsCarrier(tags_dict).inject()
+                pb_message.Tags.update(tags_dict)
+                if span.is_recording():
+                    from kubemq._internal.semconv import (
+                        MESSAGING_MESSAGE_BODY_SIZE,
+                        MESSAGING_MESSAGE_ID,
+                    )
+                    span.set_attribute(MESSAGING_MESSAGE_ID, message.id)
+                    span.set_attribute(MESSAGING_MESSAGE_BODY_SIZE, len(message.body))
+                result = await self._transport.send_queue_message(pb_message)
+                self._instrumentor._metrics.record_sent_message("send", message.channel)
+                return QueueSendResult.decode(result)
+            except ValidationError as e:
+                error_type_val = "validation"
+                self._instrumentor.record_error(span, e, error_type_val)
+                raise KubeMQValidationError(str(e), is_retryable=False) from e
+            except Exception as e:
+                error_type_val = error_code_to_error_type(getattr(e, "code", None))
+                self._instrumentor.record_error(span, e, error_type_val)
+                raise
+            finally:
+                duration = time.perf_counter() - start
+                self._instrumentor._metrics.record_operation_duration(
+                    duration, "send", message.channel, error_type_val
+                )
+
     async def send_queue_message(
         self,
         message: QueueMessage,
@@ -376,6 +424,8 @@ class AsyncClient(NativeAsyncBaseClient):
             The simple receive RPC doesn't support auto_ack at the protocol level.
             If auto_ack is True, messages are acknowledged after being received.
         """
+        if not self._config.client_id:
+            raise ValueError("ClientID required for downstream operations")
         if max_messages < 1 or max_messages > 1024:
             raise ValueError("max_messages must be between 1 and 1024")
         if wait_timeout_seconds < 0 or wait_timeout_seconds > 3600:
@@ -672,24 +722,6 @@ class AsyncClient(NativeAsyncBaseClient):
 
         return response.AffectedMessages
 
-    async def queues_info(self, queue_name: str = "") -> QueuesInfoModel:
-        """Get queue information and statistics.
-
-        Args:
-            queue_name: Optional queue name to filter. Empty string returns all queues.
-
-        Returns:
-            QueuesInfoModel with aggregate and per-queue statistics.
-        """
-        self._ensure_connected()
-        assert self._transport is not None
-
-        request = pb.QueuesInfoRequest()
-        request.RequestID = str(uuid.uuid4())
-        request.QueueName = queue_name
-
-        response = await self._transport.queues_info(request)
-        return QueuesInfoModel.decode(response)
 
 
 # Alias for backward compatibility and clearer naming

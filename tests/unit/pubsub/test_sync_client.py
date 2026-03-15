@@ -1631,3 +1631,536 @@ class TestSyncPubSubClientGrpcErrorNonRetryable:
 
         assert len(errors) >= 1
         assert "Stream broken" in errors[0]
+
+
+# ==============================================================================
+# Extended Coverage Tests — 95% target
+# ==============================================================================
+
+
+class TestSyncPubSubClientSendEventUnary:
+    """Tests for send_event() unary RPC path (lines 221-268)."""
+
+    def test_send_event_unary_success(self):
+        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+            mock_transport = MagicMock()
+            mock_transport.initialize.return_value = mock_transport
+            mock_transport_class.return_value = mock_transport
+
+            mock_grpc_client = MagicMock()
+            mock_result = MagicMock()
+            mock_result.Sent = True
+            mock_result.Error = ""
+            mock_grpc_client.SendEvent.return_value = mock_result
+            mock_transport.kubemq_client.return_value = mock_grpc_client
+
+            client = Client(address="localhost:50000")
+            message = EventMessage(channel="test-channel", body=b"hello")
+
+            client.send_event(message)
+
+            mock_grpc_client.SendEvent.assert_called_once()
+
+    def test_send_event_unary_server_error_raises(self):
+        from kubemq.core.exceptions import KubeMQError
+
+        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+            mock_transport = MagicMock()
+            mock_transport.initialize.return_value = mock_transport
+            mock_transport_class.return_value = mock_transport
+
+            mock_grpc_client = MagicMock()
+            mock_result = MagicMock()
+            mock_result.Sent = False
+            mock_result.Error = "channel does not exist"
+            mock_grpc_client.SendEvent.return_value = mock_result
+            mock_transport.kubemq_client.return_value = mock_grpc_client
+
+            client = Client(address="localhost:50000")
+            message = EventMessage(channel="bad-channel", body=b"hello")
+
+            with pytest.raises(KubeMQError, match="channel does not exist"):
+                client.send_event(message)
+
+    def test_send_event_unary_validation_error(self):
+        from pydantic import ValidationError as PydanticValidationError
+
+        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+            mock_transport = MagicMock()
+            mock_transport.initialize.return_value = mock_transport
+            mock_transport_class.return_value = mock_transport
+
+            client = Client(address="localhost:50000")
+            message = EventMessage(channel="ch", body=b"test")
+
+            validation_err = PydanticValidationError.from_exception_data(
+                title="EventMessage", line_errors=[]
+            )
+            with patch.object(EventMessage, "encode", side_effect=validation_err):
+                with pytest.raises(KubeMQValidationError) as exc_info:
+                    client.send_event(message)
+                assert exc_info.value.__cause__ is validation_err
+
+    def test_send_event_unary_transport_error(self):
+        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+            mock_transport = MagicMock()
+            mock_transport.initialize.return_value = mock_transport
+            mock_transport_class.return_value = mock_transport
+
+            mock_grpc_client = MagicMock()
+            mock_grpc_client.SendEvent.side_effect = FakeRpcError()
+            mock_transport.kubemq_client.return_value = mock_grpc_client
+
+            client = Client(address="localhost:50000")
+            message = EventMessage(channel="ch", body=b"test")
+
+            with pytest.raises(grpc.RpcError):
+                client.send_event(message)
+
+
+class TestSyncPubSubClientSpanRecording:
+    """Tests for span recording branches (lines 281-287, 349-354)."""
+
+    def test_publish_event_span_attributes_set(self):
+        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+            mock_transport = MagicMock()
+            mock_transport.initialize.return_value = mock_transport
+            mock_transport_class.return_value = mock_transport
+
+            client = Client(address="localhost:50000")
+
+            mock_sender = MagicMock()
+            mock_sender.send.return_value = None
+            client._event_sender = mock_sender
+
+            mock_span = MagicMock()
+            mock_span.is_recording.return_value = True
+            mock_span.__enter__ = MagicMock(return_value=mock_span)
+            mock_span.__exit__ = MagicMock(return_value=False)
+
+            mock_instrumentor = MagicMock()
+            mock_instrumentor.start_span.return_value = mock_span
+            client._instrumentor = mock_instrumentor
+
+            message = EventMessage(channel="ch", body=b"hello")
+            client.publish_event(message)
+
+            assert mock_span.set_attribute.call_count == 2
+
+    def test_publish_event_store_span_attributes_set(self):
+        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+            mock_transport = MagicMock()
+            mock_transport.initialize.return_value = mock_transport
+            mock_transport_class.return_value = mock_transport
+
+            client = Client(address="localhost:50000")
+
+            mock_pb_result = pb.Result()
+            mock_pb_result.Sent = True
+            mock_pb_result.EventID = "ev-1"
+
+            mock_sender = MagicMock()
+            mock_sender.send.return_value = mock_pb_result
+            client._event_sender = mock_sender
+
+            mock_span = MagicMock()
+            mock_span.is_recording.return_value = True
+            mock_span.__enter__ = MagicMock(return_value=mock_span)
+            mock_span.__exit__ = MagicMock(return_value=False)
+
+            mock_instrumentor = MagicMock()
+            mock_instrumentor.start_span.return_value = mock_span
+            client._instrumentor = mock_instrumentor
+
+            message = EventStoreMessage(channel="ch", body=b"hello")
+            result = client.publish_event_store(message)
+
+            assert mock_span.set_attribute.call_count == 2
+            assert result.sent is True
+
+
+class TestSyncPubSubClientEventsStoreSubscription:
+    """Tests for events store subscription with sequence tracking (lines 620-636)."""
+
+    def test_subscribe_to_events_store_builds_store_args(self):
+        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+            mock_transport = MagicMock()
+            mock_transport.initialize.return_value = mock_transport
+            mock_transport_class.return_value = mock_transport
+
+            client = Client(address="localhost:50000")
+
+            from kubemq.pubsub.events_store_subscription import EventsStoreType
+
+            subscription = EventsStoreSubscription(
+                channel="store-channel",
+                on_receive_event_callback=lambda msg: None,
+                events_store_type=EventsStoreType.StartNewOnly,
+            )
+
+            with patch("kubemq.pubsub.client.threading.Thread") as mock_thread:
+                mock_thread_instance = MagicMock()
+                mock_thread.return_value = mock_thread_instance
+
+                client.subscribe_to_events_store(subscription)
+
+                mock_thread.assert_called_once()
+                call_kwargs = mock_thread.call_args[1]
+                assert call_kwargs["daemon"] is True
+                assert len(call_kwargs["args"]) == 5
+                mock_thread_instance.start.assert_called_once()
+
+
+class TestSyncPubSubClientSubscribeTaskNonRetryable:
+    """Tests for _subscribe_task non-retryable gRPC error (lines 723-724)."""
+
+    def _make_client(self):
+        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+            mock_transport = MagicMock()
+            mock_transport.initialize.return_value = mock_transport
+            mock_transport_class.return_value = mock_transport
+            client = Client(address="localhost:50000")
+        return client
+
+    def test_subscribe_task_non_retryable_grpc_error_breaks(self):
+        class FakeNonRetryableRpcError(grpc.RpcError):
+            def code(self):
+                return grpc.StatusCode.PERMISSION_DENIED
+
+            def details(self):
+                return "permission denied"
+
+        client = self._make_client()
+        cancel_token = threading.Event()
+        errors = []
+
+        def stream_callable():
+            raise FakeNonRetryableRpcError()
+
+        def decode_callable(msg):
+            pass
+
+        def error_callable(err):
+            errors.append(err)
+
+        client._subscribe_task(
+            stream_callable, decode_callable, error_callable, cancel_token, "ch"
+        )
+
+        assert len(errors) >= 1
+        assert "Stream broken" in errors[0]
+
+
+class TestSyncPubSubClientSendEventUnarySpan:
+    """Tests for send_event() span recording (lines 244-250)."""
+
+    def test_send_event_unary_span_attributes(self):
+        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+            mock_transport = MagicMock()
+            mock_transport.initialize.return_value = mock_transport
+            mock_transport_class.return_value = mock_transport
+
+            mock_grpc_client = MagicMock()
+            mock_result = MagicMock()
+            mock_result.Sent = True
+            mock_result.Error = ""
+            mock_grpc_client.SendEvent.return_value = mock_result
+            mock_transport.kubemq_client.return_value = mock_grpc_client
+
+            client = Client(address="localhost:50000")
+
+            mock_span = MagicMock()
+            mock_span.is_recording.return_value = True
+            mock_span.__enter__ = MagicMock(return_value=mock_span)
+            mock_span.__exit__ = MagicMock(return_value=False)
+
+            mock_instrumentor = MagicMock()
+            mock_instrumentor.start_span.return_value = mock_span
+            client._instrumentor = mock_instrumentor
+
+            message = EventMessage(channel="ch", body=b"data")
+            client.send_event(message)
+
+            assert mock_span.set_attribute.call_count == 2
+            mock_instrumentor._metrics.record_sent_message.assert_called_once_with(
+                "publish", "ch"
+            )
+            mock_instrumentor._metrics.record_operation_duration.assert_called_once()
+
+
+# ==============================================================================
+# Store Subscription Closure Execution Tests — 95% target
+# ==============================================================================
+
+
+class TestSyncClientCloseAsyncTransportNone:
+    """Test close_async when _transport is None (line 182->exit branch)."""
+
+    @pytest.mark.asyncio
+    async def test_close_async_skips_when_transport_is_none(self):
+        """close_async exits cleanly without calling transport.close_async."""
+        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+            mock_transport = MagicMock()
+            mock_transport.initialize.return_value = mock_transport
+            mock_transport_class.return_value = mock_transport
+            client = Client(address="localhost:50000")
+
+        client._transport = None
+        await client.close_async()
+
+
+class TestSyncClientStoreClosureExecution:
+    """Execute store-subscription closures created by _subscribe (lines 620-657)."""
+
+    def _setup_store(self, callback):
+        """Create client, subscribe to store, return (client, args_tuple)."""
+        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+            mock_transport = MagicMock()
+            mock_transport.initialize.return_value = mock_transport
+            mock_transport_class.return_value = mock_transport
+            client = Client(address="localhost:50000")
+
+            sub = EventsStoreSubscription(
+                channel="store-ch",
+                on_receive_event_callback=callback,
+            )
+
+            with patch("kubemq.pubsub.client.threading.Thread") as mock_thread:
+                mock_thread.return_value = MagicMock()
+                client.subscribe_to_events_store(sub)
+                args = mock_thread.call_args[1]["args"]
+
+        return client, args
+
+    def _make_mock_store_msg(self, event_id="ev-1", sequence=42):
+        m = MagicMock()
+        m.EventID = event_id
+        m.Channel = "store-ch"
+        m.Metadata = ""
+        m.Body = b"body"
+        m.Timestamp = 100
+        m.Sequence = sequence
+        m.Tags = {}
+        return m
+
+    def test_decode_and_track_decodes_and_tracks_sequence(self):
+        """Lines 632-636: closure decodes message, tracks seq, fires callback."""
+        received = []
+        _, args = self._setup_store(lambda msg: received.append(msg))
+        decode_and_track = args[1]
+
+        decode_and_track(self._make_mock_store_msg(sequence=42))
+
+        assert len(received) == 1
+        assert received[0].sequence == 42
+        assert received[0].id == "ev-1"
+
+    def test_make_store_stream_resumes_after_tracked_seq(self):
+        """Lines 623-630: make_store_stream resumes from last_seq+1."""
+        client, args = self._setup_store(lambda msg: None)
+        make_store_stream, decode_and_track = args[0], args[1]
+
+        make_store_stream()
+        decode_and_track(self._make_mock_store_msg(sequence=10))
+        make_store_stream()
+
+        assert client._transport.kubemq_client().SubscribeToEvents.call_count == 2
+
+    def test_subscribe_task_with_store_closures(self):
+        """End-to-end: _subscribe_task processes messages via store closures."""
+        received = []
+        cancel = threading.Event()
+        client, args = self._setup_store(lambda msg: received.append(msg))
+        _, decode_and_track, error_callable, _, channel = args
+
+        mock_msg = self._make_mock_store_msg(sequence=5)
+
+        def decode_then_cancel(msg):
+            decode_and_track(msg)
+            cancel.set()
+
+        client._subscribe_task(
+            lambda: iter([mock_msg]),
+            decode_then_cancel,
+            error_callable,
+            cancel,
+            channel,
+        )
+
+        assert len(received) == 1
+        assert received[0].sequence == 5
+
+
+class TestSyncClientAsyncStoreClosureExecution:
+    """Execute async store closures from _subscribe_async (lines 785-820)."""
+
+    def _make_client(self):
+        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+            mock_transport = MagicMock()
+            mock_transport.initialize.return_value = mock_transport
+            mock_transport_class.return_value = mock_transport
+            return Client(address="localhost:50000")
+
+    async def _capture_async_closures(self, client, sub):
+        """Call _subscribe_async and capture the closures passed to _subscribe_task_async."""
+        captured = {}
+
+        async def capturing_task(
+            stream_callable, decode_callable, error_callable, cancel_token, channel=""
+        ):
+            captured["stream_callable"] = stream_callable
+            captured["decode_callable"] = decode_callable
+
+        cancel = CancellationToken()
+        cancel.cancel()
+
+        with patch.object(client, "_subscribe_task_async", side_effect=capturing_task):
+            with patch("kubemq.pubsub.client.asyncio.create_task") as mock_ct:
+                coro_holder = [None]
+
+                def save_coro(coro):
+                    coro_holder[0] = coro
+                    return MagicMock()
+
+                mock_ct.side_effect = save_coro
+                client._subscribe_async(sub, cancel)
+                if coro_holder[0] is not None:
+                    await coro_holder[0]
+
+        return captured
+
+    @pytest.mark.asyncio
+    async def test_async_store_decode_and_track_closure(self):
+        """Lines 797-801: decode_and_track_async decodes, tracks seq, calls async callback."""
+        client = self._make_client()
+        received = []
+
+        async def on_event(msg):
+            received.append(msg)
+
+        sub = EventsStoreSubscription(
+            channel="store-ch",
+            on_receive_event_callback=on_event,
+        )
+
+        captured = await self._capture_async_closures(client, sub)
+
+        mock_msg = MagicMock()
+        mock_msg.EventID = "ev-1"
+        mock_msg.Channel = "store-ch"
+        mock_msg.Metadata = ""
+        mock_msg.Body = b"data"
+        mock_msg.Timestamp = 123
+        mock_msg.Sequence = 42
+        mock_msg.Tags = {}
+
+        await captured["decode_callable"](mock_msg)
+
+        assert len(received) == 1
+        assert received[0].sequence == 42
+
+    @pytest.mark.asyncio
+    async def test_async_store_stream_callable_resumes(self):
+        """Lines 788-795: make_store_stream_async resumes from tracked seq."""
+        client = self._make_client()
+        sub = EventsStoreSubscription(
+            channel="store-ch",
+            on_receive_event_callback=lambda msg: None,
+        )
+
+        captured = await self._capture_async_closures(client, sub)
+
+        captured["stream_callable"]()
+
+        mock_msg = MagicMock()
+        mock_msg.EventID = "e"
+        mock_msg.Channel = "c"
+        mock_msg.Metadata = ""
+        mock_msg.Body = b"d"
+        mock_msg.Timestamp = 1
+        mock_msg.Sequence = 10
+        mock_msg.Tags = {}
+        await captured["decode_callable"](mock_msg)
+
+        captured["stream_callable"]()
+
+        assert client._transport.kubemq_client().SubscribeToEvents.call_count == 2
+
+
+class TestSyncClientSubscribeTaskLinksAppend:
+    """Test links.append when create_link_from_context returns non-None."""
+
+    def _make_client(self):
+        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+            mock_transport = MagicMock()
+            mock_transport.initialize.return_value = mock_transport
+            mock_transport_class.return_value = mock_transport
+            return Client(address="localhost:50000")
+
+    def test_subscribe_task_links_appended(self):
+        """Line 686: links.append(link) when link is non-None."""
+        client = self._make_client()
+        cancel = threading.Event()
+        received = []
+
+        mock_msg = MagicMock()
+        mock_msg.Tags = {"traceparent": "00-abc-def-01"}
+
+        def decode_callable(msg):
+            received.append(msg)
+            cancel.set()
+
+        with patch("kubemq.pubsub.client.create_link_from_context") as mock_link_fn:
+            mock_link_fn.return_value = MagicMock()
+            client._subscribe_task(
+                lambda: iter([mock_msg]),
+                decode_callable,
+                lambda err: None,
+                cancel,
+                "ch",
+            )
+
+        assert len(received) == 1
+
+    @pytest.mark.asyncio
+    async def test_subscribe_task_async_links_appended(self):
+        """Line 850: links.append(link) in async task when link is non-None."""
+        client = self._make_client()
+        cancel = threading.Event()
+        decoded = []
+
+        mock_msg = MagicMock()
+        mock_msg.Tags = {"traceparent": "00-abc-def-01"}
+        messages_iter = iter([mock_msg])
+        call_count = [0]
+
+        async def mock_to_thread(fn, *args):
+            call_count[0] += 1
+            if call_count[0] == 1:
+                return messages_iter
+            try:
+                return next(args[0]) if args else fn()
+            except StopIteration:
+                cancel.set()
+                raise
+
+        async def decode(msg):
+            decoded.append(msg)
+
+        async def on_error(err):
+            pass
+
+        with (
+            patch("kubemq.pubsub.client.asyncio.to_thread", side_effect=mock_to_thread),
+            patch("kubemq.pubsub.client.create_link_from_context") as mock_link_fn,
+        ):
+            mock_link_fn.return_value = MagicMock()
+            await client._subscribe_task_async(
+                lambda: messages_iter,
+                decode,
+                on_error,
+                cancel,
+                "ch",
+            )
+
+        assert len(decoded) == 1

@@ -570,3 +570,159 @@ class TestQueuesPollResponseRequestTypeAndMetadata:
         )
 
         assert response.response_metadata == {"key": "value"}
+
+
+class TestQueuesPollResponseDoOperationWithResponse:
+    """Tests for _do_operation_with_response edge cases."""
+
+    def test_with_metadata_dict(self):
+        mock_resp = MagicMock()
+        mock_resp.ActiveOffsets = [5]
+        handler = MagicMock(return_value=mock_resp)
+
+        response = QueuesPollResponse(
+            transaction_id="txn-1",
+            receiver_client_id="receiver",
+            response_handler=handler,
+            active_offsets=[1],
+        )
+
+        result = response._do_operation_with_response(
+            QueuesDownstreamRequestType.ActiveOffsets,
+            metadata={"key": "val"},
+        )
+
+        assert result is mock_resp
+        request = handler.call_args[0][0]
+        assert request.Metadata["key"] == "val"
+
+    def test_handler_raises_wraps_in_value_error(self):
+        handler = MagicMock(side_effect=RuntimeError("handler boom"))
+
+        response = QueuesPollResponse(
+            transaction_id="txn-1",
+            receiver_client_id="receiver",
+            response_handler=handler,
+            active_offsets=[1],
+        )
+
+        with pytest.raises(ValueError, match="Failed to perform"):
+            response._do_operation_with_response(QueuesDownstreamRequestType.ActiveOffsets)
+
+    def test_no_handler_raises_value_error(self):
+        response = QueuesPollResponse(
+            transaction_id="txn-1",
+            receiver_client_id="receiver",
+            response_handler=None,
+        )
+
+        with pytest.raises(ValueError, match="not set"):
+            response._do_operation_with_response(QueuesDownstreamRequestType.ActiveOffsets)
+
+
+class TestQueuesPollResponseDecodeException:
+    """Test decode exception branch."""
+
+    def test_decode_raises_value_error_on_bad_response(self):
+        pb_msg = MagicMock()
+        pb_msg.MessageID = "msg-1"
+        pb_msg.Channel = "ch"
+        pb_msg.Metadata = ""
+        pb_msg.Body = b""
+        pb_msg.ClientID = "client"
+        pb_msg.Tags = {}
+        pb_msg.Attributes = None
+
+        pb_resp = MagicMock()
+        pb_resp.RefRequestId = "req-1"
+        pb_resp.TransactionId = "txn-1"
+        pb_resp.Messages = [pb_msg]
+        pb_resp.Error = ""
+        pb_resp.IsError = False
+        pb_resp.TransactionComplete = False
+        pb_resp.ActiveOffsets = property(lambda s: (_ for _ in ()).throw(TypeError("boom")))
+
+        with pytest.raises(ValueError, match="Failed to decode"):
+            QueuesPollResponse.decode(
+                response=pb_resp,
+                receiver_client_id="receiver",
+                response_handler=MagicMock(),
+            )
+
+
+class TestQueuesPollResponseStrException:
+    """Test __str__ exception handler path."""
+
+    def test_str_exception_path(self):
+        response = QueuesPollResponse(
+            ref_request_id="req-1",
+            transaction_id="txn-1",
+        )
+        original_messages = response.messages
+
+        class BadLen:
+            def __len__(self):
+                raise RuntimeError("boom")
+
+        object.__setattr__(response, "messages", BadLen())
+        s = str(response)
+        assert "Error displaying response" in s
+        object.__setattr__(response, "messages", original_messages)
+
+
+# ==============================================================================
+# Coverage Gap Tests
+# ==============================================================================
+
+
+class TestQueuesPollResponseDoOperationWithMetadata:
+    """Cover lines 301-302: _do_operation with metadata dict."""
+
+    def test_do_operation_passes_metadata_to_request(self):
+        handler = MagicMock()
+        response = QueuesPollResponse(
+            transaction_id="txn-1",
+            receiver_client_id="receiver",
+            response_handler=handler,
+            active_offsets=[1],
+            is_auto_acked=False,
+            is_transaction_completed=False,
+        )
+        response._do_operation(
+            QueuesDownstreamRequestType.AckAll,
+            metadata={"trace-id": "abc123"},
+        )
+        request = handler.call_args[0][0]
+        assert request.Metadata["trace-id"] == "abc123"
+        assert response.is_transaction_completed is True
+
+
+class TestQueuesPollResponseGetActiveOffsetsFallback:
+    """Cover line 178: get_active_offsets when handler returns None."""
+
+    def test_returns_stored_offsets_when_handler_returns_none(self):
+        handler = MagicMock(return_value=None)
+        response = QueuesPollResponse(
+            transaction_id="txn-1",
+            receiver_client_id="receiver",
+            response_handler=handler,
+            active_offsets=[10, 20],
+        )
+        offsets = response.get_active_offsets()
+        assert offsets == [10, 20]
+
+
+class TestQueuesPollResponseGetTransactionStatusFallback:
+    """Cover line 189: get_transaction_status when handler returns None."""
+
+    def test_returns_stored_status_when_handler_returns_none(self):
+        handler = MagicMock(return_value=None)
+        response = QueuesPollResponse(
+            transaction_id="txn-1",
+            receiver_client_id="receiver",
+            response_handler=handler,
+            active_offsets=[1],
+            is_transaction_completed=True,
+        )
+        status = response.get_transaction_status()
+        assert status is True

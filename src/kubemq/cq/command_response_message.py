@@ -46,6 +46,8 @@ class CommandResponseMessage(BaseModel):
     def encode(self, client_id: str) -> pbResponse:
         if not self.command_received:
             raise ValueError("Command received is required for encoding.")
+        if not self.command_received.id or self.command_received.id.strip() == "":
+            raise ValueError("RequestID cannot be empty")
         pb_response = pbResponse()
         pb_response.ClientID = client_id
         pb_response.RequestID = self.command_received.id

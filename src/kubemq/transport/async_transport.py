@@ -961,40 +961,6 @@ class AsyncTransport:
             await self._unregister_stream(call)
 
     # =========================================================================
-    # Queue Info Operations
-    # =========================================================================
-
-    async def queues_info(
-        self,
-        request: pb.QueuesInfoRequest,
-    ) -> pb.QueuesInfoResponse:
-        """Get queue information.
-
-        Args:
-            request: The queue info request.
-
-        Returns:
-            QueuesInfoResponse with queue details.
-
-        Raises:
-            KubeMQConnectionError: If not connected.
-            KubeMQTimeoutError: If operation times out.
-        """
-        self._ensure_connected()
-        try:
-            result = await asyncio.wait_for(
-                self._stub.QueuesInfo(request),
-                timeout=self._config.default_timeout_seconds,
-            )
-            return result
-        except asyncio.TimeoutError as e:
-            raise KubeMQTimeoutError("Queue info request timed out") from e
-        except grpc.aio.AioRpcError as e:
-            if self._is_connection_error(e):
-                await self._on_connection_lost()
-            raise from_grpc_error(e) from e
-
-    # =========================================================================
     # Context Manager Support
     # =========================================================================
 

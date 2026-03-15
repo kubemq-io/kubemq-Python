@@ -31,7 +31,7 @@ from kubemq.pubsub.event_message_received import EventMessageReceived
 from kubemq.pubsub.event_send_result import EventSendResult
 from kubemq.pubsub.event_store_message import EventStoreMessage
 from kubemq.pubsub.event_store_message_received import EventStoreMessageReceived
-from kubemq.pubsub.events_store_subscription import EventsStoreSubscription
+from kubemq.pubsub.events_store_subscription import EventsStoreSubscription, EventsStoreType
 from kubemq.pubsub.events_subscription import EventsSubscription
 
 if TYPE_CHECKING:
@@ -156,6 +156,54 @@ class AsyncClient(NativeAsyncBaseClient):
                 sender = await self._get_event_sender()
                 await sender.send(pb_event)
                 self._instrumentor._metrics.record_sent_message("publish", message.channel)
+            except ValidationError as e:
+                error_type_val = "validation"
+                self._instrumentor.record_error(span, e, error_type_val)
+                raise KubeMQValidationError(str(e), is_retryable=False) from e
+            except Exception as e:
+                error_type_val = error_code_to_error_type(getattr(e, "code", None))
+                self._instrumentor.record_error(span, e, error_type_val)
+                raise
+            finally:
+                duration = time.perf_counter() - start
+                self._instrumentor._metrics.record_operation_duration(
+                    duration, "publish", message.channel, error_type_val
+                )
+
+    async def send_event_unary(self, message: EventMessage) -> None:
+        """Send an event message via unary SendEvent RPC.
+
+        Uses the unary ``SendEvent`` RPC for single-shot delivery.
+
+        Args:
+            message: The event message to send.
+
+        Raises:
+            KubeMQValidationError: If message is invalid.
+            KubeMQError: If the server returns Sent=false.
+        """
+        self._validate_message_size(message.body)
+        self._ensure_connected()
+        assert self._transport is not None
+        start = time.perf_counter()
+        error_type_val = None
+        with self._instrumentor.start_span("publish", message.channel) as span:
+            try:
+                pb_event = message.encode(self._config.client_id or "")
+                tags_dict = dict(pb_event.Tags)
+                KubeMQTagsCarrier(tags_dict).inject()
+                pb_event.Tags.update(tags_dict)
+                if span.is_recording():
+                    from kubemq._internal.semconv import (
+                        MESSAGING_MESSAGE_BODY_SIZE,
+                        MESSAGING_MESSAGE_ID,
+                    )
+                    span.set_attribute(MESSAGING_MESSAGE_ID, message.id)
+                    span.set_attribute(MESSAGING_MESSAGE_BODY_SIZE, len(message.body))
+                result = await self._transport.send_event(pb_event)
+                self._instrumentor._metrics.record_sent_message("publish", message.channel)
+                if result and not result.Sent and result.Error:
+                    raise KubeMQError(result.Error)
             except ValidationError as e:
                 error_type_val = "validation"
                 self._instrumentor.record_error(span, e, error_type_val)
@@ -509,11 +557,19 @@ class AsyncClient(NativeAsyncBaseClient):
 
         backoff = BackoffCalculator(self._config.retry_policy)
         attempt = 0
+        last_sequence = 0
 
         try:
             while not token.is_cancelled:
                 try:
-                    request = subscription.encode(self._config.client_id or "")
+                    if last_sequence > 0:
+                        resume_sub = subscription.model_copy(update={
+                            "events_store_type": EventsStoreType.StartAtSequence,
+                            "events_store_sequence_value": last_sequence + 1,
+                        })
+                        request = resume_sub.encode(self._config.client_id or "")
+                    else:
+                        request = subscription.encode(self._config.client_id or "")
 
                     async for pb_event in self._transport.subscribe_to_events(request, token):
                         attempt = 0
@@ -531,6 +587,9 @@ class AsyncClient(NativeAsyncBaseClient):
                         ) as span:
                             try:
                                 event = EventStoreMessageReceived.decode(pb_event)
+
+                                if event.sequence > 0:
+                                    last_sequence = event.sequence
 
                                 if subscription.on_receive_event_callback:
                                     try:
@@ -862,11 +921,19 @@ class AsyncClient(NativeAsyncBaseClient):
         pending_tasks: set[asyncio.Task] = set()  # type: ignore[type-arg]
         backoff = BackoffCalculator(self._config.retry_policy)
         attempt = 0
+        last_sequence = 0
 
         try:
             while not token.is_cancelled:
                 try:
-                    request = subscription.encode(self._config.client_id or "")
+                    if last_sequence > 0:
+                        resume_sub = subscription.model_copy(update={
+                            "events_store_type": EventsStoreType.StartAtSequence,
+                            "events_store_sequence_value": last_sequence + 1,
+                        })
+                        request = resume_sub.encode(self._config.client_id or "")
+                    else:
+                        request = subscription.encode(self._config.client_id or "")
 
                     if max_concurrent_callbacks == 1:
                         async for pb_event in self._transport.subscribe_to_events(request, token):
@@ -885,6 +952,8 @@ class AsyncClient(NativeAsyncBaseClient):
                             ) as span:
                                 try:
                                     event = EventStoreMessageReceived.decode(pb_event)
+                                    if event.sequence > 0:
+                                        last_sequence = event.sequence
                                     try:
                                         await callback(event)
                                     except Exception as handler_err:
@@ -938,6 +1007,8 @@ class AsyncClient(NativeAsyncBaseClient):
                         async for pb_event in self._transport.subscribe_to_events(request, token):
                             attempt = 0
                             event = EventStoreMessageReceived.decode(pb_event)
+                            if event.sequence > 0:
+                                last_sequence = event.sequence
                             self._instrumentor._metrics.record_consumed_message(
                                 "process", subscription.channel
                             )
