@@ -13,9 +13,7 @@ pytestmark = [pytest.mark.benchmark, pytest.mark.integration]
 class TestPublishLatency:
     """Measure publish latency percentiles for event store (confirmed delivery)."""
 
-    def test_event_store_latency_1kb(
-        self, benchmark, kubemq_address: str, payload_1kb: bytes
-    ):
+    def test_event_store_latency_1kb(self, benchmark, kubemq_address: str, payload_1kb: bytes):
         """Benchmark: event store send latency with 1KB payload (p50/p99)."""
         from kubemq.pubsub import Client as PubSubClient, EventStoreMessage
 

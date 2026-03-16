@@ -28,7 +28,7 @@ class HealthCheck:
     status: HealthStatus
     message: str = ""
     duration_ms: float = 0.0
-    details: dict = field(default_factory=dict)
+    details: dict[str, object] = field(default_factory=dict)
 
 
 @dataclass
@@ -190,7 +190,7 @@ class AsyncHealthChecker:
                     "uptime_seconds": server_info.server_up_time_seconds,
                 },
             )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             duration_ms = (time.monotonic() - start) * 1000
             return HealthCheck(
                 name="connection",

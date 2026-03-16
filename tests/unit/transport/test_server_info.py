@@ -8,7 +8,6 @@ from kubemq.transport.server_info import ServerInfo
 
 
 class TestServerInfoValidation:
-
     def test_valid_construction(self):
         info = ServerInfo(
             host="localhost",
@@ -40,15 +39,12 @@ class TestServerInfoValidation:
             )
 
     def test_frozen_model(self):
-        info = ServerInfo(
-            host="h", version="v", server_start_time=0, server_up_time_seconds=0
-        )
+        info = ServerInfo(host="h", version="v", server_start_time=0, server_up_time_seconds=0)
         with pytest.raises(Exception):
             info.host = "new"
 
 
 class TestServerInfoStr:
-
     def test_str_representation(self):
         info = ServerInfo(
             host="my-host",

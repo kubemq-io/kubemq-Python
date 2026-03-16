@@ -2,17 +2,14 @@
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator, Awaitable
+from collections.abc import AsyncIterator, Awaitable, Callable
 from datetime import datetime
 from enum import Enum, auto
 from typing import (
     TYPE_CHECKING,
     Any,
-    Callable,
-    Optional,
     Protocol,
     TypeVar,
-    Union,
     runtime_checkable,
 )
 
@@ -23,7 +20,7 @@ MessageT = TypeVar("MessageT", bound="BaseMessage")
 # Callback type aliases
 SyncCallback = Callable[[T], None]
 AsyncCallback = Callable[[T], Awaitable[None]]
-Callback = Union[SyncCallback[T], AsyncCallback[T]]
+Callback = SyncCallback[T] | AsyncCallback[T]
 
 # Error callback types
 ErrorCallback = Callable[[Exception], None]
@@ -31,7 +28,7 @@ SyncErrorCallback = ErrorCallback  # Alias for consistency
 AsyncErrorCallback = Callable[[Exception], Awaitable[None]]
 
 # Combined error callback type (accepts both sync and async)
-AnyErrorCallback = Union[ErrorCallback, AsyncErrorCallback]
+AnyErrorCallback = ErrorCallback | AsyncErrorCallback
 
 
 class ConnectionState(Enum):
@@ -79,7 +76,7 @@ class StartPosition(Enum):
 
 # Re-export ServerInfo from existing transport module
 # The existing ServerInfo is a Pydantic model - we re-export it for consistency
-from kubemq.transport.server_info import ServerInfo  # noqa: E402
+from kubemq.transport.server_info import ServerInfo as ServerInfo  # noqa: E402
 
 
 @runtime_checkable
@@ -98,7 +95,7 @@ class CredentialProvider(Protocol):
     - Raise any other exception for infrastructure errors (treated as transient)
     """
 
-    def get_token(self) -> tuple[str, Optional[datetime]]:
+    def get_token(self) -> tuple[str, datetime | None]:
         """Acquire an authentication token (synchronous).
 
         Returns:
@@ -129,7 +126,7 @@ class AsyncCredentialProvider(Protocol):
     - Raise any other exception for infrastructure errors (treated as transient)
     """
 
-    async def get_token(self) -> tuple[str, Optional[datetime]]:
+    async def get_token(self) -> tuple[str, datetime | None]:
         """Acquire an authentication token (asynchronous).
 
         Returns:
@@ -153,10 +150,21 @@ class Logger(Protocol):
         logger.info("connection established", client_id="abc", address="host:50000")
     """
 
-    def debug(self, msg: str, **kwargs: Any) -> None: ...
-    def info(self, msg: str, **kwargs: Any) -> None: ...
-    def warning(self, msg: str, **kwargs: Any) -> None: ...
-    def error(self, msg: str, **kwargs: Any) -> None: ...
+    def debug(self, msg: str, *args: Any, **kwargs: Any) -> None:
+        """Log a debug message."""
+        ...
+
+    def info(self, msg: str, *args: Any, **kwargs: Any) -> None:
+        """Log an informational message."""
+        ...
+
+    def warning(self, msg: str, *args: Any, **kwargs: Any) -> None:
+        """Log a warning message."""
+        ...
+
+    def error(self, msg: str, *args: Any, **kwargs: Any) -> None:
+        """Log an error message."""
+        ...
 
 
 @runtime_checkable

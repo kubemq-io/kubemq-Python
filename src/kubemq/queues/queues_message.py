@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from typing import ClassVar
+from typing import Any, ClassVar
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -106,8 +106,7 @@ class QueueMessage(BaseModel):
     # Validators
     @field_validator("channel")
     def channel_must_not_be_empty(cls, v: str) -> str:
-        """
-        Validate that the channel is not empty.
+        """Validate that the channel is not empty.
 
         Args:
             v: The channel value to validate
@@ -125,8 +124,7 @@ class QueueMessage(BaseModel):
 
     @field_validator("delay_in_seconds")
     def validate_delay(cls, v: int) -> int:
-        """
-        Validate that the delay is within acceptable limits.
+        """Validate that the delay is within acceptable limits.
 
         Args:
             v: The delay value to validate
@@ -143,8 +141,7 @@ class QueueMessage(BaseModel):
 
     @field_validator("expiration_in_seconds")
     def validate_expiration(cls, v: int) -> int:
-        """
-        Validate that the expiration is within acceptable limits.
+        """Validate that the expiration is within acceptable limits.
 
         Args:
             v: The expiration value to validate
@@ -163,8 +160,7 @@ class QueueMessage(BaseModel):
 
     @model_validator(mode="after")
     def check_message_content(self) -> QueueMessage:
-        """
-        Validate that the message has at least one of metadata, body, or tags.
+        """Validate that the message has at least one of metadata, body, or tags.
 
         Returns:
             The validated message
@@ -189,8 +185,7 @@ class QueueMessage(BaseModel):
 
     # Encoding methods
     def encode(self, client_id: str) -> pbQueuesUpstreamRequest:
-        """
-        Encode the message to a QueuesUpstreamRequest protobuf object.
+        """Encode the message to a QueuesUpstreamRequest protobuf object.
 
         This method is used when sending a message to the KubeMQ server.
 
@@ -207,8 +202,7 @@ class QueueMessage(BaseModel):
         return pb_queue_stream
 
     def encode_message(self, client_id: str) -> pbQueueMessage:
-        """
-        Encode the message to a QueueMessage protobuf object.
+        """Encode the message to a QueueMessage protobuf object.
 
         Args:
             client_id: The client ID to use for the message
@@ -232,8 +226,7 @@ class QueueMessage(BaseModel):
     # Decoding methods
     @classmethod
     def decode(cls, pb_message: pbQueueMessage) -> QueueMessage:
-        """
-        Create a QueueMessage from a protobuf QueueMessage.
+        """Create a QueueMessage from a protobuf QueueMessage.
 
         Args:
             pb_message: The protobuf QueueMessage to decode
@@ -258,9 +251,8 @@ class QueueMessage(BaseModel):
         )
 
     # Utility methods
-    def with_updates(self, **kwargs) -> QueueMessage:
-        """
-        Create a new QueueMessage with updated values.
+    def with_updates(self, **kwargs: Any) -> QueueMessage:
+        """Create a new QueueMessage with updated values.
 
         Since QueueMessage instances are immutable, this method creates a new
         instance with the specified updates.
@@ -276,8 +268,7 @@ class QueueMessage(BaseModel):
         return self.__class__(**data)
 
     def __str__(self) -> str:
-        """
-        Get a string representation of the message.
+        """Get a string representation of the message.
 
         Returns:
             A string representation of the message
@@ -294,8 +285,7 @@ class QueueMessage(BaseModel):
         )
 
     def __repr__(self) -> str:
-        """
-        Get a detailed representation of the message.
+        """Get a detailed representation of the message.
 
         Returns:
             A detailed representation of the message

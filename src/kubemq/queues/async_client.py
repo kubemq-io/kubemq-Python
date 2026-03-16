@@ -6,19 +6,19 @@ import asyncio
 import logging
 import time
 import uuid
-from collections.abc import AsyncIterator, Awaitable
+from collections.abc import AsyncIterator, Awaitable, Callable
 from typing import (
     TYPE_CHECKING,
-    Callable,
+    Any,
 )
+
+from pydantic import ValidationError
 
 from kubemq._internal.retry import BackoffCalculator
 from kubemq._internal.telemetry import KubeMQTagsCarrier, error_code_to_error_type
 from kubemq.common.async_cancellation_token import AsyncCancellationToken
 from kubemq.core.client import NativeAsyncBaseClient
 from kubemq.core.config import ClientConfig
-from pydantic import ValidationError
-
 from kubemq.core.exceptions import KubeMQHandlerError, KubeMQMessageError, KubeMQValidationError
 from kubemq.grpc import kubemq_pb2 as pb
 from kubemq.queues.async_upstream_sender import AsyncUpstreamSender
@@ -213,7 +213,7 @@ class AsyncClient(NativeAsyncBaseClient):
         client_id: str | None = None,
         auth_token: str | None = None,
         config: ClientConfig | None = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> None:
         """Initialize the async Queues client.
 
@@ -286,6 +286,7 @@ class AsyncClient(NativeAsyncBaseClient):
                         MESSAGING_MESSAGE_BODY_SIZE,
                         MESSAGING_MESSAGE_ID,
                     )
+
                     span.set_attribute(MESSAGING_MESSAGE_ID, message.id)
                     span.set_attribute(MESSAGING_MESSAGE_BODY_SIZE, len(message.body))
                 result = await self._transport.send_queue_message(pb_message)
@@ -333,6 +334,7 @@ class AsyncClient(NativeAsyncBaseClient):
                         MESSAGING_MESSAGE_BODY_SIZE,
                         MESSAGING_MESSAGE_ID,
                     )
+
                     span.set_attribute(MESSAGING_MESSAGE_ID, message.id)
                     span.set_attribute(MESSAGING_MESSAGE_BODY_SIZE, len(message.body))
                 sender = await self._get_upstream_sender()
@@ -721,7 +723,6 @@ class AsyncClient(NativeAsyncBaseClient):
             )
 
         return response.AffectedMessages
-
 
 
 # Alias for backward compatibility and clearer naming

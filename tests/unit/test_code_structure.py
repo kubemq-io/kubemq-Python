@@ -17,7 +17,6 @@ import re
 
 import kubemq
 
-
 _PKG_ROOT = pathlib.Path(kubemq.__file__).parent
 
 
@@ -28,9 +27,7 @@ class TestAllExports:
         for name in kubemq.__all__:
             obj = getattr(kubemq, name, _SENTINEL := object())
             assert obj is not _SENTINEL, f"__all__ entry '{name}' resolved to missing attribute"
-            assert obj is not None or name == "__version__", (
-                f"__all__ entry '{name}' is None"
-            )
+            assert obj is not None or name == "__version__", f"__all__ entry '{name}' is None"
 
     def test_all_entries_are_strings(self) -> None:
         for entry in kubemq.__all__:
@@ -61,9 +58,7 @@ class TestInternalIsolation:
     def test_internal_package_exists(self) -> None:
         internal_dir = _PKG_ROOT / "_internal"
         assert internal_dir.is_dir(), "_internal/ package directory must exist"
-        assert (internal_dir / "__init__.py").is_file(), (
-            "_internal/__init__.py must exist"
-        )
+        assert (internal_dir / "__init__.py").is_file(), "_internal/__init__.py must exist"
 
     def test_no_internal_reexport(self) -> None:
         """No symbol in __all__ should originate from _internal (by module path)."""
@@ -102,8 +97,7 @@ class TestPyTypedMarker:
     def test_py_typed_exists(self) -> None:
         marker = _PKG_ROOT / "py.typed"
         assert marker.exists(), (
-            f"py.typed marker not found at {marker}. "
-            "PEP 561 requires this for inline type stubs."
+            f"py.typed marker not found at {marker}. PEP 561 requires this for inline type stubs."
         )
 
     def test_py_typed_is_file(self) -> None:
@@ -113,9 +107,7 @@ class TestPyTypedMarker:
     def test_py_typed_is_empty_or_marker(self) -> None:
         marker = _PKG_ROOT / "py.typed"
         content = marker.read_text(encoding="utf-8").strip()
-        assert content == "", (
-            f"py.typed should be empty per PEP 561, but contains: {content!r}"
-        )
+        assert content == "", f"py.typed should be empty per PEP 561, but contains: {content!r}"
 
 
 class TestNoCircularImports:
@@ -147,9 +139,7 @@ class TestFileNaming:
                 continue
             if not self._FILENAME_RE.match(name):
                 violations.append(str(rel))
-        assert not violations, (
-            f"Files with non-PEP-8 names: {violations}"
-        )
+        assert not violations, f"Files with non-PEP-8 names: {violations}"
 
     def test_directory_names_lowercase(self) -> None:
         dir_re = re.compile(r"^_?[a-z][a-z0-9_]*$")
@@ -162,9 +152,7 @@ class TestFileNaming:
             dir_name = child.name
             if not dir_re.match(dir_name):
                 violations.append(str(child.relative_to(_PKG_ROOT)))
-        assert not violations, (
-            f"Directories with non-PEP-8 names: {violations}"
-        )
+        assert not violations, f"Directories with non-PEP-8 names: {violations}"
 
 
 class TestPatternLayout:
@@ -180,20 +168,14 @@ class TestPatternLayout:
     def test_sync_client_exists(self) -> None:
         for pattern in self._PATTERNS:
             client_file = _PKG_ROOT / pattern / "client.py"
-            assert client_file.is_file(), (
-                f"{pattern}/client.py missing"
-            )
+            assert client_file.is_file(), f"{pattern}/client.py missing"
 
     def test_async_client_exists(self) -> None:
         for pattern in self._PATTERNS:
             async_file = _PKG_ROOT / pattern / "async_client.py"
-            assert async_file.is_file(), (
-                f"{pattern}/async_client.py missing"
-            )
+            assert async_file.is_file(), f"{pattern}/async_client.py missing"
 
     def test_pattern_init_exists(self) -> None:
         for pattern in self._PATTERNS:
             init_file = _PKG_ROOT / pattern / "__init__.py"
-            assert init_file.is_file(), (
-                f"{pattern}/__init__.py missing"
-            )
+            assert init_file.is_file(), f"{pattern}/__init__.py missing"

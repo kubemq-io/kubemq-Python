@@ -29,9 +29,13 @@ def kubemq_container():
     try:
         subprocess.run(
             [
-                "docker", "run", "-d",
-                "--name", container_name,
-                "-p", f"{port}:50000",
+                "docker",
+                "run",
+                "-d",
+                "--name",
+                container_name,
+                "-p",
+                f"{port}:50000",
                 "kubemq/kubemq:v2.6.0",
             ],
             check=True,
@@ -54,7 +58,8 @@ class TestReconnection:
     """
 
     async def test_reconnect_after_server_restart(
-        self, kubemq_container: tuple[str, str],
+        self,
+        kubemq_container: tuple[str, str],
     ) -> None:
         container_name, port = kubemq_container
         address = f"localhost:{port}"
@@ -66,14 +71,10 @@ class TestReconnection:
         server_info = await client.ping()
         assert server_info is not None
 
-        subprocess.run(
-            ["docker", "stop", container_name], check=True, capture_output=True
-        )
+        subprocess.run(["docker", "stop", container_name], check=True, capture_output=True)
         await asyncio.sleep(3)
 
-        subprocess.run(
-            ["docker", "start", container_name], check=True, capture_output=True
-        )
+        subprocess.run(["docker", "start", container_name], check=True, capture_output=True)
         await asyncio.sleep(8)
 
         try:

@@ -1,6 +1,8 @@
 import logging
 import time
 import uuid
+from collections.abc import Callable
+from typing import Any
 
 import grpc
 
@@ -24,10 +26,10 @@ from kubemq.grpc import Request
 requests_channel = "kubemq.cluster.internal.requests"
 
 
-def create_channel_request(transport, client_id, channel_name, channel_type) -> bool | None:
-    """
-
-    This method creates a request to create a channel in the Kubemq server.
+def create_channel_request(
+    transport: Any, client_id: str | None, channel_name: str, channel_type: str
+) -> bool:
+    """This method creates a request to create a channel in the Kubemq server.
 
     Parameters:
     - transport: The transport object that handles the communication with the Kubemq server.
@@ -54,7 +56,7 @@ def create_channel_request(transport, client_id, channel_name, channel_type) -> 
             Tags={
                 "channel_type": channel_type,
                 "channel": channel_name,
-                "client_id": client_id,
+                "client_id": client_id or "",
             },
             Timeout=10 * 1000,
         )
@@ -64,14 +66,15 @@ def create_channel_request(transport, client_id, channel_name, channel_type) -> 
                 return True
             else:
                 raise CreateChannelError(response.Error)
+        return False
     except grpc.RpcError as e:
         raise GRPCError(decode_grpc_error(e)) from e
 
 
-def delete_channel_request(transport, client_id, channel_name, channel_type) -> bool | None:
-    """
-
-    This method is used to send a delete channel request to the Kubemq server. It deletes a channel with the specified name and type.
+def delete_channel_request(
+    transport: Any, client_id: str | None, channel_name: str, channel_type: str
+) -> bool:
+    """This method is used to send a delete channel request to the Kubemq server. It deletes a channel with the specified name and type.
 
     Parameters:
     - transport: The transport object used for communication with the Kubemq server.
@@ -97,7 +100,7 @@ def delete_channel_request(transport, client_id, channel_name, channel_type) -> 
             Tags={
                 "channel_type": channel_type,
                 "channel": channel_name,
-                "client_id": client_id,
+                "client_id": client_id or "",
             },
             Timeout=10 * 1000,
         )
@@ -107,6 +110,7 @@ def delete_channel_request(transport, client_id, channel_name, channel_type) -> 
                 return True
             else:
                 raise DeleteChannelError(response.Error)
+        return False
     except grpc.RpcError as e:
         raise GRPCError(decode_grpc_error(e)) from e
 
@@ -121,12 +125,20 @@ _logger = logging.getLogger("kubemq.common.requests")
 def _is_retryable_list_error(response_error: str | None, rpc_error: grpc.RpcError | None) -> bool:
     if response_error and _SNAPSHOT_NOT_READY in response_error:
         return True
-    if rpc_error and hasattr(rpc_error, "code") and rpc_error.code() == grpc.StatusCode.DEADLINE_EXCEEDED:
-        return True
-    return False
+    return bool(
+        rpc_error
+        and hasattr(rpc_error, "code")
+        and rpc_error.code() == grpc.StatusCode.DEADLINE_EXCEEDED
+    )
 
 
-def _list_channels_with_retry(transport, client_id, channel_type: str, channel_search: str, decode_fn):
+def _list_channels_with_retry(
+    transport: Any,
+    client_id: str | None,
+    channel_type: str,
+    channel_search: str,
+    decode_fn: Callable[[bytes], list[Any]],
+) -> list[Any]:
     """Shared retry wrapper for all list-channels operations.
 
     Retries on transient errors such as 'cluster snapshot not ready yet'
@@ -149,8 +161,15 @@ def _list_channels_with_retry(transport, client_id, channel_type: str, channel_s
                 if response.Executed:
                     return decode_fn(response.Body)
                 else:
-                    if _is_retryable_list_error(response.Error, None) and attempt < _LIST_MAX_RETRIES - 1:
-                        _logger.warning("List channels attempt %d failed: %s, retrying...", attempt + 1, response.Error)
+                    if (
+                        _is_retryable_list_error(response.Error, None)
+                        and attempt < _LIST_MAX_RETRIES - 1
+                    ):
+                        _logger.warning(
+                            "List channels attempt %d failed: %s, retrying...",
+                            attempt + 1,
+                            response.Error,
+                        )
                         time.sleep(_LIST_RETRY_DELAY)
                         continue
                     raise ListChannelsError(response.Error)
@@ -167,18 +186,28 @@ def _list_channels_with_retry(transport, client_id, channel_type: str, channel_s
     return []
 
 
-def list_queues_channels(transport, client_id, channel_search) -> list[QueuesChannel]:
+def list_queues_channels(
+    transport: Any, client_id: str | None, channel_search: str
+) -> list[QueuesChannel]:
     """List queues channels with retry on transient errors."""
-    return _list_channels_with_retry(transport, client_id, "queues", channel_search, decode_queues_channel_list)
+    return _list_channels_with_retry(
+        transport, client_id, "queues", channel_search, decode_queues_channel_list
+    )
 
 
 def list_pubsub_channels(
-    transport, client_id, channel_type: str, channel_search
+    transport: Any, client_id: str | None, channel_type: str, channel_search: str
 ) -> list[PubSubChannel]:
     """List pub/sub channels with retry on transient errors."""
-    return _list_channels_with_retry(transport, client_id, channel_type, channel_search, decode_pub_sub_channel_list)
+    return _list_channels_with_retry(
+        transport, client_id, channel_type, channel_search, decode_pub_sub_channel_list
+    )
 
 
-def list_cq_channels(transport, client_id, channel_type: str, channel_search) -> list[CQChannel]:
+def list_cq_channels(
+    transport: Any, client_id: str | None, channel_type: str, channel_search: str
+) -> list[CQChannel]:
     """List CQ channels with retry on transient errors."""
-    return _list_channels_with_retry(transport, client_id, channel_type, channel_search, decode_cq_channel_list)
+    return _list_channels_with_retry(
+        transport, client_id, channel_type, channel_search, decode_cq_channel_list
+    )

@@ -93,9 +93,7 @@ class TestAsyncClientSendQueueMessage:
         client._transport = mock_transport
         client._connected = True  # type: ignore[attr-defined]
 
-        mock_send_result = QueueSendResult(
-            id="msg-123", is_error=False, sent_at=1234567890
-        )
+        mock_send_result = QueueSendResult(id="msg-123", is_error=False, sent_at=1234567890)
         mock_sender = AsyncMock()
         mock_sender.send = AsyncMock(return_value=mock_send_result)
         client._upstream_sender = mock_sender
@@ -715,9 +713,7 @@ class TestAsyncQueuesClientChannelManagement:
         client = AsyncClient(address="localhost:50000")
 
         with pytest.raises(KubeMQConnectionError):
-            await client.send_queue_message(
-                QueueMessage(channel="new-channel", body=b"test")
-            )
+            await client.send_queue_message(QueueMessage(channel="new-channel", body=b"test"))
 
     @pytest.mark.asyncio
     async def test_delete_queues_channel_when_not_connected(self):
@@ -743,7 +739,6 @@ class TestAsyncQueuesClientChannelManagement:
 
 
 class TestDoOperationWithReQueueChannel:
-
     @pytest.mark.asyncio
     async def test_requeue_all_sends_channel_and_completes(self):
         captured = []
@@ -812,7 +807,6 @@ class TestDoOperationWithReQueueChannel:
 
 
 class TestAsyncQueuesPollResponseDecodeAllFields:
-
     def test_decode_all_fields(self):
         pb_response = pb.QueuesDownstreamResponse()
         pb_response.RefRequestId = "ref-1"
@@ -828,9 +822,7 @@ class TestAsyncQueuesPollResponseDecodeAllFields:
 
         transport = MagicMock()
 
-        with patch(
-            "kubemq.queues.async_client.QueueMessageReceived.decode"
-        ) as mock_decode:
+        with patch("kubemq.queues.async_client.QueueMessageReceived.decode") as mock_decode:
             mock_msg = MagicMock()
             mock_decode.return_value = mock_msg
 
@@ -854,8 +846,13 @@ class TestAsyncQueuesPollResponseDecodeAllFields:
         from unittest.mock import ANY
 
         mock_decode.assert_called_once_with(
-            msg, "tx-1", True, "rcv-1", None,
-            visibility_seconds=30, is_auto_acked=True,
+            msg,
+            "tx-1",
+            True,
+            "rcv-1",
+            None,
+            visibility_seconds=30,
+            is_auto_acked=True,
             async_response_handler=ANY,
         )
 
@@ -872,12 +869,12 @@ class TestAsyncQueuesPollResponseDecodeAllFields:
 
         transport = MagicMock()
 
-        with patch(
-            "kubemq.queues.async_client.QueueMessageReceived.decode"
-        ) as mock_decode:
+        with patch("kubemq.queues.async_client.QueueMessageReceived.decode") as mock_decode:
             mock_decode.side_effect = [MagicMock(), MagicMock(), MagicMock()]
             result = AsyncQueuesPollResponse.decode(
-                pb_response, "rcv-2", transport,
+                pb_response,
+                "rcv-2",
+                transport,
             )
 
         assert len(result.messages) == 3
@@ -885,7 +882,6 @@ class TestAsyncQueuesPollResponseDecodeAllFields:
 
 
 class TestSendBatchTransportException:
-
     @pytest.mark.asyncio
     async def test_batch_transport_exception_propagates(self, mock_transport):
         """Test that transport-level exceptions propagate from batch send."""
@@ -905,7 +901,6 @@ class TestSendBatchTransportException:
 
 
 class TestReceiveQueueMessagesWithMessages:
-
     @pytest.mark.asyncio
     async def test_receive_with_messages_runs_metrics_loop(self, mock_transport):
         client = AsyncClient(address="localhost:50000")
@@ -928,7 +923,8 @@ class TestReceiveQueueMessagesWithMessages:
             return_value=MagicMock(),
         ):
             response = await client.receive_queue_messages(
-                channel="test-ch", max_messages=10,
+                channel="test-ch",
+                max_messages=10,
             )
 
         assert len(response.messages) == 3
@@ -936,7 +932,6 @@ class TestReceiveQueueMessagesWithMessages:
 
 
 class TestSubscribeToQueueBackoff:
-
     @pytest.mark.asyncio
     @pytest.mark.timeout(5)
     async def test_backoff_on_receive_error(self, mock_transport):
@@ -953,11 +948,17 @@ class TestSubscribeToQueueBackoff:
                 raise RuntimeError("transient error")
             token.cancel()
             return AsyncQueuesPollResponse(
-                ref_request_id="r", transaction_id="",
-                messages=[], error="", is_error=False,
-                is_transaction_completed=False, active_offsets=[],
-                receiver_client_id="c", visibility_seconds=0,
-                is_auto_acked=True, transport=mock_transport,
+                ref_request_id="r",
+                transaction_id="",
+                messages=[],
+                error="",
+                is_error=False,
+                is_transaction_completed=False,
+                active_offsets=[],
+                receiver_client_id="c",
+                visibility_seconds=0,
+                is_auto_acked=True,
+                transport=mock_transport,
             )
 
         with patch.object(client, "receive_queue_messages", mock_receive):
@@ -966,7 +967,8 @@ class TestSubscribeToQueueBackoff:
                 new_callable=AsyncMock,
             ) as mock_sleep:
                 async for _ in client.subscribe_to_queue(
-                    channel="test", cancellation_token=token,
+                    channel="test",
+                    cancellation_token=token,
                 ):
                     pass
 
@@ -975,7 +977,6 @@ class TestSubscribeToQueueBackoff:
 
 
 class TestProcessQueueMessagesErrorPaths:
-
     def _make_client(self, mock_transport):
         client = AsyncClient(address="localhost:50000")
         client._transport = mock_transport
@@ -992,11 +993,17 @@ class TestProcessQueueMessagesErrorPaths:
 
         async def fake_subscribe(**kwargs):
             yield AsyncQueuesPollResponse(
-                ref_request_id="r", transaction_id="", messages=[],
-                error="server error", is_error=True,
-                is_transaction_completed=False, active_offsets=[],
-                receiver_client_id="c", visibility_seconds=0,
-                is_auto_acked=True, transport=mock_transport,
+                ref_request_id="r",
+                transaction_id="",
+                messages=[],
+                error="server error",
+                is_error=True,
+                is_transaction_completed=False,
+                active_offsets=[],
+                receiver_client_id="c",
+                visibility_seconds=0,
+                is_auto_acked=True,
+                transport=mock_transport,
             )
 
         async def error_cb(e):
@@ -1007,7 +1014,9 @@ class TestProcessQueueMessagesErrorPaths:
 
         with patch.object(client, "subscribe_to_queue", fake_subscribe):
             await client.process_queue_messages(
-                channel="test", callback=msg_cb, error_callback=error_cb,
+                channel="test",
+                callback=msg_cb,
+                error_callback=error_cb,
                 auto_ack=True,
             )
 
@@ -1021,11 +1030,17 @@ class TestProcessQueueMessagesErrorPaths:
 
         async def fake_subscribe(**kwargs):
             yield AsyncQueuesPollResponse(
-                ref_request_id="r", transaction_id="", messages=[],
-                error="server error", is_error=True,
-                is_transaction_completed=False, active_offsets=[],
-                receiver_client_id="c", visibility_seconds=0,
-                is_auto_acked=True, transport=mock_transport,
+                ref_request_id="r",
+                transaction_id="",
+                messages=[],
+                error="server error",
+                is_error=True,
+                is_transaction_completed=False,
+                active_offsets=[],
+                receiver_client_id="c",
+                visibility_seconds=0,
+                is_auto_acked=True,
+                transport=mock_transport,
             )
 
         async def error_cb(e):
@@ -1036,7 +1051,9 @@ class TestProcessQueueMessagesErrorPaths:
 
         with patch.object(client, "subscribe_to_queue", fake_subscribe):
             await client.process_queue_messages(
-                channel="test", callback=msg_cb, error_callback=error_cb,
+                channel="test",
+                callback=msg_cb,
+                error_callback=error_cb,
                 auto_ack=True,
             )
 
@@ -1050,11 +1067,17 @@ class TestProcessQueueMessagesErrorPaths:
 
         async def fake_subscribe(**kwargs):
             yield AsyncQueuesPollResponse(
-                ref_request_id="r", transaction_id="", messages=[MagicMock()],
-                error="", is_error=False,
-                is_transaction_completed=True, active_offsets=[],
-                receiver_client_id="c", visibility_seconds=0,
-                is_auto_acked=True, transport=mock_transport,
+                ref_request_id="r",
+                transaction_id="",
+                messages=[MagicMock()],
+                error="",
+                is_error=False,
+                is_transaction_completed=True,
+                active_offsets=[],
+                receiver_client_id="c",
+                visibility_seconds=0,
+                is_auto_acked=True,
+                transport=mock_transport,
             )
 
         async def error_cb(e):
@@ -1065,7 +1088,9 @@ class TestProcessQueueMessagesErrorPaths:
 
         with patch.object(client, "subscribe_to_queue", fake_subscribe):
             await client.process_queue_messages(
-                channel="test", callback=msg_cb, error_callback=error_cb,
+                channel="test",
+                callback=msg_cb,
+                error_callback=error_cb,
                 auto_ack=True,
             )
 
@@ -1080,11 +1105,17 @@ class TestProcessQueueMessagesErrorPaths:
 
         async def fake_subscribe(**kwargs):
             yield AsyncQueuesPollResponse(
-                ref_request_id="r", transaction_id="", messages=[MagicMock()],
-                error="", is_error=False,
-                is_transaction_completed=True, active_offsets=[],
-                receiver_client_id="c", visibility_seconds=0,
-                is_auto_acked=True, transport=mock_transport,
+                ref_request_id="r",
+                transaction_id="",
+                messages=[MagicMock()],
+                error="",
+                is_error=False,
+                is_transaction_completed=True,
+                active_offsets=[],
+                receiver_client_id="c",
+                visibility_seconds=0,
+                is_auto_acked=True,
+                transport=mock_transport,
             )
 
         async def error_cb(e):
@@ -1095,7 +1126,9 @@ class TestProcessQueueMessagesErrorPaths:
 
         with patch.object(client, "subscribe_to_queue", fake_subscribe):
             await client.process_queue_messages(
-                channel="test", callback=msg_cb, error_callback=error_cb,
+                channel="test",
+                callback=msg_cb,
+                error_callback=error_cb,
                 auto_ack=True,
             )
 
@@ -1106,11 +1139,17 @@ class TestProcessQueueMessagesErrorPaths:
 
         async def fake_subscribe(**kwargs):
             yield AsyncQueuesPollResponse(
-                ref_request_id="r", transaction_id="", messages=[MagicMock()],
-                error="", is_error=False,
-                is_transaction_completed=True, active_offsets=[],
-                receiver_client_id="c", visibility_seconds=0,
-                is_auto_acked=True, transport=mock_transport,
+                ref_request_id="r",
+                transaction_id="",
+                messages=[MagicMock()],
+                error="",
+                is_error=False,
+                is_transaction_completed=True,
+                active_offsets=[],
+                receiver_client_id="c",
+                visibility_seconds=0,
+                is_auto_acked=True,
+                transport=mock_transport,
             )
 
         async def msg_cb(msg):
@@ -1118,7 +1157,9 @@ class TestProcessQueueMessagesErrorPaths:
 
         with patch.object(client, "subscribe_to_queue", fake_subscribe):
             await client.process_queue_messages(
-                channel="test", callback=msg_cb, auto_ack=True,
+                channel="test",
+                callback=msg_cb,
+                auto_ack=True,
             )
 
     @pytest.mark.asyncio
@@ -1128,11 +1169,17 @@ class TestProcessQueueMessagesErrorPaths:
         errors = []
 
         resp = AsyncQueuesPollResponse(
-            ref_request_id="r", transaction_id="tx-1",
-            messages=[MagicMock()], error="", is_error=False,
-            is_transaction_completed=False, active_offsets=[1],
-            receiver_client_id="c", visibility_seconds=0,
-            is_auto_acked=False, transport=mock_transport,
+            ref_request_id="r",
+            transaction_id="tx-1",
+            messages=[MagicMock()],
+            error="",
+            is_error=False,
+            is_transaction_completed=False,
+            active_offsets=[1],
+            receiver_client_id="c",
+            visibility_seconds=0,
+            is_auto_acked=False,
+            transport=mock_transport,
         )
         resp.ack_all = AsyncMock(side_effect=RuntimeError("ack failed"))
 
@@ -1147,7 +1194,9 @@ class TestProcessQueueMessagesErrorPaths:
 
         with patch.object(client, "subscribe_to_queue", fake_subscribe):
             await client.process_queue_messages(
-                channel="test", callback=msg_cb, error_callback=error_cb,
+                channel="test",
+                callback=msg_cb,
+                error_callback=error_cb,
             )
 
         assert len(errors) == 1
@@ -1155,7 +1204,6 @@ class TestProcessQueueMessagesErrorPaths:
 
 
 class TestAckAllQueueMessagesErrorResponse:
-
     @pytest.mark.asyncio
     async def test_ack_all_error_raises_message_error(self, mock_transport):
         from kubemq.core.exceptions import KubeMQMessageError
@@ -1187,9 +1235,7 @@ class TestAckAllCustomWaitTime:
         mock_response.AffectedMessages = 5
         mock_transport.ack_all_queue_messages.return_value = mock_response
 
-        result = await client.ack_all_queue_messages(
-            channel="test-queue", wait_time_seconds=120
-        )
+        result = await client.ack_all_queue_messages(channel="test-queue", wait_time_seconds=120)
 
         assert result == 5
         req_arg = mock_transport.ack_all_queue_messages.call_args[0][0]
@@ -1200,7 +1246,7 @@ class TestAckAllCustomWaitTime:
 # Extended Coverage Tests — 95% target
 # ==============================================================================
 
-from kubemq.core.exceptions import KubeMQValidationError
+from kubemq.core.exceptions import KubeMQValidationError  # noqa: E402
 
 
 class TestAsyncClientSendQueueMessageSimple:
@@ -1305,9 +1351,7 @@ class TestAsyncClientGetUpstreamSender:
 
         assert client._upstream_sender is None
 
-        with patch(
-            "kubemq.queues.async_client.AsyncUpstreamSender"
-        ) as mock_sender_class:
+        with patch("kubemq.queues.async_client.AsyncUpstreamSender") as mock_sender_class:
             mock_sender = AsyncMock()
             mock_sender.start = AsyncMock()
             mock_sender_class.return_value = mock_sender
@@ -1472,9 +1516,7 @@ class TestSubscribeToQueueYield:
 
         with patch.object(client, "receive_queue_messages", side_effect=fake_receive):
             results = []
-            async for resp in client.subscribe_to_queue(
-                channel="q1", cancellation_token=token
-            ):
+            async for resp in client.subscribe_to_queue(channel="q1", cancellation_token=token):
                 results.append(resp)
             assert len(results) >= 1
 
@@ -1494,9 +1536,7 @@ class TestSubscribeToQueueYield:
 
         with patch.object(client, "receive_queue_messages", side_effect=failing_receive):
             results = []
-            async for resp in client.subscribe_to_queue(
-                channel="q1", cancellation_token=token
-            ):
+            async for resp in client.subscribe_to_queue(channel="q1", cancellation_token=token):
                 results.append(resp)
             assert results == []
 
@@ -1541,7 +1581,6 @@ class TestProcessQueueMessagesCallbacks:
         error_response.messages = []
 
         call_count = 0
-        original = client.subscribe_to_queue
 
         async def fake_subscribe(**kwargs):
             nonlocal call_count
@@ -1600,5 +1639,3 @@ class TestProcessQueueMessagesCallbacks:
             )
 
         assert len(errors) >= 1
-
-

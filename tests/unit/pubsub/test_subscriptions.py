@@ -417,6 +417,7 @@ class TestEventsStoreSubscriptionTimeValidation:
 
     def test_start_at_time_with_datetime(self):
         from datetime import datetime
+
         dt = datetime(2025, 1, 1, 12, 0, 0)
         sub = EventsStoreSubscription(
             channel="ch",
@@ -510,6 +511,7 @@ class TestEventsStoreSubscriptionEncodeExtended:
 
     def test_encode_start_at_time(self):
         from datetime import datetime
+
         dt = datetime(2025, 6, 15, 12, 0, 0)
         sub = EventsStoreSubscription(
             channel="ch",
@@ -605,6 +607,7 @@ class TestEventsStoreSubscriptionModelDumpExtended:
 
     def test_model_dump_with_start_time(self):
         from datetime import datetime
+
         dt = datetime(2025, 6, 15, 12, 0, 0)
         sub = EventsStoreSubscription(
             channel="ch",

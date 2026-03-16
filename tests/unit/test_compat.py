@@ -38,16 +38,12 @@ class TestParseVersionTuple:
 class TestCheckServerCompatibility:
     def test_in_range_no_warning(self, caplog):
         with caplog.at_level(logging.WARNING):
-            check_server_compatibility(
-                MIN_TESTED_SERVER_VERSION, logging.getLogger("test")
-            )
+            check_server_compatibility(MIN_TESTED_SERVER_VERSION, logging.getLogger("test"))
         assert len(caplog.records) == 0
 
     def test_max_version_no_warning(self, caplog):
         with caplog.at_level(logging.WARNING):
-            check_server_compatibility(
-                MAX_TESTED_SERVER_VERSION, logging.getLogger("test")
-            )
+            check_server_compatibility(MAX_TESTED_SERVER_VERSION, logging.getLogger("test"))
         assert len(caplog.records) == 0
 
     def test_mid_range_no_warning(self, caplog):

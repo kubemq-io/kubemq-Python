@@ -14,6 +14,25 @@ production-ready Python client supporting all KubeMQ messaging patterns:
 Events (pub/sub), Events Store (persistent pub/sub), Queues (with ack/reject),
 Commands, and Queries (RPC).
 
+## Table of Contents
+
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+  - [Send and Receive Events](#send-and-receive-events)
+- [Messaging Patterns](#messaging-patterns)
+  - [Events](#events)
+  - [Events Store](#events-store)
+  - [Queues](#queues)
+  - [Commands](#commands)
+  - [Queries](#queries)
+- [Configuration](#configuration)
+- [Error Handling](#error-handling)
+- [Troubleshooting](#troubleshooting)
+- [Security](#security)
+- [Additional Resources](#additional-resources)
+- [Contributing](#contributing)
+- [License](#license)
+
 ## Installation
 
 Requires **Python 3.11+**.
@@ -178,6 +197,20 @@ for solutions to common errors.
 | `No messages received` | Verify subscriber is connected *before* sender publishes |
 
 → [Full Troubleshooting Guide](https://github.com/kubemq-io/kubemq-Python/blob/v4/docs/troubleshooting.md) (11+ entries)
+
+## Security
+
+See [SECURITY.md](SECURITY.md) for vulnerability reporting. The SDK supports TLS and mTLS connections — for configuration details, see [How to Connect with TLS](docs/how-to/connect-with-tls.md).
+
+## Additional Resources
+
+- [KubeMQ Documentation](https://docs.kubemq.io/) — Official KubeMQ documentation and guides
+- [Full Documentation Index](docs/INDEX.md) — Complete SDK documentation index
+- [KubeMQ Concepts](docs/CONCEPTS.md) — Core KubeMQ messaging concepts
+- [SDK Feature Parity Matrix](../sdk-feature-parity-matrix.md) — Cross-SDK feature comparison
+- [CHANGELOG.md](https://github.com/kubemq-io/kubemq-Python/blob/v4/CHANGELOG.md) — Release history
+- [TROUBLESHOOTING.md](https://github.com/kubemq-io/kubemq-Python/blob/v4/docs/troubleshooting.md) — Common issues and solutions
+- [Examples](https://github.com/kubemq-io/kubemq-Python/tree/v4/examples) — Runnable code examples for all patterns
 
 ## Contributing
 

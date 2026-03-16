@@ -32,14 +32,14 @@ class CancellationToken:
         can be called from any thread.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.event = threading.Event()
 
-    def cancel(self):
+    def cancel(self) -> None:
         """Signal cancellation. Thread-safe and idempotent."""
         self.event.set()
 
-    def is_set(self):
+    def is_set(self) -> bool:
         """Check if cancellation has been requested.
 
         Deprecated:

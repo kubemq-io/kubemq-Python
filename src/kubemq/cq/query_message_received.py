@@ -36,9 +36,7 @@ class QueryMessageReceived(BaseModel):
 
     @classmethod
     def decode(cls, query_receive: pbRequest) -> "QueryMessageReceived":
-        """
-        Decodes a protobuf request object and returns a QueryMessageReceived instance.
-        """
+        """Decodes a protobuf request object and returns a QueryMessageReceived instance."""
         return cls(
             id=query_receive.RequestID,
             from_client_id=query_receive.ClientID,
@@ -51,12 +49,10 @@ class QueryMessageReceived(BaseModel):
         )
 
     def __repr__(self) -> str:
-        """
-        Returns a string representation of the QueryMessageReceived object.
-        """
+        """Returns a string representation of the QueryMessageReceived object."""
         return (
             f"QueryMessageReceived: id={self.id}, channel={self.channel}, "
-            f"metadata={self.metadata}, body={self.body}, "
+            f"metadata={self.metadata}, body={self.body!r}, "
             f"from_client_id={self.from_client_id}, timestamp={self.timestamp}, "
             f"reply_channel={self.reply_channel}, tags={self.tags}"
         )

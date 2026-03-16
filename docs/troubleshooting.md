@@ -312,6 +312,113 @@ acknowledged the message. The message becomes visible to other consumers again.
 
 ---
 
+## gRPC Status Code Mapping
+
+The SDK automatically maps gRPC status codes to typed Python exceptions. Use
+this table to understand which exception to catch for each failure mode.
+
+| gRPC Status Code | SDK Exception | Category | Retryable | Description |
+|---|---|---|---|---|
+| `OK` | `KubeMQError` | UNKNOWN | No | Unexpected OK in error path |
+| `CANCELLED` | `KubeMQCancellationError` | CANCELLED | No | Operation was cancelled by the client |
+| `UNKNOWN` | `KubeMQError` | UNKNOWN | Yes | Unknown server error |
+| `INVALID_ARGUMENT` | `KubeMQValidationError` | VALIDATION_ERROR | No | Client sent an invalid request |
+| `DEADLINE_EXCEEDED` | `KubeMQTimeoutError` | CONNECTION_TIMEOUT | Yes | Operation timed out |
+| `NOT_FOUND` | `KubeMQChannelError` | NOT_FOUND | No | Channel or resource not found |
+| `ALREADY_EXISTS` | `KubeMQValidationError` | ALREADY_EXISTS | No | Resource already exists |
+| `PERMISSION_DENIED` | `KubeMQAuthenticationError` | PERMISSION_DENIED | No | Insufficient permissions |
+| `RESOURCE_EXHAUSTED` | `KubeMQMessageError` | RESOURCE_EXHAUSTED | Yes | Rate limit or quota exceeded |
+| `FAILED_PRECONDITION` | `KubeMQValidationError` | VALIDATION_ERROR | No | Operation rejected due to system state |
+| `ABORTED` | `KubeMQTransactionError` | ABORTED | Yes | Transaction conflict or concurrency error |
+| `OUT_OF_RANGE` | `KubeMQValidationError` | OUT_OF_RANGE | No | Value outside acceptable range |
+| `UNIMPLEMENTED` | `KubeMQError` | UNIMPLEMENTED | No | Server does not support this operation |
+| `INTERNAL` | `KubeMQError` | INTERNAL | No | Internal server error |
+| `UNAVAILABLE` | `KubeMQConnectionError` | UNAVAILABLE | Yes | Server temporarily unavailable |
+| `DATA_LOSS` | `KubeMQError` | DATA_LOSS | No | Unrecoverable data loss |
+| `UNAUTHENTICATED` | `KubeMQAuthenticationError` | AUTH_FAILED | No | Missing or invalid authentication |
+
+**Retryable** errors are safe to retry with backoff. Non-retryable errors
+indicate a permanent failure that requires fixing the request or configuration.
+
+All exceptions inherit from `KubeMQError`, so you can catch the base class as
+a fallback:
+
+```python
+from kubemq import KubeMQError, KubeMQConnectionError, KubeMQTimeoutError
+
+try:
+    client.publish_event(event)
+except KubeMQConnectionError:
+    # retry with backoff
+    pass
+except KubeMQTimeoutError:
+    # retry with longer timeout
+    pass
+except KubeMQError as e:
+    # log and inspect e.code, e.is_retryable
+    print(f"Error code={e.code}, retryable={e.is_retryable}")
+```
+
+---
+
+## How to Enable Debug Logging
+
+The SDK ships with a `NoOpLogger` by default (zero overhead). To activate
+debug logging, pass `log_level` when constructing any client. The SDK creates
+a `StdLibLoggerAdapter` that bridges to Python's standard `logging` module
+under the `kubemq.<ClientClass>` logger name.
+
+### Step 1 — Configure Python's root logger so output is visible
+
+```python
+import logging
+
+logging.basicConfig(
+    level=logging.DEBUG,
+    format="%(asctime)s %(name)s %(levelname)s %(message)s",
+)
+```
+
+### Step 2 — Pass `log_level` to the client constructor
+
+```python
+from kubemq import PubSubClient
+
+client = PubSubClient(
+    address="localhost:50000",
+    log_level=logging.DEBUG,
+)
+```
+
+This works the same way for `QueuesClient`, `CQClient`, and their async
+variants (`AsyncPubSubClient`, `AsyncQueuesClient`, `AsyncCQClient`).
+
+### What to expect
+
+With `DEBUG` enabled you will see output like:
+
+```
+2025-06-15 10:23:01,123 kubemq.PubSubClient DEBUG connection established client_id=abc address=localhost:50000
+2025-06-15 10:23:01,200 kubemq.PubSubClient DEBUG publish_event channel=orders message_id=msg-001
+2025-06-15 10:23:01,350 kubemq.PubSubClient DEBUG subscribe channel=orders group=
+```
+
+Key things to look for:
+- **Connection lifecycle** — `connection established`, `reconnecting`, `disconnected`
+- **Message flow** — publish/subscribe/send/receive calls with channel and message IDs
+- **Errors** — gRPC status codes, timeout values, retry attempts
+
+### OpenTelemetry trace context
+
+If the optional `kubemq[otel]` extra is installed, debug logs automatically
+include `trace_id` and `span_id` from the active OpenTelemetry span:
+
+```
+DEBUG publish_event trace_id=abc123... span_id=def456... channel=orders
+```
+
+---
+
 ## General Debugging Tips
 
 ### Enable verbose logging

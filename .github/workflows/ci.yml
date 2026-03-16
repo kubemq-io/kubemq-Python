@@ -48,6 +48,9 @@ jobs:
           pip install -e "."
           mypy src/kubemq/ --ignore-missing-imports
 
+      - name: Lint examples
+        run: ruff check examples/
+
   # ──────────────────────────────────────────────────────────────────
   # Job 2: Unit Tests
   # Matrix: Python 3.11, 3.12, 3.13 × ubuntu-latest.

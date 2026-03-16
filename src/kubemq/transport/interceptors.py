@@ -8,8 +8,8 @@ rotation without reconnection.
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterable
-from typing import TYPE_CHECKING, Any, Callable
+from collections.abc import AsyncIterable, Callable
+from typing import TYPE_CHECKING, Any
 
 import grpc
 import grpc.aio
@@ -66,10 +66,10 @@ def _inject_auth_metadata(
 
 
 class AuthInterceptors(
-    grpc.UnaryUnaryClientInterceptor,
-    grpc.StreamUnaryClientInterceptor,
-    grpc.UnaryStreamClientInterceptor,
-    grpc.StreamStreamClientInterceptor,
+    grpc.UnaryUnaryClientInterceptor,  # type: ignore[misc]
+    grpc.StreamUnaryClientInterceptor,  # type: ignore[misc]
+    grpc.UnaryStreamClientInterceptor,  # type: ignore[misc]
+    grpc.StreamStreamClientInterceptor,  # type: ignore[misc]
 ):
     """Sync interceptor that adds auth token to all gRPC calls."""
 
@@ -92,20 +92,32 @@ class AuthInterceptors(
         if token and token.strip():
             metadata.append(("authorization", token))
 
-        new_client_call_details = client_call_details._replace(metadata=metadata)  # type: ignore[union-attr]
+        new_client_call_details = client_call_details._replace(metadata=metadata)
         response = continuation(new_client_call_details, request_or_iterator)
         return response
 
-    def intercept_unary_unary(self, continuation, client_call_details, request):
+    def intercept_unary_unary(
+        self, continuation: Any, client_call_details: Any, request: Any
+    ) -> Any:
+        """Intercept unary-unary calls to inject auth metadata."""
         return self._intercept_call(continuation, client_call_details, request)
 
-    def intercept_unary_stream(self, continuation, client_call_details, request):
+    def intercept_unary_stream(
+        self, continuation: Any, client_call_details: Any, request: Any
+    ) -> Any:
+        """Intercept unary-stream calls to inject auth metadata."""
         return self._intercept_call(continuation, client_call_details, request)
 
-    def intercept_stream_stream(self, continuation, client_call_details, request_iterator):
+    def intercept_stream_stream(
+        self, continuation: Any, client_call_details: Any, request_iterator: Any
+    ) -> Any:
+        """Intercept stream-stream calls to inject auth metadata."""
         return self._intercept_call(continuation, client_call_details, request_iterator)
 
-    def intercept_stream_unary(self, continuation, client_call_details, request_iterator):
+    def intercept_stream_unary(
+        self, continuation: Any, client_call_details: Any, request_iterator: Any
+    ) -> Any:
+        """Intercept stream-unary calls to inject auth metadata."""
         return self._intercept_call(continuation, client_call_details, request_iterator)
 
 
@@ -115,10 +127,10 @@ class AuthInterceptors(
 
 
 class AuthInterceptorsAsync(
-    grpc.aio.UnaryUnaryClientInterceptor,
-    grpc.aio.StreamStreamClientInterceptor,
-    grpc.aio.UnaryStreamClientInterceptor,
-    grpc.aio.StreamUnaryClientInterceptor,
+    grpc.aio.UnaryUnaryClientInterceptor,  # type: ignore[misc]
+    grpc.aio.StreamStreamClientInterceptor,  # type: ignore[misc]
+    grpc.aio.UnaryStreamClientInterceptor,  # type: ignore[misc]
+    grpc.aio.StreamUnaryClientInterceptor,  # type: ignore[misc]
 ):
     """Async interceptor that adds auth token to all gRPC calls.
 
@@ -145,20 +157,32 @@ class AuthInterceptorsAsync(
         if token and token.strip():
             metadata.append(("authorization", token))
 
-        new_client_call_details = client_call_details._replace(metadata=metadata)  # type: ignore[union-attr]
+        new_client_call_details = client_call_details._replace(metadata=metadata)
         response = await continuation(new_client_call_details, request_or_iterator)
         return response
 
-    async def intercept_unary_unary(self, continuation, client_call_details, request):
+    async def intercept_unary_unary(
+        self, continuation: Any, client_call_details: Any, request: Any
+    ) -> Any:
+        """Intercept async unary-unary calls to inject auth metadata."""
         return await self._intercept_call(continuation, client_call_details, request)
 
-    async def intercept_unary_stream(self, continuation, client_call_details, request):
+    async def intercept_unary_stream(
+        self, continuation: Any, client_call_details: Any, request: Any
+    ) -> Any:
+        """Intercept async unary-stream calls to inject auth metadata."""
         return await self._intercept_call(continuation, client_call_details, request)
 
-    async def intercept_stream_stream(self, continuation, client_call_details, request_iterator):
+    async def intercept_stream_stream(
+        self, continuation: Any, client_call_details: Any, request_iterator: Any
+    ) -> Any:
+        """Intercept async stream-stream calls to inject auth metadata."""
         return await self._intercept_call(continuation, client_call_details, request_iterator)
 
-    async def intercept_stream_unary(self, continuation, client_call_details, request_iterator):
+    async def intercept_stream_unary(
+        self, continuation: Any, client_call_details: Any, request_iterator: Any
+    ) -> Any:
+        """Intercept async stream-unary calls to inject auth metadata."""
         return await self._intercept_call(continuation, client_call_details, request_iterator)
 
 
@@ -167,7 +191,7 @@ class AuthInterceptorsAsync(
 # =============================================================================
 
 
-class AsyncUnaryUnaryAuthInterceptor(grpc.aio.UnaryUnaryClientInterceptor):
+class AsyncUnaryUnaryAuthInterceptor(grpc.aio.UnaryUnaryClientInterceptor):  # type: ignore[misc]
     """Async interceptor for unary-unary calls (ping, send_event, etc.).
 
     This interceptor is used for simple request-response operations like
@@ -183,6 +207,7 @@ class AsyncUnaryUnaryAuthInterceptor(grpc.aio.UnaryUnaryClientInterceptor):
         client_call_details: grpc.aio.ClientCallDetails,
         request: Any,
     ) -> Any:
+        """Intercept unary-unary calls to inject auth metadata."""
         new_details = grpc.aio.ClientCallDetails(
             method=client_call_details.method,
             timeout=client_call_details.timeout,
@@ -195,7 +220,7 @@ class AsyncUnaryUnaryAuthInterceptor(grpc.aio.UnaryUnaryClientInterceptor):
         return await continuation(new_details, request)
 
 
-class AsyncUnaryStreamAuthInterceptor(grpc.aio.UnaryStreamClientInterceptor):
+class AsyncUnaryStreamAuthInterceptor(grpc.aio.UnaryStreamClientInterceptor):  # type: ignore[misc]
     """Async interceptor for unary-stream calls (subscriptions).
 
     This interceptor is CRITICAL for SubscribeToEvents, SubscribeToRequests, etc.
@@ -210,6 +235,7 @@ class AsyncUnaryStreamAuthInterceptor(grpc.aio.UnaryStreamClientInterceptor):
         client_call_details: grpc.aio.ClientCallDetails,
         request: Any,
     ) -> grpc.aio.UnaryStreamCall:
+        """Intercept unary-stream calls to inject auth metadata."""
         new_details = grpc.aio.ClientCallDetails(
             method=client_call_details.method,
             timeout=client_call_details.timeout,
@@ -222,7 +248,7 @@ class AsyncUnaryStreamAuthInterceptor(grpc.aio.UnaryStreamClientInterceptor):
         return await continuation(new_details, request)
 
 
-class AsyncStreamUnaryAuthInterceptor(grpc.aio.StreamUnaryClientInterceptor):
+class AsyncStreamUnaryAuthInterceptor(grpc.aio.StreamUnaryClientInterceptor):  # type: ignore[misc]
     """Async interceptor for stream-unary calls (queue send batch)."""
 
     def __init__(self, token_holder: TokenHolder) -> None:
@@ -234,6 +260,7 @@ class AsyncStreamUnaryAuthInterceptor(grpc.aio.StreamUnaryClientInterceptor):
         client_call_details: grpc.aio.ClientCallDetails,
         request_iterator: AsyncIterable[Any],
     ) -> Any:
+        """Intercept stream-unary calls to inject auth metadata."""
         new_details = grpc.aio.ClientCallDetails(
             method=client_call_details.method,
             timeout=client_call_details.timeout,
@@ -246,7 +273,7 @@ class AsyncStreamUnaryAuthInterceptor(grpc.aio.StreamUnaryClientInterceptor):
         return await continuation(new_details, request_iterator)
 
 
-class AsyncStreamStreamAuthInterceptor(grpc.aio.StreamStreamClientInterceptor):
+class AsyncStreamStreamAuthInterceptor(grpc.aio.StreamStreamClientInterceptor):  # type: ignore[misc]
     """Async interceptor for bidirectional streaming (queue upstream/downstream).
 
     This interceptor is CRITICAL for QueuesUpstream and QueuesDownstream.
@@ -261,6 +288,7 @@ class AsyncStreamStreamAuthInterceptor(grpc.aio.StreamStreamClientInterceptor):
         client_call_details: grpc.aio.ClientCallDetails,
         request_iterator: AsyncIterable[Any],
     ) -> grpc.aio.StreamStreamCall:
+        """Intercept stream-stream calls to inject auth metadata."""
         new_details = grpc.aio.ClientCallDetails(
             method=client_call_details.method,
             timeout=client_call_details.timeout,

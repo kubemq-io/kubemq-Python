@@ -2,7 +2,7 @@ import logging
 import queue
 import threading
 import time
-from typing import Optional
+from collections.abc import Generator
 
 import grpc
 
@@ -14,8 +14,7 @@ DEFAULT_SEND_QUEUE_SIZE = 10_000
 
 
 class EventSender:
-    """
-    EventSender is a class that is responsible for sending events to a server using a transport, tracking the response of each event, and handling disconnections.
+    """EventSender is a class that is responsible for sending events to a server using a transport, tracking the response of each event, and handling disconnections.
 
     Attributes:
     - clientStub: A client stub object for communicating with the server.
@@ -50,12 +49,13 @@ class EventSender:
         self.shutdown_event = shutdown_event
         self.logger = logger
         self.lock = threading.Lock()
-        self.response_tracking = {}
+        self.response_tracking: dict[str, tuple[dict[str, object], threading.Event]] = {}
         self.sending_queue: queue.Queue[Event] = queue.Queue(maxsize=max_queue_size)
         self.allow_new_messages = True
         threading.Thread(target=self.send_events_stream, args=(), daemon=True).start()
 
-    def send(self, event: Event) -> Optional[Result]:
+    def send(self, event: Event) -> Result | None:
+        """Send an event to the server."""
         if not self.allow_new_messages:
             raise ConnectionError("Client is not connected to the server and cannot send messages.")
 
@@ -83,18 +83,20 @@ class EventSender:
                 ) from None
             return None
         response_event = threading.Event()
-        response_container = {}
+        response_container: dict[str, object] = {}
 
         with self.lock:
             self.response_tracking[event.EventID] = (response_container, response_event)
         self.sending_queue.put(event)
         response_event.wait()
-        response = response_container.get("response")
+        response_raw = response_container.get("response")
+        response: Result | None = response_raw if isinstance(response_raw, Result) else None
         with self.lock:
             del self.response_tracking[event.EventID]
         return response
 
-    def handle_disconnection(self):
+    def handle_disconnection(self) -> None:
+        """Handle disconnection from the server."""
         with self.lock:
             self.allow_new_messages = False
             while not self.sending_queue.empty():
@@ -116,8 +118,10 @@ class EventSender:
                 response_event.set()  # Signal that the response has been processed
             self.response_tracking.clear()
 
-    def send_events_stream(self):
-        def send_requests():
+    def send_events_stream(self) -> None:
+        """Stream events to the server in a background thread."""
+
+        def send_requests() -> Generator[Event, None, None]:
             while not self.shutdown_event.is_set():
                 try:
                     msg = self.sending_queue.get(

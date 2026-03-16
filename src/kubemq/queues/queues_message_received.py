@@ -1,11 +1,10 @@
-import asyncio
 import logging
 import threading
 import time
 import uuid
-from collections.abc import AsyncIterator
+from collections.abc import Callable
 from datetime import datetime
-from typing import Any, Callable, Optional
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -18,8 +17,7 @@ from kubemq.grpc import (
 
 
 class QueueMessageReceived(BaseModel):
-    """
-    Represents a message received from a KubeMQ queue.
+    """Represents a message received from a KubeMQ queue.
 
     This class encapsulates a message received from a KubeMQ queue and provides
     methods for acknowledging, rejecting, and re-queuing the message. It also
@@ -73,26 +71,25 @@ class QueueMessageReceived(BaseModel):
     transaction_id: str = Field(default="")
     is_transaction_completed: bool = Field(default=False)
     receiver_client_id: str = Field(default="")
-    response_handler: Optional[Callable[[QueuesDownstreamRequest], QueuesDownstreamResponse]] = (
-        Field(default=None)
+    response_handler: Callable[[QueuesDownstreamRequest], QueuesDownstreamResponse] | None = Field(
+        default=None
     )
-    async_response_handler: Optional[Callable[[QueuesDownstreamRequest], Any]] = Field(default=None)
+    async_response_handler: Callable[[QueuesDownstreamRequest], Any] | None = Field(default=None)
     visibility_seconds: int = Field(default=0)
     is_auto_acked: bool = Field(default=False)
     md5_of_body: str = Field(default="")
-    _visibility_timer: Optional[threading.Timer] = None
+    _visibility_timer: threading.Timer | None = None
     _message_completed: bool = False
     _timer_expired: bool = False
 
-    def __init__(self, **data):
+    def __init__(self, **data: Any) -> None:
         super().__init__(**data)
         self._lock = threading.Lock()
 
     # Public API methods
 
-    def ack(self):
-        """
-        Acknowledge the message, indicating successful processing.
+    def ack(self) -> None:
+        """Acknowledge the message, indicating successful processing.
 
         This method sends an acknowledgment to the server, indicating that
         the message has been successfully processed and can be removed from the queue.
@@ -103,9 +100,8 @@ class QueueMessageReceived(BaseModel):
         """
         self._do_operation(QueuesDownstreamRequestType.AckRange)
 
-    def reject(self):
-        """
-        Reject the message, indicating unsuccessful processing.
+    def reject(self) -> None:
+        """Reject the message, indicating unsuccessful processing.
 
         This method sends a rejection to the server, indicating that
         the message could not be processed and should be handled according
@@ -117,9 +113,8 @@ class QueueMessageReceived(BaseModel):
         """
         self._do_operation(QueuesDownstreamRequestType.NAckRange)
 
-    def re_queue(self, channel: str):
-        """
-        Re-queue the message to another channel.
+    def re_queue(self, channel: str) -> None:
+        """Re-queue the message to another channel.
 
         This method sends a request to re-queue the message to another channel.
 
@@ -132,21 +127,20 @@ class QueueMessageReceived(BaseModel):
         """
         self._do_operation(QueuesDownstreamRequestType.ReQueueRange, channel)
 
-    async def async_ack(self):
+    async def async_ack(self) -> None:
         """Acknowledge the message asynchronously (for native async clients)."""
         await self._do_async_operation(QueuesDownstreamRequestType.AckRange)
 
-    async def async_reject(self):
+    async def async_reject(self) -> None:
         """Reject the message asynchronously (for native async clients)."""
         await self._do_async_operation(QueuesDownstreamRequestType.NAckRange)
 
-    async def async_re_queue(self, channel: str):
+    async def async_re_queue(self, channel: str) -> None:
         """Re-queue the message to another channel asynchronously (for native async clients)."""
         await self._do_async_operation(QueuesDownstreamRequestType.ReQueueRange, channel)
 
-    def extend_visibility_timer(self, additional_seconds: int):
-        """
-        Extend the visibility timeout of the message.
+    def extend_visibility_timer(self, additional_seconds: int) -> None:
+        """Extend the visibility timeout of the message.
 
         Args:
             additional_seconds: The number of seconds to extend the visibility timeout by.
@@ -185,8 +179,7 @@ class QueueMessageReceived(BaseModel):
 
     @property
     def is_completed(self) -> bool:
-        """
-        Thread-safe check if the message transaction is completed.
+        """Thread-safe check if the message transaction is completed.
 
         Returns:
             bool: True if the message transaction is completed, False otherwise.
@@ -196,8 +189,7 @@ class QueueMessageReceived(BaseModel):
 
     @property
     def is_visible(self) -> bool:
-        """
-        Thread-safe check if the message is still visible.
+        """Thread-safe check if the message is still visible.
 
         Returns:
             bool: True if the message is still visible, False otherwise.
@@ -206,8 +198,7 @@ class QueueMessageReceived(BaseModel):
             return not self._timer_expired and not self._message_completed
 
     def get_remaining_visibility_seconds(self) -> float:
-        """
-        Get the remaining visibility time in seconds.
+        """Get the remaining visibility time in seconds.
 
         Returns:
             float: The remaining visibility time in seconds, or 0 if the message
@@ -225,8 +216,7 @@ class QueueMessageReceived(BaseModel):
             return remaining_time
 
     def get_message_age(self) -> float:
-        """
-        Get the age of the message in seconds.
+        """Get the age of the message in seconds.
 
         Returns:
             float: The age of the message in seconds.
@@ -234,8 +224,7 @@ class QueueMessageReceived(BaseModel):
         return (datetime.now() - self.timestamp).total_seconds()
 
     def is_expired(self) -> bool:
-        """
-        Check if the message has expired.
+        """Check if the message has expired.
 
         Returns:
             bool: True if the message has expired, False otherwise.
@@ -251,15 +240,13 @@ class QueueMessageReceived(BaseModel):
         transaction_id: str,
         transaction_is_completed: bool = False,
         receiver_client_id: str = "",
-        response_handler: Optional[
-            Callable[[QueuesDownstreamRequest], QueuesDownstreamResponse]
-        ] = None,
+        response_handler: Callable[[QueuesDownstreamRequest], QueuesDownstreamResponse]
+        | None = None,
         visibility_seconds: int = 0,
         is_auto_acked: bool = False,
-        async_response_handler: Optional[Callable[[QueuesDownstreamRequest], Any]] = None,
+        async_response_handler: Callable[[QueuesDownstreamRequest], Any] | None = None,
     ) -> "QueueMessageReceived":
-        """
-        Decode a protobuf message into a QueueMessageReceived instance.
+        """Decode a protobuf message into a QueueMessageReceived instance.
 
         Args:
             message: The protobuf message to decode.
@@ -293,12 +280,12 @@ class QueueMessageReceived(BaseModel):
                 message.Attributes.ReRoutedFromQueue if message.Attributes else ""
             ),
             expired_at=(
-                datetime.fromtimestamp(message.Attributes.ExpirationAt / 1e6)
+                datetime.fromtimestamp(message.Attributes.ExpirationAt / 1e9)
                 if message.Attributes
                 else datetime.fromtimestamp(0)
             ),
             delayed_to=(
-                datetime.fromtimestamp(message.Attributes.DelayedTo / 1e6)
+                datetime.fromtimestamp(message.Attributes.DelayedTo / 1e9)
                 if message.Attributes
                 else datetime.fromtimestamp(0)
             ),
@@ -323,9 +310,10 @@ class QueueMessageReceived(BaseModel):
 
     # Internal helper methods
 
-    def _do_operation(self, request_type: QueuesDownstreamRequestType, re_queue_channel: str = ""):
-        """
-        Perform an operation on the message.
+    def _do_operation(
+        self, request_type: QueuesDownstreamRequestType, re_queue_channel: str = ""
+    ) -> None:
+        """Perform an operation on the message.
 
         Args:
             request_type: The type of operation to perform.
@@ -363,7 +351,9 @@ class QueueMessageReceived(BaseModel):
             self._cancel_visibility_timer()
             self.response_handler(request)
 
-    async def _do_async_operation(self, request_type: QueuesDownstreamRequestType, re_queue_channel: str = ""):
+    async def _do_async_operation(
+        self, request_type: QueuesDownstreamRequestType, re_queue_channel: str = ""
+    ) -> None:
         """Perform an async operation on the message.
 
         Used by native async clients that provide an async_response_handler.
@@ -391,9 +381,8 @@ class QueueMessageReceived(BaseModel):
         self._cancel_visibility_timer()
         await self.async_response_handler(request)
 
-    def _mark_transaction_completed(self):
-        """
-        Mark the transaction as completed.
+    def _mark_transaction_completed(self) -> None:
+        """Mark the transaction as completed.
 
         Thread Safety:
             This method is thread-safe.
@@ -405,9 +394,8 @@ class QueueMessageReceived(BaseModel):
 
     # Visibility timer methods
 
-    def _start_visibility_timer(self):
-        """
-        Start the visibility timer.
+    def _start_visibility_timer(self) -> None:
+        """Start the visibility timer.
 
         Thread Safety:
             This method is thread-safe.
@@ -419,9 +407,8 @@ class QueueMessageReceived(BaseModel):
             self._visibility_timer._start_time = time.time()  # type: ignore[attr-defined]
             self._visibility_timer.start()
 
-    def _cancel_visibility_timer(self):
-        """
-        Cancel the visibility timer if it exists.
+    def _cancel_visibility_timer(self) -> None:
+        """Cancel the visibility timer if it exists.
 
         Thread Safety:
             This method is thread-safe.
@@ -430,9 +417,8 @@ class QueueMessageReceived(BaseModel):
             self._visibility_timer.cancel()
             self._visibility_timer = None
 
-    def _on_visibility_expired(self):
-        """
-        Handle visibility timer expiration.
+    def _on_visibility_expired(self) -> None:
+        """Handle visibility timer expiration.
 
         This method is called when the visibility timer expires.
         It marks the message as expired and rejects it.
@@ -451,8 +437,7 @@ class QueueMessageReceived(BaseModel):
             logging.error(f"Error rejecting message after visibility timeout: {e}")
 
     def __str__(self) -> str:
-        """
-        Get a string representation of the message.
+        """Get a string representation of the message.
 
         Returns:
             str: A string representation of the message.

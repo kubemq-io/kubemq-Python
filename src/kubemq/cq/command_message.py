@@ -1,18 +1,12 @@
 from __future__ import annotations
 
-import sys
 import uuid
-from typing import Optional
+from typing import Any, Self
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from kubemq.common.channel_validators import validate_channel_name
 from kubemq.grpc import Request as pbCommand
-
-if sys.version_info >= (3, 11):
-    from typing import Self
-else:
-    from typing_extensions import Self
 
 
 class CommandMessage(BaseModel):
@@ -30,22 +24,24 @@ class CommandMessage(BaseModel):
 
     model_config = ConfigDict(arbitrary_types_allowed=True, frozen=True)
 
-    id: Optional[str] = Field(default_factory=lambda: str(uuid.uuid4()))
+    id: str | None = Field(default_factory=lambda: str(uuid.uuid4()))
     channel: str
-    metadata: Optional[str] = None
+    metadata: str | None = None
     body: bytes = Field(default=b"")
     tags: dict[str, str] = Field(default_factory=dict)
     timeout_in_seconds: int = Field(gt=0)
 
     @field_validator("channel")
     def channel_must_exist(cls, v: str) -> str:
+        """Validate that the channel is not empty."""
         if not v:
             raise ValueError("Command message must have a channel.")
         validate_channel_name(v)
         return v
 
     @model_validator(mode="after")
-    def at_least_one_must_exist(self) -> "CommandMessage":
+    def at_least_one_must_exist(self) -> CommandMessage:
+        """Validate that at least one content field is set."""
         if not self.metadata and not self.body and not self.tags:
             raise ValueError(
                 "Command message must have at least one of the following: metadata, body, or tags."
@@ -53,6 +49,7 @@ class CommandMessage(BaseModel):
         return self
 
     def encode(self, client_id: str, *, span: bytes = b"") -> pbCommand:
+        """Encode the command message to a protobuf Request."""
         pb_command = pbCommand()
         pb_command.RequestID = self.id or str(uuid.uuid4())
         pb_command.ClientID = client_id
@@ -67,7 +64,7 @@ class CommandMessage(BaseModel):
             pb_command.Span = span
         return pb_command
 
-    def with_updates(self, **kwargs) -> Self:
+    def with_updates(self, **kwargs: Any) -> Self:
         """Create a new message with updated values.
 
         Since message instances are immutable, this creates a copy
@@ -81,6 +78,6 @@ class CommandMessage(BaseModel):
     def __repr__(self) -> str:
         return (
             f"CommandMessage: id={self.id}, channel={self.channel}, "
-            f"metadata={self.metadata}, body={self.body}, tags={self.tags}, "
+            f"metadata={self.metadata}, body={self.body!r}, tags={self.tags}, "
             f"timeout_in_seconds={self.timeout_in_seconds}"
         )

@@ -8,13 +8,12 @@ from __future__ import annotations
 
 import logging
 import re
-from typing import Optional
 
 MIN_TESTED_SERVER_VERSION = "2.4.0"
 MAX_TESTED_SERVER_VERSION = "2.6.0"
 
 
-def parse_version_tuple(version_str: str) -> Optional[tuple[int, ...]]:
+def parse_version_tuple(version_str: str) -> tuple[int, ...] | None:
     """Parse a version string like '2.4.1' into a comparable tuple.
 
     Returns None if the version string cannot be parsed.

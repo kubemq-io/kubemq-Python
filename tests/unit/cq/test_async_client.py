@@ -946,7 +946,7 @@ class TestAsyncCQClientBatchErrorHandling:
 # Additional Coverage Tests — uncovered lines in cq/async_client.py
 # ==============================================================================
 
-from kubemq.core.exceptions import KubeMQValidationError
+from kubemq.core.exceptions import KubeMQValidationError  # noqa: E402
 
 
 def _make_pydantic_validation_error():
@@ -1144,9 +1144,7 @@ class TestSubscribeToCommandsHandlerError:
         client._transport = mock_transport
 
         mock_pb = _make_mock_pb_request()
-        mock_transport.subscribe_to_requests = MagicMock(
-            return_value=AsyncIteratorMock([mock_pb])
-        )
+        mock_transport.subscribe_to_requests = MagicMock(return_value=AsyncIteratorMock([mock_pb]))
 
         def failing_callback(cmd):
             raise ValueError("handler boom")
@@ -1176,9 +1174,7 @@ class TestSubscribeToCommandsAsyncErrorCallback:
             async def __anext__(self):
                 raise RuntimeError("stream error")
 
-        mock_transport.subscribe_to_requests = MagicMock(
-            return_value=ErrorIterator()
-        )
+        mock_transport.subscribe_to_requests = MagicMock(return_value=ErrorIterator())
 
         errors = []
 
@@ -1214,9 +1210,7 @@ class TestSubscribeToCommandsSyncErrorCallback:
             async def __anext__(self):
                 raise RuntimeError("sync stream error")
 
-        mock_transport.subscribe_to_requests = MagicMock(
-            return_value=ErrorIterator()
-        )
+        mock_transport.subscribe_to_requests = MagicMock(return_value=ErrorIterator())
 
         errors = []
 
@@ -1245,13 +1239,9 @@ class TestSubscribeToCommandsLinkCreation:
         client._transport = mock_transport
 
         mock_pb = _make_mock_pb_request(
-            tags={
-                "traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
-            }
+            tags={"traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"}
         )
-        mock_transport.subscribe_to_requests = MagicMock(
-            return_value=AsyncIteratorMock([mock_pb])
-        )
+        mock_transport.subscribe_to_requests = MagicMock(return_value=AsyncIteratorMock([mock_pb]))
 
         subscription = CommandsSubscription(
             channel="test",
@@ -1274,9 +1264,7 @@ class TestSubscribeToQueriesHandlerError:
         client._transport = mock_transport
 
         mock_pb = _make_mock_pb_request(request_type=2, request_id="qry-123")
-        mock_transport.subscribe_to_requests = MagicMock(
-            return_value=AsyncIteratorMock([mock_pb])
-        )
+        mock_transport.subscribe_to_requests = MagicMock(return_value=AsyncIteratorMock([mock_pb]))
 
         def failing_callback(q):
             raise ValueError("query handler boom")
@@ -1306,9 +1294,7 @@ class TestSubscribeToQueriesAsyncErrorCallback:
             async def __anext__(self):
                 raise RuntimeError("query stream error")
 
-        mock_transport.subscribe_to_requests = MagicMock(
-            return_value=ErrorIterator()
-        )
+        mock_transport.subscribe_to_requests = MagicMock(return_value=ErrorIterator())
 
         errors = []
 
@@ -1343,9 +1329,7 @@ class TestSubscribeToQueriesSyncErrorCallback:
             async def __anext__(self):
                 raise RuntimeError("qry sync error")
 
-        mock_transport.subscribe_to_requests = MagicMock(
-            return_value=ErrorIterator()
-        )
+        mock_transport.subscribe_to_requests = MagicMock(return_value=ErrorIterator())
 
         errors = []
 
@@ -1374,9 +1358,7 @@ class TestSubscribeToQueriesSyncCallback:
         client._transport = mock_transport
 
         mock_pb = _make_mock_pb_request(request_type=2, request_id="qry-sync")
-        mock_transport.subscribe_to_requests = MagicMock(
-            return_value=AsyncIteratorMock([mock_pb])
-        )
+        mock_transport.subscribe_to_requests = MagicMock(return_value=AsyncIteratorMock([mock_pb]))
 
         received = []
 
@@ -1403,9 +1385,7 @@ class TestSubscribeCommandsCallbackSequentialHandlerError:
         client._transport = mock_transport
 
         mock_pb = _make_mock_pb_request()
-        mock_transport.subscribe_to_requests = MagicMock(
-            return_value=AsyncIteratorMock([mock_pb])
-        )
+        mock_transport.subscribe_to_requests = MagicMock(return_value=AsyncIteratorMock([mock_pb]))
 
         subscription = CommandsSubscription(
             channel="test",
@@ -1435,9 +1415,7 @@ class TestSubscribeCommandsCallbackSequentialHandlerError:
         client._transport = mock_transport
 
         mock_pb = _make_mock_pb_request()
-        mock_transport.subscribe_to_requests = MagicMock(
-            return_value=AsyncIteratorMock([mock_pb])
-        )
+        mock_transport.subscribe_to_requests = MagicMock(return_value=AsyncIteratorMock([mock_pb]))
 
         subscription = CommandsSubscription(
             channel="test",
@@ -1464,9 +1442,7 @@ class TestSubscribeCommandsCallbackConcurrentHandlerError:
         client._transport = mock_transport
 
         mock_pb = _make_mock_pb_request()
-        mock_transport.subscribe_to_requests = MagicMock(
-            return_value=AsyncIteratorMock([mock_pb])
-        )
+        mock_transport.subscribe_to_requests = MagicMock(return_value=AsyncIteratorMock([mock_pb]))
 
         subscription = CommandsSubscription(
             channel="test",
@@ -1498,9 +1474,7 @@ class TestSubscribeCommandsCallbackConcurrentHandlerError:
         client._logger = MagicMock()
 
         mock_pb = _make_mock_pb_request()
-        mock_transport.subscribe_to_requests = MagicMock(
-            return_value=AsyncIteratorMock([mock_pb])
-        )
+        mock_transport.subscribe_to_requests = MagicMock(return_value=AsyncIteratorMock([mock_pb]))
 
         subscription = CommandsSubscription(
             channel="test",
@@ -1534,9 +1508,7 @@ class TestSubscribeCommandsCallbackOuterException:
             async def __anext__(self):
                 raise RuntimeError("outer error")
 
-        mock_transport.subscribe_to_requests = MagicMock(
-            return_value=ErrorIterator()
-        )
+        mock_transport.subscribe_to_requests = MagicMock(return_value=ErrorIterator())
 
         subscription = CommandsSubscription(
             channel="test",
@@ -1567,9 +1539,7 @@ class TestSubscribeQueriesCallbackSequentialHandlerError:
         client._transport = mock_transport
 
         mock_pb = _make_mock_pb_request(request_type=2, request_id="qry-err")
-        mock_transport.subscribe_to_requests = MagicMock(
-            return_value=AsyncIteratorMock([mock_pb])
-        )
+        mock_transport.subscribe_to_requests = MagicMock(return_value=AsyncIteratorMock([mock_pb]))
 
         subscription = QueriesSubscription(
             channel="test",
@@ -1599,9 +1569,7 @@ class TestSubscribeQueriesCallbackSequentialHandlerError:
         client._transport = mock_transport
 
         mock_pb = _make_mock_pb_request(request_type=2, request_id="qry-reraise")
-        mock_transport.subscribe_to_requests = MagicMock(
-            return_value=AsyncIteratorMock([mock_pb])
-        )
+        mock_transport.subscribe_to_requests = MagicMock(return_value=AsyncIteratorMock([mock_pb]))
 
         subscription = QueriesSubscription(
             channel="test",
@@ -1628,9 +1596,7 @@ class TestSubscribeQueriesCallbackConcurrentHandlerError:
         client._transport = mock_transport
 
         mock_pb = _make_mock_pb_request(request_type=2, request_id="qry-conc")
-        mock_transport.subscribe_to_requests = MagicMock(
-            return_value=AsyncIteratorMock([mock_pb])
-        )
+        mock_transport.subscribe_to_requests = MagicMock(return_value=AsyncIteratorMock([mock_pb]))
 
         subscription = QueriesSubscription(
             channel="test",
@@ -1661,9 +1627,7 @@ class TestSubscribeQueriesCallbackConcurrentHandlerError:
         client._logger = MagicMock()
 
         mock_pb = _make_mock_pb_request(request_type=2, request_id="qry-log")
-        mock_transport.subscribe_to_requests = MagicMock(
-            return_value=AsyncIteratorMock([mock_pb])
-        )
+        mock_transport.subscribe_to_requests = MagicMock(return_value=AsyncIteratorMock([mock_pb]))
 
         subscription = QueriesSubscription(
             channel="test",
@@ -1697,9 +1661,7 @@ class TestSubscribeQueriesCallbackOuterException:
             async def __anext__(self):
                 raise RuntimeError("query outer error")
 
-        mock_transport.subscribe_to_requests = MagicMock(
-            return_value=ErrorIterator()
-        )
+        mock_transport.subscribe_to_requests = MagicMock(return_value=ErrorIterator())
 
         subscription = QueriesSubscription(
             channel="test",

@@ -13,8 +13,8 @@ from __future__ import annotations
 import asyncio
 import logging
 import threading
-from datetime import datetime, timedelta, timezone
-from typing import TYPE_CHECKING, Optional
+from datetime import UTC, datetime, timedelta
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from kubemq.core.types import AsyncCredentialProvider, CredentialProvider
@@ -35,17 +35,17 @@ class TokenHolder:
 
     __slots__ = ("_token", "_lock")
 
-    def __init__(self, token: Optional[str] = None) -> None:
+    def __init__(self, token: str | None = None) -> None:
         self._token = token
         self._lock = threading.Lock()
 
     @property
-    def token(self) -> Optional[str]:
+    def token(self) -> str | None:
         with self._lock:
             return self._token
 
     @token.setter
-    def token(self, value: Optional[str]) -> None:
+    def token(self, value: str | None) -> None:
         with self._lock:
             self._token = value
 
@@ -73,12 +73,12 @@ class StaticTokenProvider:
             raise ValueError("Static token must be a non-empty string")
         self._token = token
 
-    def get_token(self) -> tuple[str, Optional[datetime]]:
+    def get_token(self) -> tuple[str, datetime | None]:
         """Sync get_token — satisfies CredentialProvider protocol."""
         return (self._token, None)
 
     def __repr__(self) -> str:
-        return f"StaticTokenProvider(token_present=True)"
+        return "StaticTokenProvider(token_present=True)"
 
 
 class TokenManager:
@@ -103,17 +103,15 @@ class TokenManager:
         credential_timeout: float = 5.0,
     ) -> None:
         self._provider = provider
-        self._is_async_provider = asyncio.iscoroutinefunction(
-            getattr(provider, "get_token", None)
-        )
+        self._is_async_provider = asyncio.iscoroutinefunction(getattr(provider, "get_token", None))
         self._token_holder = token_holder
         self._refresh_buffer = refresh_buffer
         self._credential_timeout = credential_timeout
 
         self._lock = asyncio.Lock()
-        self._cached_token: Optional[str] = None
-        self._expires_at: Optional[datetime] = None
-        self._refresh_task: Optional[asyncio.Task[None]] = None
+        self._cached_token: str | None = None
+        self._expires_at: datetime | None = None
+        self._refresh_task: asyncio.Task[None] | None = None
         self._closed = False
 
     async def get_token(self) -> str:
@@ -140,13 +138,17 @@ class TokenManager:
         """Invoke the provider and update cache. Must be called under _lock."""
         try:
             if self._is_async_provider:
+                coro = self._provider.get_token()
+                # At this point, get_token() returned a coroutine
                 token, expires_at = await asyncio.wait_for(
-                    self._provider.get_token(),
+                    coro,  # type: ignore[arg-type]
                     timeout=self._credential_timeout,
                 )
             else:
-                token, expires_at = self._provider.get_token()
-        except asyncio.TimeoutError as e:
+                result = self._provider.get_token()
+                # At this point, get_token() returned a tuple directly
+                token, expires_at = result  # type: ignore[misc]
+        except TimeoutError as e:
             from kubemq.core.exceptions import ErrorCode, KubeMQTimeoutError
 
             raise KubeMQTimeoutError(
@@ -184,11 +186,11 @@ class TokenManager:
     def _is_expired(self) -> bool:
         if self._expires_at is None:
             return False
-        return datetime.now(timezone.utc) >= self._expires_at
+        return datetime.now(UTC) >= self._expires_at
 
     def _schedule_proactive_refresh(self, expires_at: datetime) -> None:
         self._cancel_proactive_refresh()
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         refresh_at = expires_at - self._refresh_buffer
         delay = max(
             (refresh_at - now).total_seconds(),

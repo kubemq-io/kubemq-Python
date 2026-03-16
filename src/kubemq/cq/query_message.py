@@ -1,18 +1,12 @@
 from __future__ import annotations
 
-import sys
 import uuid
-from typing import Optional
+from typing import Any, Self
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from kubemq.common.channel_validators import validate_channel_name
 from kubemq.grpc import Request as pbQuery
-
-if sys.version_info >= (3, 11):
-    from typing import Self
-else:
-    from typing_extensions import Self
 
 
 class QueryMessage(BaseModel):
@@ -40,9 +34,9 @@ class QueryMessage(BaseModel):
 
     model_config = ConfigDict(arbitrary_types_allowed=True, frozen=True)
 
-    id: Optional[str] = Field(default_factory=lambda: str(uuid.uuid4()))
+    id: str | None = Field(default_factory=lambda: str(uuid.uuid4()))
     channel: str
-    metadata: Optional[str] = None
+    metadata: str | None = None
     body: bytes = Field(default=b"")
     tags: dict[str, str] = Field(default_factory=dict)
     timeout_in_seconds: int = Field(gt=0)
@@ -51,24 +45,25 @@ class QueryMessage(BaseModel):
 
     @field_validator("channel")
     def channel_must_exist(cls, v: str) -> str:
+        """Validate that the channel is not empty."""
         if not v:
             raise ValueError("Query message must have a channel.")
         validate_channel_name(v)
         return v
 
     @model_validator(mode="after")
-    def check_metadata_body_tags(self) -> "QueryMessage":
+    def check_metadata_body_tags(self) -> QueryMessage:
+        """Validate at least one content field and cache consistency."""
         if not self.metadata and not self.body and not self.tags:
             raise ValueError(
                 "Query message must have at least one of the following: metadata, body, or tags."
             )
         if self.cache_key and self.cache_ttl_int_seconds <= 0:
-            raise ValueError(
-                "cache_ttl_int_seconds must be > 0 when cache_key is set."
-            )
+            raise ValueError("cache_ttl_int_seconds must be > 0 when cache_key is set.")
         return self
 
     def encode(self, client_id: str, *, span: bytes = b"") -> pbQuery:
+        """Encode the query message to a protobuf Request."""
         pb_query = pbQuery()
         pb_query.RequestID = self.id or str(uuid.uuid4())
         pb_query.ClientID = client_id
@@ -85,7 +80,7 @@ class QueryMessage(BaseModel):
             pb_query.Span = span
         return pb_query
 
-    def with_updates(self, **kwargs) -> Self:
+    def with_updates(self, **kwargs: Any) -> Self:
         """Create a new message with updated values.
 
         Since message instances are immutable, this creates a copy
@@ -99,7 +94,7 @@ class QueryMessage(BaseModel):
     def __repr__(self) -> str:
         return (
             f"QueryMessage: id={self.id}, channel={self.channel}, "
-            f"metadata={self.metadata}, body={self.body}, tags={self.tags}, "
+            f"metadata={self.metadata}, body={self.body!r}, tags={self.tags}, "
             f"timeout_in_seconds={self.timeout_in_seconds}, "
             f"cache_key={self.cache_key}, "
             f"cache_ttl_int_seconds={self.cache_ttl_int_seconds}"
@@ -108,17 +103,16 @@ class QueryMessage(BaseModel):
     @classmethod
     def create(
         cls,
-        id: Optional[str] = None,
-        channel: Optional[str] = None,
-        metadata: Optional[str] = None,
+        id: str | None = None,
+        channel: str | None = None,
+        metadata: str | None = None,
         body: bytes = b"",
-        tags: Optional[dict[str, str]] = None,
+        tags: dict[str, str] | None = None,
         timeout_in_seconds: int = 0,
         cache_key: str = "",
         cache_ttl_int_seconds: int = 0,
-    ) -> "QueryMessage":
-        """
-        Creates a new QueryMessage instance.
+    ) -> QueryMessage:
+        """Creates a new QueryMessage instance.
 
         This method provides backwards compatibility with the original constructor.
         """

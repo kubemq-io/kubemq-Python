@@ -26,6 +26,7 @@ class CommandMessageReceived(BaseModel):
 
     @classmethod
     def decode(cls, command_receive: pbRequest) -> "CommandMessageReceived":
+        """Decode a protobuf Request into a CommandMessageReceived."""
         return cls(
             id=command_receive.RequestID,
             from_client_id=command_receive.ClientID,
@@ -40,7 +41,7 @@ class CommandMessageReceived(BaseModel):
     def __repr__(self) -> str:
         return (
             f"CommandMessageReceived: id={self.id}, channel={self.channel}, "
-            f"metadata={self.metadata}, body={self.body}, "
+            f"metadata={self.metadata}, body={self.body!r}, "
             f"from_client_id={self.from_client_id}, timestamp={self.timestamp}, "
             f"reply_channel={self.reply_channel}, tags={self.tags}"
         )

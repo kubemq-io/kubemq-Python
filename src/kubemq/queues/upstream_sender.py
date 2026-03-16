@@ -4,7 +4,6 @@ import threading
 import time
 import uuid
 from collections.abc import Generator, Iterator
-from typing import Optional
 
 import grpc
 
@@ -22,8 +21,7 @@ DEFAULT_SEND_QUEUE_SIZE = 10_000
 
 
 class UpstreamSender:
-    """
-    Class representing an upstream sender for sending messages to a KubeMQ server.
+    """Class representing an upstream sender for sending messages to a KubeMQ server.
 
     This class manages a continuous stream of messages to the server and processes
     responses asynchronously using a background thread. It provides methods for
@@ -77,7 +75,7 @@ class UpstreamSender:
         self.shutdown_event = threading.Event()
         self.logger = logger
         self.lock = threading.Lock()
-        self.response_tracking = {}
+        self.response_tracking: dict[str, tuple[dict[str, object], threading.Event, str]] = {}
         self.sending_queue: queue.Queue[QueuesUpstreamRequest | None] = queue.Queue(
             maxsize=max_queue_size
         )
@@ -85,7 +83,7 @@ class UpstreamSender:
         self.send_timeout = send_timeout
         threading.Thread(target=self._send_queue_stream, args=(), daemon=True).start()
 
-    def send(self, message: pbQueueMessage) -> Optional[QueueSendResult]:
+    def send(self, message: pbQueueMessage) -> QueueSendResult | None:
         """Send a message to the server.
 
         Args:
@@ -106,7 +104,7 @@ class UpstreamSender:
                 raise ConnectionError("Sender is not ready to accept new messages.")
 
             response_result = threading.Event()
-            response_container = {}
+            response_container: dict[str, object] = {}
             message_id = message.MessageID
             queue_upstream_request = QueuesUpstreamRequest()
             queue_upstream_request.RequestID = str(uuid.uuid4())
@@ -139,7 +137,10 @@ class UpstreamSender:
                     buffer_size=self.sending_queue.maxsize,
                 ) from None
             response_result.wait(self.send_timeout)
-            response: QueuesUpstreamResponse | None = response_container.get("response")
+            response_raw = response_container.get("response")
+            response: QueuesUpstreamResponse | None = (
+                response_raw if isinstance(response_raw, QueuesUpstreamResponse) else None
+            )
             with self.lock:
                 if self.response_tracking.get(queue_upstream_request.RequestID):
                     del self.response_tracking[queue_upstream_request.RequestID]

@@ -98,7 +98,7 @@ class BaseClient(ABC):  # noqa: B024
         client_id: str | None = None,
         auth_token: str | None = None,
         config: ClientConfig | None = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> None:
         """Initialize the client.
 
@@ -188,9 +188,7 @@ class BaseClient(ABC):  # noqa: B024
     def _register_subscription_thread(self, thread: threading.Thread) -> None:
         """Register a subscription thread for shutdown tracking."""
         with self._subscription_threads_lock:
-            self._subscription_threads = [
-                t for t in self._subscription_threads if t.is_alive()
-            ]
+            self._subscription_threads = [t for t in self._subscription_threads if t.is_alive()]
             self._subscription_threads.append(thread)
 
     def close(self) -> None:
@@ -211,9 +209,7 @@ class BaseClient(ABC):  # noqa: B024
             self._logger.debug(f"Closing connection to {self._config.address}")
             self._cleanup_resources()
 
-            callback_timeout = getattr(
-                self._config, "callback_completion_timeout", 30.0
-            )
+            callback_timeout = getattr(self._config, "callback_completion_timeout", 30.0)
             with self._subscription_threads_lock:
                 threads_to_join = list(self._subscription_threads)
                 self._subscription_threads.clear()
@@ -321,7 +317,7 @@ class AsyncBaseClient(ABC):  # noqa: B024
         client_id: str | None = None,
         auth_token: str | None = None,
         config: ClientConfig | None = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> None:
         """Initialize the async client.
 
@@ -488,7 +484,7 @@ class NativeAsyncBaseClient(ABC):  # noqa: B024
         client_id: str | None = None,
         auth_token: str | None = None,
         config: ClientConfig | None = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> None:
         """Initialize the native async client.
 
@@ -515,6 +511,7 @@ class NativeAsyncBaseClient(ABC):  # noqa: B024
         self._transport: AsyncTransport | None = None
 
         from kubemq._internal.retry import RetryExecutor
+
         self._retry_executor = RetryExecutor(self._config.retry_policy)
 
         self._logger: Any = _resolve_logger(self._config, self.__class__.__name__)
@@ -638,9 +635,7 @@ class NativeAsyncBaseClient(ABC):  # noqa: B024
             self._closing = True
             self._logger.debug("Starting client shutdown")
 
-            callback_timeout = getattr(
-                self._config, "callback_completion_timeout", 30.0
-            )
+            callback_timeout = getattr(self._config, "callback_completion_timeout", 30.0)
 
             # 1. Cancel all subscription tokens (stops new message delivery)
             async with self._subscriptions_lock:
@@ -656,9 +651,7 @@ class NativeAsyncBaseClient(ABC):  # noqa: B024
                     "Waiting for %d subscription tasks to drain callbacks",
                     len(tasks),
                 )
-                done, pending = await asyncio.wait(
-                    tasks, timeout=callback_timeout
-                )
+                done, pending = await asyncio.wait(tasks, timeout=callback_timeout)
                 if pending:
                     self._logger.warning(
                         "Callback drain timeout (%.1fs) reached, "

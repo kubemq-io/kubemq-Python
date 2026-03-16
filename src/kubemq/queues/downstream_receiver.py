@@ -3,7 +3,6 @@ import queue
 import threading
 import time
 from collections.abc import Generator, Iterator
-from typing import Optional
 
 import grpc
 
@@ -19,8 +18,7 @@ DEFAULT_RECEIVE_QUEUE_SIZE = 10_000
 
 
 class DownstreamReceiver:
-    """
-    Class representing a downstream receiver for sending requests to a KubeMQ server.
+    """Class representing a downstream receiver for sending requests to a KubeMQ server.
 
     This class manages a continuous stream of requests to the server and processes
     responses asynchronously using a background thread. It provides methods for
@@ -74,7 +72,7 @@ class DownstreamReceiver:
         self.shutdown_event = threading.Event()
         self.logger = logger
         self.lock = threading.Lock()
-        self.response_tracking = {}
+        self.response_tracking: dict[str, tuple[dict[str, object], threading.Event]] = {}
         self.queue: queue.Queue[QueuesDownstreamRequest | None] = queue.Queue(
             maxsize=max_queue_size
         )
@@ -82,7 +80,7 @@ class DownstreamReceiver:
         self.timeout_buffer = timeout_buffer
         threading.Thread(target=self._send_queue_stream, args=(), daemon=True).start()
 
-    def send(self, request: QueuesDownstreamRequest) -> Optional[QueuesDownstreamResponse]:
+    def send(self, request: QueuesDownstreamRequest) -> QueuesDownstreamResponse | None:
         """Send a request to the server and wait for a response.
 
         Args:
@@ -103,7 +101,7 @@ class DownstreamReceiver:
                 raise ConnectionError("Receiver is not ready to accept new requests")
 
             response_result = threading.Event()
-            response_container = {}
+            response_container: dict[str, object] = {}
             with self.lock:
                 self.response_tracking[request.RequestID] = (
                     response_container,
@@ -132,7 +130,10 @@ class DownstreamReceiver:
                 ) from None
             request_wait_timeout = (request.WaitTimeout / 1000) + self.timeout_buffer
             response_result.wait(request_wait_timeout)
-            response = response_container.get("response")  # type: QueuesDownstreamResponse | None
+            response_raw = response_container.get("response")
+            response: QueuesDownstreamResponse | None = (
+                response_raw if isinstance(response_raw, QueuesDownstreamResponse) else None
+            )
             with self.lock:
                 if self.response_tracking.get(request.RequestID):
                     del self.response_tracking[request.RequestID]

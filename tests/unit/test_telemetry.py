@@ -2,16 +2,11 @@
 
 from __future__ import annotations
 
-import logging
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from kubemq._internal.telemetry import (
-    HAS_OTEL,
-    KubeMQInstrumentor,
-    KubeMQMetrics,
-    KubeMQTagsCarrier,
     _NOOP_COUNTER,
     _NOOP_HISTOGRAM,
     _NOOP_METER,
@@ -19,19 +14,15 @@ from kubemq._internal.telemetry import (
     _NOOP_SPAN_CONTEXT,
     _NOOP_TRACER,
     _NOOP_UP_DOWN_COUNTER,
-    _NoOpCounter,
-    _NoOpHistogram,
-    _NoOpMeter,
-    _NoOpSpan,
-    _NoOpSpanContext,
-    _NoOpTracer,
-    _NoOpUpDownCounter,
+    HAS_OTEL,
+    KubeMQInstrumentor,
+    KubeMQMetrics,
+    KubeMQTagsCarrier,
     create_link_from_context,
     error_code_to_error_type,
     get_meter,
     get_tracer,
 )
-
 
 # ==============================================================================
 # _NoOpSpan tests
@@ -279,9 +270,12 @@ class TestKubeMQInstrumentorRecordError:
         mock_status_code = MagicMock()
         with (
             patch("kubemq._internal.telemetry.HAS_OTEL", True),
-            patch.dict("sys.modules", {
-                "opentelemetry.trace": MagicMock(StatusCode=MagicMock(ERROR=mock_status_code)),
-            }),
+            patch.dict(
+                "sys.modules",
+                {
+                    "opentelemetry.trace": MagicMock(StatusCode=MagicMock(ERROR=mock_status_code)),
+                },
+            ),
         ):
             instrumentor.record_error(mock_span, err, "timeout")
 
@@ -297,9 +291,12 @@ class TestKubeMQInstrumentorRecordError:
 
         with (
             patch("kubemq._internal.telemetry.HAS_OTEL", True),
-            patch.dict("sys.modules", {
-                "opentelemetry.trace": MagicMock(StatusCode=MagicMock(ERROR=MagicMock())),
-            }),
+            patch.dict(
+                "sys.modules",
+                {
+                    "opentelemetry.trace": MagicMock(StatusCode=MagicMock(ERROR=MagicMock())),
+                },
+            ),
         ):
             instrumentor.record_error(mock_span, err, "")
 
@@ -314,9 +311,12 @@ class TestKubeMQInstrumentorRecordError:
 
         with (
             patch("kubemq._internal.telemetry.HAS_OTEL", True),
-            patch.dict("sys.modules", {
-                "opentelemetry.trace": MagicMock(StatusCode=MagicMock(ERROR=MagicMock())),
-            }),
+            patch.dict(
+                "sys.modules",
+                {
+                    "opentelemetry.trace": MagicMock(StatusCode=MagicMock(ERROR=MagicMock())),
+                },
+            ),
         ):
             instrumentor.record_error(mock_span, RuntimeError("err"), "timeout")
 
@@ -924,6 +924,7 @@ class TestSerializeSpanToBytesMocked:
             patch.dict("sys.modules", {"opentelemetry.propagate": mock_propagate}),
         ):
             from kubemq._internal.telemetry import serialize_span_to_bytes
+
             result = serialize_span_to_bytes()
             assert result == b""
 
@@ -941,6 +942,7 @@ class TestSerializeSpanToBytesMocked:
             patch.dict("sys.modules", {"opentelemetry.propagate": mock_propagate}),
         ):
             from kubemq._internal.telemetry import serialize_span_to_bytes
+
             result = serialize_span_to_bytes()
             parsed = json.loads(result)
             assert parsed["traceparent"] == "00-abc-def-01"
@@ -957,6 +959,7 @@ class TestDeserializeSpanFromBytesMocked:
             patch.dict("sys.modules", {"opentelemetry.propagate": mock_propagate}),
         ):
             from kubemq._internal.telemetry import deserialize_span_from_bytes
+
             result = deserialize_span_from_bytes(b"not-json{{{")
             assert result is None
 
@@ -971,6 +974,7 @@ class TestDeserializeSpanFromBytesMocked:
             patch.dict("sys.modules", {"opentelemetry.propagate": mock_propagate}),
         ):
             from kubemq._internal.telemetry import deserialize_span_from_bytes
+
             result = deserialize_span_from_bytes(b'{"traceparent": "val"}')
             assert result is mock_ctx
 
@@ -991,12 +995,16 @@ class TestCreateLinkFromContextMocked:
 
         with (
             patch("kubemq._internal.telemetry.HAS_OTEL", True),
-            patch.dict("sys.modules", {
-                "opentelemetry": MagicMock(trace=mock_otel_trace),
-                "opentelemetry.trace": mock_otel_trace,
-            }),
+            patch.dict(
+                "sys.modules",
+                {
+                    "opentelemetry": MagicMock(trace=mock_otel_trace),
+                    "opentelemetry.trace": mock_otel_trace,
+                },
+            ),
         ):
             from kubemq._internal.telemetry import create_link_from_context
+
             ctx = MagicMock()
             result = create_link_from_context(ctx)
             assert result is mock_link
@@ -1012,12 +1020,16 @@ class TestCreateLinkFromContextMocked:
 
         with (
             patch("kubemq._internal.telemetry.HAS_OTEL", True),
-            patch.dict("sys.modules", {
-                "opentelemetry": MagicMock(trace=mock_otel_trace),
-                "opentelemetry.trace": mock_otel_trace,
-            }),
+            patch.dict(
+                "sys.modules",
+                {
+                    "opentelemetry": MagicMock(trace=mock_otel_trace),
+                    "opentelemetry.trace": mock_otel_trace,
+                },
+            ),
         ):
             from kubemq._internal.telemetry import create_link_from_context
+
             result = create_link_from_context(MagicMock())
             assert result is None
 
@@ -1031,7 +1043,9 @@ class TestAddRetryEventMocked:
         mock_span.is_recording.return_value = True
 
         with patch("kubemq._internal.telemetry.HAS_OTEL", True):
-            instrumentor.add_retry_event(mock_span, attempt=2, delay_seconds=1.5, error_type="timeout")
+            instrumentor.add_retry_event(
+                mock_span, attempt=2, delay_seconds=1.5, error_type="timeout"
+            )
 
         mock_span.add_event.assert_called_once()
 
@@ -1041,6 +1055,8 @@ class TestAddRetryEventMocked:
         mock_span.is_recording.return_value = False
 
         with patch("kubemq._internal.telemetry.HAS_OTEL", True):
-            instrumentor.add_retry_event(mock_span, attempt=1, delay_seconds=0.5, error_type="timeout")
+            instrumentor.add_retry_event(
+                mock_span, attempt=1, delay_seconds=0.5, error_type="timeout"
+            )
 
         mock_span.add_event.assert_not_called()

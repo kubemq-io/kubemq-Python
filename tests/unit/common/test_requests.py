@@ -9,7 +9,12 @@ from unittest.mock import MagicMock, patch
 import grpc
 import pytest
 
-from kubemq.common.exceptions import CreateChannelError, DeleteChannelError, GRPCError, ListChannelsError
+from kubemq.common.exceptions import (
+    CreateChannelError,
+    DeleteChannelError,
+    GRPCError,
+    ListChannelsError,
+)
 from kubemq.common.requests import (
     create_channel_request,
     delete_channel_request,
@@ -47,7 +52,6 @@ def _make_response(executed=True, error="", body=b""):
 
 
 class TestCreateChannelRequest:
-
     def test_success_returns_true(self):
         transport = _make_transport(response=_make_response(executed=True))
 
@@ -73,18 +77,17 @@ class TestCreateChannelRequest:
             with pytest.raises(GRPCError):
                 create_channel_request(transport, "client-1", "my-channel", "queues")
 
-    def test_none_response_returns_none(self):
+    def test_none_response_returns_false(self):
         transport = _make_transport(response=None)
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", DeprecationWarning)
             result = create_channel_request(transport, "client-1", "my-channel", "queues")
 
-        assert result is None
+        assert result is False
 
 
 class TestDeleteChannelRequest:
-
     def test_success_returns_true(self):
         transport = _make_transport(response=_make_response(executed=True))
 
@@ -110,18 +113,17 @@ class TestDeleteChannelRequest:
             with pytest.raises(GRPCError):
                 delete_channel_request(transport, "client-1", "my-channel", "queues")
 
-    def test_none_response_returns_none(self):
+    def test_none_response_returns_false(self):
         transport = _make_transport(response=None)
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", DeprecationWarning)
             result = delete_channel_request(transport, "client-1", "my-channel", "queues")
 
-        assert result is None
+        assert result is False
 
 
 class TestListQueuesChannels:
-
     @patch("kubemq.common.requests.decode_queues_channel_list")
     def test_success_returns_decoded_channels(self, mock_decode):
         sentinel = [MagicMock()]
@@ -162,7 +164,6 @@ class TestListQueuesChannels:
 
 
 class TestListPubsubChannels:
-
     @patch("kubemq.common.requests.decode_pub_sub_channel_list")
     def test_success_returns_decoded_channels(self, mock_decode):
         sentinel = [MagicMock()]
@@ -203,7 +204,6 @@ class TestListPubsubChannels:
 
 
 class TestListCQChannels:
-
     @patch("kubemq.common.requests.decode_cq_channel_list")
     def test_success_returns_decoded_channels(self, mock_decode):
         sentinel = [MagicMock()]
@@ -267,6 +267,7 @@ class TestListChannelsRetry:
         class DeadlineExceeded(grpc.RpcError):
             def code(self):
                 return grpc.StatusCode.DEADLINE_EXCEEDED
+
             def details(self):
                 return "Deadline Exceeded"
 
@@ -311,6 +312,7 @@ class TestListChannelsRetryGrpcRetryable:
         class DeadlineExceeded(grpc.RpcError):
             def code(self):
                 return grpc.StatusCode.DEADLINE_EXCEEDED
+
             def details(self):
                 return "Deadline Exceeded"
 
@@ -328,9 +330,7 @@ class TestListChannelsRetryGrpcRetryable:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", DeprecationWarning)
             with unittest.mock.patch("kubemq.common.requests.time.sleep"):
-                result = _list_channels_with_retry(
-                    transport, "client-1", "queues", "", decode_fn
-                )
+                result = _list_channels_with_retry(transport, "client-1", "queues", "", decode_fn)
 
         assert result == ["channel-a"]
         decode_fn.assert_called_once_with(b"decoded")
@@ -352,9 +352,7 @@ class TestListChannelsRetryExhausted:
         decode_fn = MagicMock()
 
         with patch("kubemq.common.requests._LIST_MAX_RETRIES", 0):
-            result = _list_channels_with_retry(
-                transport, "client", "queues", "", decode_fn
-            )
+            result = _list_channels_with_retry(transport, "client", "queues", "", decode_fn)
 
         assert result == []
         decode_fn.assert_not_called()

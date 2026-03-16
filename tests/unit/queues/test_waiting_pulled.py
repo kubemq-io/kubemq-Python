@@ -15,21 +15,20 @@ from kubemq.queues.queues_messages_waiting_pulled import (
 
 
 def _make_message(**overrides) -> QueueMessageWaitingPulled:
-    defaults = dict(
-        id="msg-1",
-        channel="test-queue",
-        metadata="meta",
-        body=b"hello",
-        from_client_id="sender",
-        tags={"k": "v"},
-        receiver_client_id="receiver",
-    )
+    defaults = {
+        "id": "msg-1",
+        "channel": "test-queue",
+        "metadata": "meta",
+        "body": b"hello",
+        "from_client_id": "sender",
+        "tags": {"k": "v"},
+        "receiver_client_id": "receiver",
+    }
     defaults.update(overrides)
     return QueueMessageWaitingPulled(**defaults)
 
 
 class TestQueueMessageWaitingPulledValidation:
-
     def test_channel_must_not_be_empty(self):
         with pytest.raises(ValueError, match="[Cc]hannel"):
             QueueMessageWaitingPulled(id="x", channel="", receiver_client_id="r")
@@ -48,7 +47,6 @@ class TestQueueMessageWaitingPulledValidation:
 
 
 class TestIsExpired:
-
     def test_not_expired_when_epoch(self):
         msg = _make_message()
         assert msg.is_expired() is False
@@ -63,7 +61,6 @@ class TestIsExpired:
 
 
 class TestIsDelayed:
-
     def test_not_delayed_when_epoch(self):
         msg = _make_message()
         assert msg.is_delayed() is False
@@ -78,7 +75,6 @@ class TestIsDelayed:
 
 
 class TestGetDelaySeconds:
-
     def test_zero_when_not_delayed(self):
         msg = _make_message()
         assert msg.get_delay_seconds() == 0
@@ -89,7 +85,6 @@ class TestGetDelaySeconds:
 
 
 class TestGetAgeSeconds:
-
     def test_zero_when_epoch_timestamp(self):
         msg = _make_message()
         assert msg.get_age_seconds() == 0
@@ -100,7 +95,6 @@ class TestGetAgeSeconds:
 
 
 class TestWithUpdates:
-
     def test_returns_new_instance(self):
         original = _make_message()
         updated = original.with_updates(metadata="new-meta")
@@ -110,7 +104,6 @@ class TestWithUpdates:
 
 
 class TestEncodeDecode:
-
     def test_encode_basic(self):
         msg = _make_message()
         pb = msg.encode()
@@ -146,7 +139,6 @@ class TestEncodeDecode:
         pb = MagicMock()
         pb.Channel = ""
         with pytest.raises(ValueError, match="channel"):
-
             QueueMessageWaitingPulled.decode(pb, "r")
 
     def test_decode_with_attributes(self):
@@ -162,9 +154,7 @@ class TestEncodeDecode:
         pb.Attributes.ReceiveCount = 3
         pb.Attributes.ReRouted = True
         pb.Attributes.ReRoutedFromQueue = "original-q"
-        pb.Attributes.ExpirationAt = int(
-            (datetime.now() + timedelta(hours=1)).timestamp() * 1e6
-        )
+        pb.Attributes.ExpirationAt = int((datetime.now() + timedelta(hours=1)).timestamp() * 1e9)
         pb.Attributes.DelayedTo = 0
 
         msg = QueueMessageWaitingPulled.decode(pb, "r2")
@@ -185,7 +175,6 @@ class TestEncodeDecode:
 
 
 class TestQueueMessagesCollections:
-
     def test_waiting_empty(self):
         w = QueueMessagesWaiting(messages=[], is_error=False)
         assert w.is_empty() is True
@@ -226,7 +215,8 @@ class TestQueueMessageWaitingPulledEncodeEdge:
     """Tests for encode edge cases (lines 190, 198, 201)."""
 
     def test_encode_with_timestamp_and_sequence(self):
-        from datetime import datetime, timedelta
+        from datetime import datetime
+
         msg = _make_message(
             timestamp=datetime(2025, 1, 1, 12, 0, 0),
             sequence=7,
@@ -238,6 +228,7 @@ class TestQueueMessageWaitingPulledEncodeEdge:
 
     def test_encode_with_expired_at(self):
         from datetime import datetime, timedelta
+
         exp = datetime.now() + timedelta(hours=1)
         msg = _make_message(expired_at=exp)
         pb = msg.encode()
@@ -245,6 +236,7 @@ class TestQueueMessageWaitingPulledEncodeEdge:
 
     def test_encode_with_delayed_to(self):
         from datetime import datetime, timedelta
+
         delay = datetime.now() + timedelta(hours=1)
         msg = _make_message(delayed_to=delay)
         pb = msg.encode()
@@ -277,6 +269,7 @@ class TestQueueMessageWaitingPulledDecodeEdge:
 
     def test_decode_with_delayed_to_attribute(self):
         from datetime import datetime, timedelta
+
         pb = MagicMock()
         pb.MessageID = "msg-delay"
         pb.Channel = "q"
@@ -291,7 +284,7 @@ class TestQueueMessageWaitingPulledDecodeEdge:
         pb.Attributes.ReRouted = False
         pb.Attributes.ReRoutedFromQueue = ""
         pb.Attributes.ExpirationAt = 0
-        pb.Attributes.DelayedTo = int(delay.timestamp() * 1e6)
+        pb.Attributes.DelayedTo = int(delay.timestamp() * 1e9)
         msg = QueueMessageWaitingPulled.decode(pb, "r")
         assert msg.delayed_to > datetime.fromtimestamp(0)
 

@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-Generate current public API documentation for comparison.
+"""Generate current public API documentation for comparison.
 
 This script extracts all public classes, methods, and their signatures
 from the KubeMQ Python SDK to create a snapshot for migration comparison.
@@ -9,9 +8,9 @@ from the KubeMQ Python SDK to create a snapshot for migration comparison.
 import inspect
 import json
 import sys
-from pathlib import Path
-from typing import Any, Dict, List, Optional, get_type_hints
 from datetime import datetime
+from pathlib import Path
+from typing import Any
 
 # Add the project src to the path
 project_root = Path(__file__).parent.parent
@@ -27,20 +26,20 @@ def get_signature_string(obj: Any) -> str:
         return "(unknown)"
 
 
-def get_docstring_summary(obj: Any) -> Optional[str]:
+def get_docstring_summary(obj: Any) -> str | None:
     """Get the first line of the docstring."""
     doc = inspect.getdoc(obj)
     if doc:
-        return doc.split('\n')[0].strip()
+        return doc.split("\n")[0].strip()
     return None
 
 
-def extract_class_api(cls: type) -> Dict[str, Any]:
+def extract_class_api(cls: type) -> dict[str, Any]:
     """Extract API information from a class."""
     api = {
         "type": "class",
         "docstring": get_docstring_summary(cls),
-        "bases": [base.__name__ for base in cls.__bases__ if base.__name__ != 'object'],
+        "bases": [base.__name__ for base in cls.__bases__ if base.__name__ != "object"],
         "methods": {},
         "class_methods": {},
         "static_methods": {},
@@ -49,11 +48,11 @@ def extract_class_api(cls: type) -> Dict[str, Any]:
     }
 
     for name in dir(cls):
-        if name.startswith('_') and not name.startswith('__'):
+        if name.startswith("_") and not name.startswith("__"):
             continue  # Skip private methods but keep dunder methods
 
         # Skip inherited dunder methods except __init__
-        if name.startswith('__') and name != '__init__':
+        if name.startswith("__") and name != "__init__":
             continue
 
         try:
@@ -62,7 +61,7 @@ def extract_class_api(cls: type) -> Dict[str, Any]:
             continue
 
         # Check if it's defined in this class (not inherited from object)
-        if name != '__init__':
+        if name != "__init__":
             defining_class = None
             for klass in cls.__mro__:
                 if name in klass.__dict__:
@@ -98,7 +97,7 @@ def extract_class_api(cls: type) -> Dict[str, Any]:
     return api
 
 
-def extract_function_api(func: Any) -> Dict[str, Any]:
+def extract_function_api(func: Any) -> dict[str, Any]:
     """Extract API information from a function."""
     return {
         "type": "function",
@@ -107,12 +106,12 @@ def extract_function_api(func: Any) -> Dict[str, Any]:
     }
 
 
-def extract_module_api(module: Any, module_name: str) -> Dict[str, Any]:
+def extract_module_api(module: Any, module_name: str) -> dict[str, Any]:
     """Extract all public APIs from a module."""
     api = {}
 
     for name in dir(module):
-        if name.startswith('_'):
+        if name.startswith("_"):
             continue
 
         try:
@@ -121,9 +120,9 @@ def extract_module_api(module: Any, module_name: str) -> Dict[str, Any]:
             continue
 
         # Skip if it's from another module (re-exports)
-        if hasattr(obj, '__module__'):
+        if hasattr(obj, "__module__"):
             obj_module = obj.__module__
-            if obj_module and not obj_module.startswith('kubemq'):
+            if obj_module and not obj_module.startswith("kubemq"):
                 continue
 
         if inspect.isclass(obj):
@@ -140,14 +139,14 @@ def main():
         "version": "3.x",
         "generated_at": datetime.now().isoformat(),
         "python_version": f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",
-        "modules": {}
+        "modules": {},
     }
 
     # Import all modules
     try:
-        from kubemq import pubsub, queues, cq
+        from kubemq import cq, pubsub, queues
         from kubemq.common import exceptions
-        from kubemq.transport import Connection, TlsConfig, KeepAliveConfig, ServerInfo
+        from kubemq.transport import Connection, KeepAliveConfig, ServerInfo, TlsConfig
 
         modules_to_document = {
             "kubemq.pubsub": pubsub,
@@ -175,7 +174,7 @@ def main():
 
     # Write output
     output_path = project_root / "v3_api.json"
-    with open(output_path, 'w') as f:
+    with open(output_path, "w") as f:
         json.dump(output, f, indent=2, default=str)
 
     print(f"\nAPI snapshot written to: {output_path}")
@@ -191,7 +190,7 @@ def main():
                 total_methods += len(class_api.get("class_methods", {}))
                 total_methods += len(class_api.get("static_methods", {}))
 
-    print(f"\nSummary:")
+    print("\nSummary:")
     print(f"  - Modules documented: {len(output['modules'])}")
     print(f"  - Total classes: {total_classes}")
     print(f"  - Total methods: {total_methods}")

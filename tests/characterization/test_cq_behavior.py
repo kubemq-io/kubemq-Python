@@ -8,7 +8,6 @@ backward compatibility.
 
 import pytest
 
-from kubemq.common.exceptions import ValidationError
 from kubemq.cq import (
     Client,
     CommandMessage,

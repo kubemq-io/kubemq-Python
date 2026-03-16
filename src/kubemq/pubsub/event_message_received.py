@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -23,6 +24,7 @@ class EventMessageReceived(BaseModel):
 
     @classmethod
     def decode(cls, event_receive: pbEventReceive) -> "EventMessageReceived":
+        """Decode a protobuf EventReceive into an EventMessageReceived."""
         from_client_id = (
             event_receive.Tags.get("x-kubemq-client-id", "") if event_receive.Tags else ""
         )
@@ -39,7 +41,8 @@ class EventMessageReceived(BaseModel):
 
     model_config = ConfigDict(arbitrary_types_allowed=True, frozen=True)
 
-    def model_dump(self, **kwargs):
+    def model_dump(self, **kwargs: Any) -> dict[str, Any]:
+        """Serialize the model to a dictionary with formatted timestamps."""
         dump = super().model_dump(**kwargs)
         dump["timestamp"] = self.timestamp.isoformat()
         return dump
