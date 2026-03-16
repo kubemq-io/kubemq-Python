@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [4.0.0] - YYYY-MM-DD
+## [4.0.0] - 2026-03-16
 
 ### Added
 - Native async clients: `AsyncPubSubClient`, `AsyncQueuesClient`, `AsyncCQClient`

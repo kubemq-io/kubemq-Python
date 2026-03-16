@@ -72,3 +72,7 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+# Expected output:
+# Responder received: hello kubemq, please reply!
+# Response: executed=True, timestamp=<timestamp>, error=

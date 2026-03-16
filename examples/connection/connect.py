@@ -16,3 +16,6 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+# Expected output:
+# Connected to KubeMQ server: <server-info>
