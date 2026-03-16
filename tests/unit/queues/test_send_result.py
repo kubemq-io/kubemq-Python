@@ -280,5 +280,3 @@ class TestQueueSendResultStrException:
         r = repr(result)
         assert "QueueSendResult(" in r
         assert "r1" in r
-
-

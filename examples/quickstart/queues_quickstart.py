@@ -6,16 +6,16 @@ from kubemq import QueueMessage, QueuesClient
 
 
 def main() -> None:
-    with QueuesClient(address="localhost:50000") as client:
+    with QueuesClient(address="localhost:50000", client_id="python-queues-quickstart-client") as client:
         # Send a message to the queue
         result = client.send_queue_message(
-            QueueMessage(channel="quickstart-queue", body=b"Task #1")
+            QueueMessage(channel="python-quickstart-queue", body=b"Task #1")
         )
         print(f"Sent: ID={result.id}")
 
         # Receive and acknowledge the message
         response = client.receive_queue_messages(
-            channel="quickstart-queue",
+            channel="python-quickstart-queue",
             max_messages=1,
             wait_timeout_in_seconds=10,
         )

@@ -444,6 +444,7 @@ class TestEventSendResultModelDumpJson:
 
     def test_model_dump_json_excludes_none(self):
         from kubemq.pubsub.event_send_result import EventSendResult
+
         result = EventSendResult(id="r1", sent=True, error=None)
         json_str = result.model_dump_json()
         assert "error" not in json_str
@@ -451,6 +452,7 @@ class TestEventSendResultModelDumpJson:
 
     def test_decode_from_result(self):
         from kubemq.pubsub.event_send_result import EventSendResult
+
         pb_result = MagicMock()
         pb_result.EventID = "decoded-r"
         pb_result.Sent = True

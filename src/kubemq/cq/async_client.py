@@ -3,16 +3,22 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import time
-from collections.abc import AsyncIterator, Awaitable
+from collections.abc import AsyncIterator, Awaitable, Callable
 from typing import (
     TYPE_CHECKING,
-    Callable,
+    Any,
 )
 
 from pydantic import ValidationError
 
-from kubemq._internal.telemetry import KubeMQTagsCarrier, create_link_from_context, error_code_to_error_type, serialize_span_to_bytes
+from kubemq._internal.telemetry import (
+    KubeMQTagsCarrier,
+    create_link_from_context,
+    error_code_to_error_type,
+    serialize_span_to_bytes,
+)
 from kubemq.common.async_cancellation_token import AsyncCancellationToken
 from kubemq.core.client import NativeAsyncBaseClient
 from kubemq.core.config import ClientConfig
@@ -84,7 +90,7 @@ class AsyncClient(NativeAsyncBaseClient):
         client_id: str | None = None,
         auth_token: str | None = None,
         config: ClientConfig | None = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> None:
         """Initialize the async CQ client.
 
@@ -139,6 +145,7 @@ class AsyncClient(NativeAsyncBaseClient):
                         MESSAGING_MESSAGE_BODY_SIZE,
                         MESSAGING_MESSAGE_ID,
                     )
+
                     span.set_attribute(MESSAGING_MESSAGE_ID, message.id)
                     span.set_attribute(MESSAGING_MESSAGE_BODY_SIZE, len(message.body))
                 response = await self._retry_executor.execute(
@@ -241,6 +248,7 @@ class AsyncClient(NativeAsyncBaseClient):
                         MESSAGING_MESSAGE_BODY_SIZE,
                         MESSAGING_MESSAGE_ID,
                     )
+
                     span.set_attribute(MESSAGING_MESSAGE_ID, message.id)
                     span.set_attribute(MESSAGING_MESSAGE_BODY_SIZE, len(message.body))
                 response = await self._retry_executor.execute(
@@ -411,8 +419,10 @@ class AsyncClient(NativeAsyncBaseClient):
                     try:
                         command = CommandMessageReceived.decode(pb_request)
 
-                        if subscription.on_receive_command_callback:
-                            if asyncio.iscoroutinefunction(subscription.on_receive_command_callback):
+                        if subscription.on_receive_command_callback is not None:
+                            if asyncio.iscoroutinefunction(
+                                subscription.on_receive_command_callback
+                            ):
                                 await subscription.on_receive_command_callback(command)
                             else:
                                 subscription.on_receive_command_callback(command)
@@ -421,9 +431,7 @@ class AsyncClient(NativeAsyncBaseClient):
                             "process", subscription.channel
                         )
                     except Exception as proc_err:
-                        error_type_val = error_code_to_error_type(
-                            getattr(proc_err, "code", None)
-                        )
+                        error_type_val = error_code_to_error_type(getattr(proc_err, "code", None))
                         self._instrumentor.record_error(span, proc_err, error_type_val)
                         raise
                     finally:
@@ -502,7 +510,7 @@ class AsyncClient(NativeAsyncBaseClient):
                     try:
                         query = QueryMessageReceived.decode(pb_request)
 
-                        if subscription.on_receive_query_callback:
+                        if subscription.on_receive_query_callback is not None:
                             if asyncio.iscoroutinefunction(subscription.on_receive_query_callback):
                                 await subscription.on_receive_query_callback(query)
                             else:
@@ -512,9 +520,7 @@ class AsyncClient(NativeAsyncBaseClient):
                             "process", subscription.channel
                         )
                     except Exception as proc_err:
-                        error_type_val = error_code_to_error_type(
-                            getattr(proc_err, "code", None)
-                        )
+                        error_type_val = error_code_to_error_type(getattr(proc_err, "code", None))
                         self._instrumentor.record_error(span, proc_err, error_type_val)
                         raise
                     finally:
@@ -571,8 +577,7 @@ class AsyncClient(NativeAsyncBaseClient):
             raise ValueError("max_concurrent_callbacks must be >= 1")
         if max_concurrent_callbacks > 1000:
             raise ValueError(
-                "max_concurrent_callbacks must be <= 1000 "
-                "(prevents accidental resource exhaustion)"
+                "max_concurrent_callbacks must be <= 1000 (prevents accidental resource exhaustion)"
             )
 
         self._ensure_connected()
@@ -629,10 +634,8 @@ class AsyncClient(NativeAsyncBaseClient):
                         await callback(cmd)
                     except Exception as cb_err:
                         if error_callback:
-                            try:
+                            with contextlib.suppress(Exception):
                                 await error_callback(cb_err)
-                            except Exception:
-                                pass
                         elif self._logger:
                             self._logger.error(
                                 "Unhandled callback exception: %s (%s)",
@@ -697,8 +700,7 @@ class AsyncClient(NativeAsyncBaseClient):
             raise ValueError("max_concurrent_callbacks must be >= 1")
         if max_concurrent_callbacks > 1000:
             raise ValueError(
-                "max_concurrent_callbacks must be <= 1000 "
-                "(prevents accidental resource exhaustion)"
+                "max_concurrent_callbacks must be <= 1000 (prevents accidental resource exhaustion)"
             )
 
         self._ensure_connected()
@@ -755,10 +757,8 @@ class AsyncClient(NativeAsyncBaseClient):
                         await callback(qry)
                     except Exception as cb_err:
                         if error_callback:
-                            try:
+                            with contextlib.suppress(Exception):
                                 await error_callback(cb_err)
-                            except Exception:
-                                pass
                         elif self._logger:
                             self._logger.error(
                                 "Unhandled callback exception: %s (%s)",

@@ -6,9 +6,7 @@ import threading
 from unittest.mock import MagicMock, patch
 
 import grpc
-import pytest
 
-from kubemq.core.exceptions import KubeMQBufferFullError
 from kubemq.grpc import (
     QueueMessage as pbQueueMessage,
     QueuesUpstreamRequest,
@@ -38,9 +36,7 @@ def _make_mocks():
 
 def _make_sender(mock_transport, mock_logger, mock_connection, **kwargs):
     with patch("kubemq.queues.upstream_sender.threading.Thread"):
-        return UpstreamSender(
-            mock_transport, mock_logger, mock_connection, **kwargs
-        )
+        return UpstreamSender(mock_transport, mock_logger, mock_connection, **kwargs)
 
 
 # ==============================================================================
@@ -57,9 +53,7 @@ class TestUpstreamSenderSend:
 
         message = pbQueueMessage(MessageID="msg-1", Channel="test-q")
 
-        send_result = SendQueueMessageResult(
-            MessageID="msg-1", IsError=False, SentAt=1000000000
-        )
+        send_result = SendQueueMessageResult(MessageID="msg-1", IsError=False, SentAt=1000000000)
         response = QueuesUpstreamResponse(Results=[send_result])
 
         def provide_response():
@@ -105,9 +99,7 @@ class TestUpstreamSenderSend:
 
     def test_send_timeout(self):
         mock_transport, mock_logger, mock_connection = _make_mocks()
-        sender = _make_sender(
-            mock_transport, mock_logger, mock_connection, send_timeout=0.01
-        )
+        sender = _make_sender(mock_transport, mock_logger, mock_connection, send_timeout=0.01)
 
         message = pbQueueMessage(MessageID="msg-timeout", Channel="test-q")
         result = sender.send(message)
@@ -118,13 +110,9 @@ class TestUpstreamSenderSend:
 
     def test_send_queue_full(self):
         mock_transport, mock_logger, mock_connection = _make_mocks()
-        sender = _make_sender(
-            mock_transport, mock_logger, mock_connection, max_queue_size=1
-        )
+        sender = _make_sender(mock_transport, mock_logger, mock_connection, max_queue_size=1)
 
-        sender.sending_queue.put_nowait(
-            QueuesUpstreamRequest(RequestID="filler")
-        )
+        sender.sending_queue.put_nowait(QueuesUpstreamRequest(RequestID="filler"))
 
         message = pbQueueMessage(MessageID="msg-full", Channel="test-q")
         result = sender.send(message)
@@ -223,8 +211,10 @@ class TestUpstreamSenderHandleError:
         sender = _make_sender(mock_transport, mock_logger, mock_connection)
 
         error = FakeRpcError()
-        with patch.object(sender, "_handle_disconnection") as mock_disc, \
-             patch.object(sender, "_recreate_channel", return_value=True) as mock_recreate:
+        with (
+            patch.object(sender, "_handle_disconnection") as mock_disc,
+            patch.object(sender, "_recreate_channel", return_value=True) as mock_recreate,
+        ):
             result = sender._handle_error(error, is_grpc_error=True)
 
         assert result is True
@@ -248,8 +238,10 @@ class TestUpstreamSenderHandleError:
         sender = _make_sender(mock_transport, mock_logger, mock_connection)
 
         error = FakeRpcError()
-        with patch.object(sender, "_handle_disconnection"), \
-             patch.object(sender, "_recreate_channel", return_value=False):
+        with (
+            patch.object(sender, "_handle_disconnection"),
+            patch.object(sender, "_recreate_channel", return_value=False),
+        ):
             result = sender._handle_error(error, is_grpc_error=True)
 
         assert result is False
@@ -284,13 +276,14 @@ class TestUpstreamSenderQueueUtilization:
     def test_send_queue_high_utilization_warning(self):
         mock_transport, mock_logger, mock_connection = _make_mocks()
         sender = _make_sender(
-            mock_transport, mock_logger, mock_connection,
-            max_queue_size=10, send_timeout=0.01,
+            mock_transport,
+            mock_logger,
+            mock_connection,
+            max_queue_size=10,
+            send_timeout=0.01,
         )
         for i in range(9):
-            sender.sending_queue.put_nowait(
-                QueuesUpstreamRequest(RequestID=f"filler-{i}")
-            )
+            sender.sending_queue.put_nowait(QueuesUpstreamRequest(RequestID=f"filler-{i}"))
 
         message = pbQueueMessage(MessageID="msg-warn", Channel="test-q")
         sender.send(message)
@@ -377,13 +370,13 @@ class TestUpstreamSenderSendQueueStream:
             sender.shutdown_event.set()
             return True
 
-        with patch.object(sender, '_handle_error', side_effect=handle_and_stop) as mock_handle:
+        with patch.object(sender, "_handle_error", side_effect=handle_and_stop) as mock_handle:
             sender._send_queue_stream()
 
         mock_handle.assert_called_once()
         args, kwargs = mock_handle.call_args
         assert isinstance(args[0], grpc.RpcError)
-        assert kwargs.get('is_grpc_error') is True
+        assert kwargs.get("is_grpc_error") is True
 
     def test_generic_exception_path(self):
         mock_transport, mock_logger, mock_connection = _make_mocks()
@@ -397,13 +390,13 @@ class TestUpstreamSenderSendQueueStream:
             sender.shutdown_event.set()
             return True
 
-        with patch.object(sender, '_handle_error', side_effect=handle_and_stop) as mock_handle:
+        with patch.object(sender, "_handle_error", side_effect=handle_and_stop) as mock_handle:
             sender._send_queue_stream()
 
         mock_handle.assert_called_once()
         args, kwargs = mock_handle.call_args
         assert isinstance(args[0], RuntimeError)
-        assert kwargs.get('is_grpc_error', False) is False
+        assert kwargs.get("is_grpc_error", False) is False
 
     def test_exits_when_handle_error_returns_false(self):
         mock_transport, mock_logger, mock_connection = _make_mocks()
@@ -413,7 +406,7 @@ class TestUpstreamSenderSendQueueStream:
         stub.QueuesUpstream.side_effect = FakeRpcError()
         mock_transport.kubemq_client.return_value = stub
 
-        with patch.object(sender, '_handle_error', return_value=False) as mock_handle:
+        with patch.object(sender, "_handle_error", return_value=False) as mock_handle:
             sender._send_queue_stream()
 
         mock_handle.assert_called_once()
@@ -452,8 +445,11 @@ class TestUpstreamSenderUnlimitedQueue:
     def test_send_unlimited_queue_no_warning(self):
         mock_transport, mock_logger, mock_connection = _make_mocks()
         sender = _make_sender(
-            mock_transport, mock_logger, mock_connection,
-            max_queue_size=0, send_timeout=0.01,
+            mock_transport,
+            mock_logger,
+            mock_connection,
+            max_queue_size=0,
+            send_timeout=0.01,
         )
         message = pbQueueMessage(MessageID="msg-unlimited", Channel="test-q")
         sender.send(message)
@@ -484,8 +480,10 @@ class TestUpstreamSenderHandleErrorChannelError:
         sender = _make_sender(mock_transport, mock_logger, mock_connection)
 
         error = Exception("channel closed unexpectedly")
-        with patch.object(sender, "_handle_disconnection"), \
-             patch.object(sender, "_recreate_channel", return_value=True) as mock_recreate:
+        with (
+            patch.object(sender, "_handle_disconnection"),
+            patch.object(sender, "_recreate_channel", return_value=True) as mock_recreate,
+        ):
             result = sender._handle_error(error)
 
         assert result is True
@@ -505,7 +503,7 @@ class TestUpstreamSenderSendQueueStreamGenericFalse:
         stub.QueuesUpstream.side_effect = RuntimeError("boom")
         mock_transport.kubemq_client.return_value = stub
 
-        with patch.object(sender, '_handle_error', return_value=False):
+        with patch.object(sender, "_handle_error", return_value=False):
             sender._send_queue_stream()
 
         assert not sender.shutdown_event.is_set()

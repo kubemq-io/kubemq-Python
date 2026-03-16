@@ -18,16 +18,16 @@ class NoOpLogger:
 
     __slots__ = ()
 
-    def debug(self, msg: str, **kwargs: Any) -> None:
+    def debug(self, msg: str, *args: Any, **kwargs: Any) -> None:
         pass
 
-    def info(self, msg: str, **kwargs: Any) -> None:
+    def info(self, msg: str, *args: Any, **kwargs: Any) -> None:
         pass
 
-    def warning(self, msg: str, **kwargs: Any) -> None:
+    def warning(self, msg: str, *args: Any, **kwargs: Any) -> None:
         pass
 
-    def error(self, msg: str, **kwargs: Any) -> None:
+    def error(self, msg: str, *args: Any, **kwargs: Any) -> None:
         pass
 
 
@@ -56,21 +56,22 @@ class StdLibLoggerAdapter:
 
         self._has_otel = HAS_OTEL
 
-    def debug(self, msg: str, **kwargs: Any) -> None:
-        self._log(stdlib_logging.DEBUG, msg, kwargs)
+    def debug(self, msg: str, *args: Any, **kwargs: Any) -> None:
+        self._log(stdlib_logging.DEBUG, msg, args, kwargs)
 
-    def info(self, msg: str, **kwargs: Any) -> None:
-        self._log(stdlib_logging.INFO, msg, kwargs)
+    def info(self, msg: str, *args: Any, **kwargs: Any) -> None:
+        self._log(stdlib_logging.INFO, msg, args, kwargs)
 
-    def warning(self, msg: str, **kwargs: Any) -> None:
-        self._log(stdlib_logging.WARNING, msg, kwargs)
+    def warning(self, msg: str, *args: Any, **kwargs: Any) -> None:
+        self._log(stdlib_logging.WARNING, msg, args, kwargs)
 
-    def error(self, msg: str, **kwargs: Any) -> None:
-        self._log(stdlib_logging.ERROR, msg, kwargs)
+    def error(self, msg: str, *args: Any, **kwargs: Any) -> None:
+        self._log(stdlib_logging.ERROR, msg, args, kwargs)
 
-    def _log(self, level: int, msg: str, kwargs: dict[str, Any]) -> None:
+    def _log(self, level: int, msg: str, args: tuple[Any, ...], kwargs: dict[str, Any]) -> None:
         if self._logger.isEnabledFor(level):
-            self._logger.log(level, self._format(msg, kwargs))
+            formatted_msg = msg % args if args else msg
+            self._logger.log(level, self._format(formatted_msg, kwargs))
 
     def _format(self, msg: str, kwargs: dict[str, Any]) -> str:
         """Format message with structured key=value pairs and OTel context."""

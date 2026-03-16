@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import uuid
 from collections.abc import AsyncIterator
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from kubemq.grpc import (
     QueueMessage as pbQueueMessage,
@@ -100,7 +101,7 @@ class AsyncUpstreamSender:
 
         try:
             response = await asyncio.wait_for(future, timeout=self._send_timeout)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             async with self._lock:
                 self._response_tracking.pop(request.RequestID, None)
             return QueueSendResult(
@@ -137,7 +138,7 @@ class AsyncUpstreamSender:
         while not self._closed:
             try:
                 msg = await asyncio.wait_for(self._send_queue.get(), timeout=1.0)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 continue
             if msg is _SENTINEL:
                 break
@@ -184,16 +185,12 @@ class AsyncUpstreamSender:
         self._closed = True
         self._allow_new_messages = False
 
-        try:
+        with contextlib.suppress(asyncio.QueueFull):
             self._send_queue.put_nowait(_SENTINEL)
-        except asyncio.QueueFull:
-            pass
 
         if self._stream_task and not self._stream_task.done():
             self._stream_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._stream_task
-            except asyncio.CancelledError:
-                pass
 
         await self._handle_disconnection()

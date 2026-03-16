@@ -2,8 +2,7 @@ import json
 
 
 class QueuesStats:
-    """
-    A class that represents statistics for a queue.
+    """A class that represents statistics for a queue.
 
     Attributes:
         messages (int): The number of messages in the queue.
@@ -27,15 +26,15 @@ class QueuesStats:
         waiting: int,
         expired: int,
         delayed: int,
-        **kwargs,
-    ):
+        **kwargs: object,
+    ) -> None:
         self.messages = messages
         self.volume = volume
         self.waiting = waiting
         self.expired = expired
         self.delayed = delayed
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"Stats: messages={self.messages}, volume={self.volume}, waiting={self.waiting}, expired={self.expired}, delayed={self.delayed}"
 
 
@@ -75,8 +74,8 @@ class QueuesChannel:
         is_active: bool,
         incoming: QueuesStats,
         outgoing: QueuesStats,
-        **kwargs,
-    ):
+        **kwargs: object,
+    ) -> None:
         self.name = name
         self.type = type
         self.last_activity = last_activity
@@ -84,13 +83,12 @@ class QueuesChannel:
         self.incoming = incoming
         self.outgoing = outgoing
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"Channel: name={self.name}, type={self.type}, last_activity={self.last_activity}, is_active={self.is_active}, incoming={self.incoming}, outgoing={self.outgoing}"
 
 
 class PubSubStats:
-    """
-    Initialize the PubSubStats object with the number of messages and volume.
+    """Initialize the PubSubStats object with the number of messages and volume.
 
     Args:
         messages (int): The number of messages.
@@ -100,32 +98,16 @@ class PubSubStats:
         None
     """
 
-    def __init__(self, messages: int, volume: int, **kwargs):
+    def __init__(self, messages: int, volume: int, **kwargs: object) -> None:
         self.messages = messages
         self.volume = volume
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"Stats: messages={self.messages}, volume={self.volume}"
 
 
 class PubSubChannel:
-    """
-    The PubSubChannel class represents a communication channel used in a publish-subscribe system. It stores information about the channel's name, type, last activity, active status, incoming
-    * statistics, and outgoing statistics.
-
-    Attributes:
-        name (str): The name of the channel.
-        type (str): The type of the channel.
-        last_activity (int): The timestamp of the last activity on the channel.
-        is_active (bool): Indicates whether the channel is currently active.
-        incoming (PubSubStats): The statistics related to incoming messages on the channel.
-        outgoing (PubSubStats): The statistics related to outgoing messages on the channel.
-
-    Methods:
-        __repr__(): Returns a string representation of the PubSubChannel object.
-
-    Note: The `PubSubStats` class is not defined here, but it is assumed to be a separate class that represents statistics related to message traffic on the channel.
-    """
+    """Represents a pub/sub communication channel with incoming and outgoing statistics."""
 
     def __init__(
         self,
@@ -135,8 +117,8 @@ class PubSubChannel:
         is_active: bool,
         incoming: PubSubStats,
         outgoing: PubSubStats,
-        **kwargs,
-    ):
+        **kwargs: object,
+    ) -> None:
         self.name = name
         self.type = type
         self.last_activity = last_activity
@@ -144,13 +126,12 @@ class PubSubChannel:
         self.incoming = incoming
         self.outgoing = outgoing
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"Channel: name={self.name}, type={self.type}, last_activity={self.last_activity}, is_active={self.is_active}, incoming={self.incoming}, outgoing={self.outgoing}"
 
 
 class CQStats:
-    """
-    Class representing statistics for a conversation queue.
+    """Class representing statistics for a conversation queue.
 
     Attributes:
         messages (int): The number of messages in the queue.
@@ -165,37 +146,17 @@ class CQStats:
 
     """
 
-    def __init__(self, messages: int, volume: int, responses: int, **kwargs):
+    def __init__(self, messages: int, volume: int, responses: int, **kwargs: object) -> None:
         self.messages = messages
         self.volume = volume
         self.responses = responses
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"Stats: messages={self.messages}, volume={self.volume}, responses={self.responses}"
 
 
 class CQChannel:
-    """
-
-    The CQChannel class represents a channel in a communication system. It stores information about the channel's name, type, last activity timestamp, active status, incoming statistics
-    *, and outgoing statistics.
-
-    Attributes:
-    - name: A string representing the name of the channel.
-    - type: A string representing the type of the channel.
-    - last_activity: An integer representing the timestamp of the last activity on the channel.
-    - is_active: A boolean indicating whether the channel is active or not.
-    - incoming: An instance of the CQStats class representing the incoming statistics of the channel.
-    - outgoing: An instance of the CQStats class representing the outgoing statistics of the channel.
-
-    Methods:
-    - __init__(self, name: str, type: str, last_activity: int, is_active: bool, incoming: CQStats, outgoing: CQStats, **kwargs):
-      Initializes a new instance of the CQChannel class with the specified parameters.
-
-    - __repr__(self):
-      Returns a string representation of the CQChannel object.
-
-    """
+    """Represents a command/query channel with incoming and outgoing statistics."""
 
     def __init__(
         self,
@@ -205,8 +166,8 @@ class CQChannel:
         is_active: bool,
         incoming: CQStats,
         outgoing: CQStats,
-        **kwargs,
-    ):
+        **kwargs: object,
+    ) -> None:
         self.name = name
         self.type = type
         self.last_activity = last_activity
@@ -214,14 +175,12 @@ class CQChannel:
         self.incoming = incoming
         self.outgoing = outgoing
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"Channel: name={self.name}, type={self.type}, last_activity={self.last_activity}, is_active={self.is_active}, incoming={self.incoming}, outgoing={self.outgoing}"
 
 
 def decode_pub_sub_channel_list(data_bytes: bytes) -> list[PubSubChannel]:
-    """
-
-    Decodes the given data bytes into a list of PubSubChannel objects.
+    """Decodes the given data bytes into a list of PubSubChannel objects.
 
     Parameters:
     - data_bytes (bytes): The data bytes to decode.
@@ -255,8 +214,7 @@ def decode_pub_sub_channel_list(data_bytes: bytes) -> list[PubSubChannel]:
 
 
 def decode_queues_channel_list(data_bytes: bytes) -> list[QueuesChannel]:
-    """
-    Decodes a byte string into a list of QueuesChannel objects.
+    """Decodes a byte string into a list of QueuesChannel objects.
 
     Parameters:
         - data_bytes (bytes): The byte string to be decoded.
@@ -295,8 +253,7 @@ def decode_queues_channel_list(data_bytes: bytes) -> list[QueuesChannel]:
 
 
 def decode_cq_channel_list(data_bytes: bytes) -> list[CQChannel]:
-    """
-    Decodes the given byte array into a list of CQChannel objects.
+    """Decodes the given byte array into a list of CQChannel objects.
 
     Parameters:
     - data_bytes (bytes): The byte array to decode.

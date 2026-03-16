@@ -653,10 +653,11 @@ class TestSyncCQClientAsyncMethods:
 # Command Error Tests
 # ==============================================================================
 
-import grpc
-import threading
+import threading  # noqa: E402
 
-from kubemq.core.exceptions import KubeMQValidationError
+import grpc  # noqa: E402
+
+from kubemq.core.exceptions import KubeMQValidationError  # noqa: E402
 
 
 class FakeRpcError(grpc.RpcError):
@@ -1606,8 +1607,6 @@ class TestSyncCQClientSubscribeTaskAsyncAdditional:
         async def decode(msg):
             raise ValueError("handler error")
 
-        errors = []
-
         async def on_error(err):
             pass
 
@@ -1740,7 +1739,7 @@ class TestSyncCQClientSubscribeToCommandsAsync:
             )
 
             with patch.object(client, "_subscribe_async", return_value=MagicMock()) as mock_sub:
-                result = client.subscribe_to_commands_async(subscription)
+                client.subscribe_to_commands_async(subscription)
                 mock_sub.assert_called_once_with(subscription, None)
 
     @pytest.mark.asyncio
@@ -1759,5 +1758,5 @@ class TestSyncCQClientSubscribeToCommandsAsync:
             )
 
             with patch.object(client, "_subscribe_async", return_value=MagicMock()) as mock_sub:
-                result = client.subscribe_to_queries_async(subscription)
+                client.subscribe_to_queries_async(subscription)
                 mock_sub.assert_called_once_with(subscription, None)

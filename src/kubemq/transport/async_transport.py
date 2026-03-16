@@ -7,10 +7,11 @@ All operations are non-blocking and integrate with asyncio event loop.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 from collections.abc import AsyncIterator
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any
 
 import grpc
 import grpc.aio
@@ -37,6 +38,7 @@ from .server_info import ServerInfo
 
 if TYPE_CHECKING:
     from kubemq._internal.transport.state import AnyStateCallback
+    from kubemq.core.types import ConnectionState
 
     from ..common.async_cancellation_token import AsyncCancellationToken
 
@@ -76,7 +78,7 @@ class AsyncTransport:
         self._draining = False
         self._logger = logging.getLogger(f"kubemq.{self.__class__.__name__}")
         self._token_holder = TokenHolder(config.auth_token)
-        self._token_manager: Optional[TokenManager] = None
+        self._token_manager: TokenManager | None = None
 
         # Connection state machine and reconnection (lazy imports to avoid circular deps)
         from kubemq._internal.transport.state import ConnectionStateManager
@@ -95,7 +97,9 @@ class AsyncTransport:
             )
             backoff = BackoffCalculator(config.retry_policy)
             self._reconnection_manager = ReconnectionManager(
-                config=rc, backoff=backoff, logger=self._logger,
+                config=rc,
+                backoff=backoff,
+                logger=self._logger,
             )
 
         # Track active streams for graceful shutdown
@@ -162,7 +166,7 @@ class AsyncTransport:
                 interceptors=interceptors,
             )
 
-        self._stub = kubemq_pb2_grpc.kubemqStub(self._channel)
+        self._stub = kubemq_pb2_grpc.kubemqStub(self._channel)  # type: ignore[no-untyped-call]
 
         # Set connected before verification so ping() can work
         self._connected = True
@@ -172,7 +176,7 @@ class AsyncTransport:
             try:
                 server_info = await asyncio.wait_for(self.ping(), timeout=5.0)
                 check_server_compatibility(server_info.version, self._logger)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 self._logger.warning(
                     "Connection verification timed out, channel created but unverified"
                 )
@@ -208,9 +212,7 @@ class AsyncTransport:
         ]
 
         if self._config.tls.server_name_override:
-            options.append(
-                ("grpc.ssl_target_name_override", self._config.tls.server_name_override)
-            )
+            options.append(("grpc.ssl_target_name_override", self._config.tls.server_name_override))
 
         if self._config.keep_alive.enabled:
             options.extend(
@@ -388,7 +390,7 @@ class AsyncTransport:
 
         old_channel = self._channel
         self._channel = await self._create_channel_for_reconnect()
-        self._stub = kubemq_pb2_grpc.kubemqStub(self._channel)
+        self._stub = kubemq_pb2_grpc.kubemqStub(self._channel)  # type: ignore[no-untyped-call]
         await self._stub.Ping(pb.Empty())
         if old_channel:
             await old_channel.close()
@@ -408,9 +410,9 @@ class AsyncTransport:
         Raises:
             KubeMQConnectionError: If not connected or connection fails.
         """
-        self._ensure_connected()
+        stub = self._get_stub()
         try:
-            response = await self._stub.Ping(pb.Empty())
+            response = await stub.Ping(pb.Empty())
             return ServerInfo(
                 host=response.Host,
                 version=response.Version,
@@ -438,9 +440,7 @@ class AsyncTransport:
             return
 
         effective_timeout = (
-            drain_timeout
-            if drain_timeout is not None
-            else self._config.drain_timeout
+            drain_timeout if drain_timeout is not None else self._config.drain_timeout
         )
 
         self._closing = True
@@ -453,19 +453,14 @@ class AsyncTransport:
         # Wait for active streams, then force-cancel remaining
         async with self._streams_lock:
             if self._active_streams:
-                pending = [
-                    self._wait_for_stream(call)
-                    for call in self._active_streams
-                ]
+                pending = [self._wait_for_stream(call) for call in self._active_streams]
                 try:
                     await asyncio.wait_for(
                         asyncio.gather(*pending, return_exceptions=True),
                         timeout=effective_timeout,
                     )
-                except asyncio.TimeoutError:
-                    self._logger.debug(
-                        "Drain timeout reached, force-cancelling streams"
-                    )
+                except TimeoutError:
+                    self._logger.debug("Drain timeout reached, force-cancelling streams")
                     for call in self._active_streams:
                         call.cancel()
             self._active_streams.clear()
@@ -490,10 +485,8 @@ class AsyncTransport:
 
     async def _wait_for_stream(self, call: grpc.aio.Call) -> None:
         """Wait for a single gRPC stream call to complete."""
-        try:
+        with contextlib.suppress(Exception):
             await call
-        except Exception:
-            pass
 
     async def _cleanup_channel(self) -> None:
         """Clean up the gRPC channel."""
@@ -513,11 +506,18 @@ class AsyncTransport:
             raise KubeMQClientClosedError("Transport is closing")
         if not self._connected:
             raise KubeMQConnectionError("Transport is not connected")
+        if self._stub is None:
+            raise KubeMQConnectionError("Transport stub is not initialized")
+
+    def _get_stub(self) -> kubemq_pb2_grpc.kubemqStub:
+        """Get the stub after ensuring connected. Raises if not connected."""
+        self._ensure_connected()
+        assert self._stub is not None  # guaranteed by _ensure_connected
+        return self._stub
 
     @property
     def connection_state(self) -> ConnectionState:
         """Current connection lifecycle state."""
-        from kubemq.core.types import ConnectionState
         return self._state_manager.state
 
     def on_connected(self, callback: AnyStateCallback) -> None:
@@ -565,14 +565,14 @@ class AsyncTransport:
             KubeMQConnectionError: If not connected.
             KubeMQTimeoutError: If send times out.
         """
-        self._ensure_connected()
+        stub = self._get_stub()
         try:
             result = await asyncio.wait_for(
-                self._stub.SendEvent(event),
+                stub.SendEvent(event),
                 timeout=self._config.default_timeout_seconds,
             )
             return result
-        except asyncio.TimeoutError as e:
+        except TimeoutError as e:
             raise KubeMQTimeoutError(
                 f"Send event timed out after {self._config.default_timeout_seconds}s"
             ) from e
@@ -595,9 +595,9 @@ class AsyncTransport:
         Yields:
             Result proto for each store-flagged event.
         """
-        self._ensure_connected()
+        stub = self._get_stub()
 
-        call: grpc.aio.StreamStreamCall = self._stub.SendEventsStream(request_iterator)
+        call: grpc.aio.StreamStreamCall = stub.SendEventsStream(request_iterator)
         await self._register_stream(call)
 
         try:
@@ -636,16 +636,16 @@ class AsyncTransport:
             KubeMQConnectionError: If not connected.
             KubeMQTimeoutError: If request times out.
         """
-        self._ensure_connected()
+        stub = self._get_stub()
         timeout = timeout_seconds or self._config.default_timeout_seconds
 
         try:
             response = await asyncio.wait_for(
-                self._stub.SendRequest(request),
+                stub.SendRequest(request),
                 timeout=timeout,
             )
             return response
-        except asyncio.TimeoutError as e:
+        except TimeoutError as e:
             raise KubeMQTimeoutError(f"Request timed out after {timeout}s") from e
         except grpc.aio.AioRpcError as e:
             if self._is_connection_error(e):
@@ -662,13 +662,13 @@ class AsyncTransport:
             KubeMQConnectionError: If not connected.
             KubeMQTimeoutError: If send times out.
         """
-        self._ensure_connected()
+        stub = self._get_stub()
         try:
             await asyncio.wait_for(
-                self._stub.SendResponse(response),
+                stub.SendResponse(response),
                 timeout=self._config.default_timeout_seconds,
             )
-        except asyncio.TimeoutError as e:
+        except TimeoutError as e:
             raise KubeMQTimeoutError("Send response timed out") from e
         except grpc.aio.AioRpcError as e:
             if self._is_connection_error(e):
@@ -696,9 +696,9 @@ class AsyncTransport:
         Raises:
             KubeMQConnectionError: On connection issues.
         """
-        self._ensure_connected()
+        stub = self._get_stub()
 
-        call: grpc.aio.UnaryStreamCall = self._stub.SubscribeToEvents(request)
+        call: grpc.aio.UnaryStreamCall = stub.SubscribeToEvents(request)
         await self._register_stream(call)
 
         try:
@@ -740,9 +740,9 @@ class AsyncTransport:
         Raises:
             KubeMQConnectionError: On connection issues.
         """
-        self._ensure_connected()
+        stub = self._get_stub()
 
-        call = self._stub.SubscribeToRequests(request)
+        call = stub.SubscribeToRequests(request)
         await self._register_stream(call)
 
         try:
@@ -779,14 +779,14 @@ class AsyncTransport:
             KubeMQConnectionError: If not connected.
             KubeMQTimeoutError: If send times out.
         """
-        self._ensure_connected()
+        stub = self._get_stub()
         try:
             result = await asyncio.wait_for(
-                self._stub.SendQueueMessage(message),
+                stub.SendQueueMessage(message),
                 timeout=self._config.default_timeout_seconds,
             )
             return result
-        except asyncio.TimeoutError as e:
+        except TimeoutError as e:
             raise KubeMQTimeoutError(
                 f"Queue send timed out after {self._config.default_timeout_seconds}s"
             ) from e
@@ -811,14 +811,14 @@ class AsyncTransport:
             KubeMQConnectionError: If not connected.
             KubeMQTimeoutError: If send times out.
         """
-        self._ensure_connected()
+        stub = self._get_stub()
         try:
             result = await asyncio.wait_for(
-                self._stub.SendQueueMessagesBatch(request),
+                stub.SendQueueMessagesBatch(request),
                 timeout=self._config.default_timeout_seconds,
             )
             return result
-        except asyncio.TimeoutError as e:
+        except TimeoutError as e:
             raise KubeMQTimeoutError(
                 f"Queue batch send timed out after {self._config.default_timeout_seconds}s"
             ) from e
@@ -843,16 +843,16 @@ class AsyncTransport:
             KubeMQConnectionError: If not connected.
             KubeMQTimeoutError: If receive times out.
         """
-        self._ensure_connected()
+        stub = self._get_stub()
         try:
             # Use WaitTimeSeconds from request, add buffer for network
             timeout = request.WaitTimeSeconds + 5
             result = await asyncio.wait_for(
-                self._stub.ReceiveQueueMessages(request),
+                stub.ReceiveQueueMessages(request),
                 timeout=timeout,
             )
             return result
-        except asyncio.TimeoutError as e:
+        except TimeoutError as e:
             raise KubeMQTimeoutError("Queue receive timed out") from e
         except grpc.aio.AioRpcError as e:
             if self._is_connection_error(e):
@@ -875,14 +875,16 @@ class AsyncTransport:
             KubeMQConnectionError: If not connected.
             KubeMQTimeoutError: If operation times out.
         """
-        self._ensure_connected()
+        stub = self._get_stub()
         try:
+            # Use WaitTimeSeconds from request, add buffer for network
+            timeout = max(self._config.default_timeout_seconds, request.WaitTimeSeconds + 5)
             result = await asyncio.wait_for(
-                self._stub.AckAllQueueMessages(request),
-                timeout=self._config.default_timeout_seconds,
+                stub.AckAllQueueMessages(request),
+                timeout=timeout,
             )
             return result
-        except asyncio.TimeoutError as e:
+        except TimeoutError as e:
             raise KubeMQTimeoutError("Ack all timed out") from e
         except grpc.aio.AioRpcError as e:
             if self._is_connection_error(e):
@@ -907,10 +909,10 @@ class AsyncTransport:
         Yields:
             QueuesUpstreamResponse for each sent message.
         """
-        self._ensure_connected()
+        stub = self._get_stub()
 
         # Create bidirectional stream
-        call: grpc.aio.StreamStreamCall = self._stub.QueuesUpstream(request_iterator)
+        call: grpc.aio.StreamStreamCall = stub.QueuesUpstream(request_iterator)
         await self._register_stream(call)
 
         try:
@@ -941,9 +943,9 @@ class AsyncTransport:
         Yields:
             QueuesDownstreamResponse with received messages.
         """
-        self._ensure_connected()
+        stub = self._get_stub()
 
-        call: grpc.aio.StreamStreamCall = self._stub.QueuesDownstream(request_iterator)
+        call: grpc.aio.StreamStreamCall = stub.QueuesDownstream(request_iterator)
         await self._register_stream(call)
 
         try:

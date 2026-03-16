@@ -811,9 +811,7 @@ class TestAsyncClientSubscribeWithCallbackConcurrent:
             ev.Tags = {}
             pb_events.append(ev)
 
-        mock_transport.subscribe_to_events = MagicMock(
-            return_value=AsyncIteratorMock(pb_events)
-        )
+        mock_transport.subscribe_to_events = MagicMock(return_value=AsyncIteratorMock(pb_events))
 
         received = []
 
@@ -849,9 +847,7 @@ class TestAsyncClientSubscribeWithCallbackConcurrent:
             ev.Tags = {}
             pb_events.append(ev)
 
-        mock_transport.subscribe_to_events = MagicMock(
-            return_value=AsyncIteratorMock(pb_events)
-        )
+        mock_transport.subscribe_to_events = MagicMock(return_value=AsyncIteratorMock(pb_events))
 
         received = []
 
@@ -1116,7 +1112,9 @@ class TestPublishEventErrorPaths:
 
         msg = EventMessage(channel="ch", body=b"x")
         with patch.object(
-            EventMessage, "encode", side_effect=PydanticValidationError.from_exception_data(
+            EventMessage,
+            "encode",
+            side_effect=PydanticValidationError.from_exception_data(
                 title="EventMessage",
                 line_errors=[
                     {
@@ -1179,9 +1177,7 @@ class TestPublishEventErrorPaths:
         msg = EventMessage(channel="ch", body=b"x")
         await client.publish_event(msg)
 
-        mock_instrumentor._metrics.record_sent_message.assert_called_once_with(
-            "publish", "ch"
-        )
+        mock_instrumentor._metrics.record_sent_message.assert_called_once_with("publish", "ch")
         mock_instrumentor._metrics.record_operation_duration.assert_called_once()
 
     @pytest.mark.asyncio
@@ -1215,7 +1211,9 @@ class TestPublishEventErrorPaths:
 
         msg = EventStoreMessage(channel="ch", body=b"x")
         with patch.object(
-            EventStoreMessage, "encode", side_effect=PydanticValidationError.from_exception_data(
+            EventStoreMessage,
+            "encode",
+            side_effect=PydanticValidationError.from_exception_data(
                 title="EventStoreMessage",
                 line_errors=[
                     {
@@ -1315,13 +1313,10 @@ class TestSubscribeToEventsHandlerErrors:
     @pytest.mark.asyncio
     async def test_handler_error_with_error_callback(self, mock_transport):
         """Handler raises -> KubeMQHandlerError -> on_error_callback called (lines 394-408)."""
-        from kubemq.core.exceptions import KubeMQHandlerError
 
         client = _make_connected_client(mock_transport)
         pb_ev = _make_pb_event()
-        mock_transport.subscribe_to_events = MagicMock(
-            return_value=AsyncIteratorMock([pb_ev])
-        )
+        mock_transport.subscribe_to_events = MagicMock(return_value=AsyncIteratorMock([pb_ev]))
 
         errors = []
 
@@ -1350,9 +1345,7 @@ class TestSubscribeToEventsHandlerErrors:
         """Handler raises, no error_callback -> logged (lines 409-410)."""
         client = _make_connected_client(mock_transport)
         pb_ev = _make_pb_event()
-        mock_transport.subscribe_to_events = MagicMock(
-            return_value=AsyncIteratorMock([pb_ev])
-        )
+        mock_transport.subscribe_to_events = MagicMock(return_value=AsyncIteratorMock([pb_ev]))
 
         def bad_handler(event):
             raise ValueError("handler crash")
@@ -1373,9 +1366,7 @@ class TestSubscribeToEventsHandlerErrors:
         """Handler raises -> async on_error_callback called."""
         client = _make_connected_client(mock_transport)
         pb_ev = _make_pb_event()
-        mock_transport.subscribe_to_events = MagicMock(
-            return_value=AsyncIteratorMock([pb_ev])
-        )
+        mock_transport.subscribe_to_events = MagicMock(return_value=AsyncIteratorMock([pb_ev]))
 
         errors = []
 
@@ -1406,9 +1397,7 @@ class TestSubscribeToEventsStreamErrors:
         """Retryable KubeMQConnectionError -> backoff, retry, stream reconnect (lines 431-461)."""
         client = _make_connected_client(mock_transport)
 
-        retryable_err = KubeMQConnectionError(
-            "connection lost", is_retryable=True
-        )
+        retryable_err = KubeMQConnectionError("connection lost", is_retryable=True)
         pb_ev = _make_pb_event()
 
         mock_transport.subscribe_to_events = OneShotRetryIterator(retryable_err, [pb_ev])
@@ -1567,9 +1556,7 @@ class TestSubscribeToEventsStoreErrors:
 
         client = _make_connected_client(mock_transport)
         pb_ev = _make_pb_event()
-        mock_transport.subscribe_to_events = MagicMock(
-            return_value=AsyncIteratorMock([pb_ev])
-        )
+        mock_transport.subscribe_to_events = MagicMock(return_value=AsyncIteratorMock([pb_ev]))
 
         errors = []
 
@@ -1600,9 +1587,7 @@ class TestSubscribeToEventsStoreErrors:
 
         client = _make_connected_client(mock_transport)
         pb_ev = _make_pb_event()
-        mock_transport.subscribe_to_events = MagicMock(
-            return_value=AsyncIteratorMock([pb_ev])
-        )
+        mock_transport.subscribe_to_events = MagicMock(return_value=AsyncIteratorMock([pb_ev]))
 
         def bad_handler(event):
             raise ValueError("no cb test")
@@ -1733,9 +1718,7 @@ class TestSubscribeToEventsStoreErrors:
 
         client = _make_connected_client(mock_transport)
         pb_ev = _make_pb_event()
-        mock_transport.subscribe_to_events = MagicMock(
-            return_value=AsyncIteratorMock([pb_ev])
-        )
+        mock_transport.subscribe_to_events = MagicMock(return_value=AsyncIteratorMock([pb_ev]))
 
         errors = []
 
@@ -1774,9 +1757,7 @@ class TestSubscribeWithCallbackSequential:
 
         client = _make_connected_client(mock_transport)
         pb_ev = _make_pb_event()
-        mock_transport.subscribe_to_events = MagicMock(
-            return_value=AsyncIteratorMock([pb_ev])
-        )
+        mock_transport.subscribe_to_events = MagicMock(return_value=AsyncIteratorMock([pb_ev]))
 
         errors = []
 
@@ -1801,9 +1782,7 @@ class TestSubscribeWithCallbackSequential:
         """Sequential: handler raises, no error_callback -> logged (lines 715-716)."""
         client = _make_connected_client(mock_transport)
         pb_ev = _make_pb_event()
-        mock_transport.subscribe_to_events = MagicMock(
-            return_value=AsyncIteratorMock([pb_ev])
-        )
+        mock_transport.subscribe_to_events = MagicMock(return_value=AsyncIteratorMock([pb_ev]))
 
         async def bad_cb(event):
             raise ValueError("seq no cb")
@@ -1821,9 +1800,7 @@ class TestSubscribeWithCallbackSequential:
         """Verify link is created when parent context is present (line 692+)."""
         client = _make_connected_client(mock_transport)
         pb_ev = _make_pb_event(tags={"traceparent": "00-abc-def-01"})
-        mock_transport.subscribe_to_events = MagicMock(
-            return_value=AsyncIteratorMock([pb_ev])
-        )
+        mock_transport.subscribe_to_events = MagicMock(return_value=AsyncIteratorMock([pb_ev]))
 
         received = []
 
@@ -1847,9 +1824,7 @@ class TestSubscribeWithCallbackConcurrentErrors:
         """Concurrent: handler error -> error_callback (lines 738-743)."""
         client = _make_connected_client(mock_transport)
         pb_ev = _make_pb_event()
-        mock_transport.subscribe_to_events = MagicMock(
-            return_value=AsyncIteratorMock([pb_ev])
-        )
+        mock_transport.subscribe_to_events = MagicMock(return_value=AsyncIteratorMock([pb_ev]))
 
         errors = []
 
@@ -1874,9 +1849,7 @@ class TestSubscribeWithCallbackConcurrentErrors:
         """Concurrent: handler error, no error_callback -> logger.error (lines 744-749)."""
         client = _make_connected_client(mock_transport)
         pb_ev = _make_pb_event()
-        mock_transport.subscribe_to_events = MagicMock(
-            return_value=AsyncIteratorMock([pb_ev])
-        )
+        mock_transport.subscribe_to_events = MagicMock(return_value=AsyncIteratorMock([pb_ev]))
 
         async def bad_cb(event):
             raise ValueError("concurrent no cb")
@@ -2018,9 +1991,7 @@ class TestSubscribeStoreWithCallbackSequential:
 
         client = _make_connected_client(mock_transport)
         pb_ev = _make_pb_event()
-        mock_transport.subscribe_to_events = MagicMock(
-            return_value=AsyncIteratorMock([pb_ev])
-        )
+        mock_transport.subscribe_to_events = MagicMock(return_value=AsyncIteratorMock([pb_ev]))
 
         errors = []
 
@@ -2047,9 +2018,7 @@ class TestSubscribeStoreWithCallbackSequential:
 
         client = _make_connected_client(mock_transport)
         pb_ev = _make_pb_event()
-        mock_transport.subscribe_to_events = MagicMock(
-            return_value=AsyncIteratorMock([pb_ev])
-        )
+        mock_transport.subscribe_to_events = MagicMock(return_value=AsyncIteratorMock([pb_ev]))
 
         async def bad_cb(event):
             raise ValueError("store seq no cb")
@@ -2073,9 +2042,7 @@ class TestSubscribeStoreWithCallbackConcurrentErrors:
 
         client = _make_connected_client(mock_transport)
         pb_ev = _make_pb_event()
-        mock_transport.subscribe_to_events = MagicMock(
-            return_value=AsyncIteratorMock([pb_ev])
-        )
+        mock_transport.subscribe_to_events = MagicMock(return_value=AsyncIteratorMock([pb_ev]))
 
         errors = []
 
@@ -2102,9 +2069,7 @@ class TestSubscribeStoreWithCallbackConcurrentErrors:
 
         client = _make_connected_client(mock_transport)
         pb_ev = _make_pb_event()
-        mock_transport.subscribe_to_events = MagicMock(
-            return_value=AsyncIteratorMock([pb_ev])
-        )
+        mock_transport.subscribe_to_events = MagicMock(return_value=AsyncIteratorMock([pb_ev]))
 
         async def bad_cb(event):
             raise ValueError("store concurrent no cb")
@@ -2256,9 +2221,7 @@ class TestAsyncClientGetEventSenderLazyInit:
 
         assert client._event_sender is None
 
-        with patch(
-            "kubemq.pubsub.async_client.AsyncEventSender"
-        ) as mock_sender_class:
+        with patch("kubemq.pubsub.async_client.AsyncEventSender") as mock_sender_class:
             mock_sender = AsyncMock()
             mock_sender.start = AsyncMock()
             mock_sender_class.return_value = mock_sender
@@ -2320,6 +2283,7 @@ class TestAsyncClientSendEventUnary:
     @pytest.mark.asyncio
     async def test_send_event_unary_validation_error(self, mock_transport):
         from pydantic import ValidationError as PydanticValidationError
+
         from kubemq.core.exceptions import KubeMQValidationError
 
         client = AsyncClient(address="localhost:50000")
@@ -2379,9 +2343,7 @@ class TestAsyncClientSubscriptionCallbackErrorIsolation:
     async def test_handler_error_callback_raises_is_logged(self, mock_transport):
         client = _make_connected_client(mock_transport)
         pb_ev = _make_pb_event()
-        mock_transport.subscribe_to_events = MagicMock(
-            return_value=AsyncIteratorMock([pb_ev])
-        )
+        mock_transport.subscribe_to_events = MagicMock(return_value=AsyncIteratorMock([pb_ev]))
 
         def bad_handler(event):
             raise ValueError("handler crash")
@@ -2405,9 +2367,7 @@ class TestAsyncClientSubscriptionCallbackErrorIsolation:
     async def test_subscribe_with_callback_error_callback_raises_is_logged(self, mock_transport):
         client = _make_connected_client(mock_transport)
         pb_ev = _make_pb_event()
-        mock_transport.subscribe_to_events = MagicMock(
-            return_value=AsyncIteratorMock([pb_ev])
-        )
+        mock_transport.subscribe_to_events = MagicMock(return_value=AsyncIteratorMock([pb_ev]))
 
         async def bad_cb(event):
             raise ValueError("handler boom")
@@ -2579,9 +2539,7 @@ class TestAsyncClientSubscribeWithCallbackErrorCallbackRaisesStore:
 
         client = _make_connected_client(mock_transport)
         pb_ev = _make_pb_event()
-        mock_transport.subscribe_to_events = MagicMock(
-            return_value=AsyncIteratorMock([pb_ev])
-        )
+        mock_transport.subscribe_to_events = MagicMock(return_value=AsyncIteratorMock([pb_ev]))
 
         async def bad_cb(event):
             raise ValueError("store handler boom")
@@ -2591,9 +2549,7 @@ class TestAsyncClientSubscribeWithCallbackErrorCallbackRaisesStore:
 
         with patch("kubemq.pubsub.async_client._logger") as mock_logger:
             await client.subscribe_store_with_callback(
-                EventsStoreSubscription(
-                    channel="ch", on_receive_event_callback=lambda e: None
-                ),
+                EventsStoreSubscription(channel="ch", on_receive_event_callback=lambda e: None),
                 bad_cb,
                 error_callback=bad_err_cb,
                 max_concurrent_callbacks=1,
@@ -2619,9 +2575,9 @@ class TestAsyncClientPublishEventStoreNoneResult:
 # Additional Targeted Coverage Tests — 95% target
 # ==============================================================================
 
-from kubemq.pubsub.event_message_received import EventMessageReceived
-from kubemq.pubsub.event_store_message_received import EventStoreMessageReceived
-from kubemq.pubsub.events_store_subscription import EventsStoreSubscription
+from kubemq.pubsub.event_message_received import EventMessageReceived  # noqa: E402
+from kubemq.pubsub.event_store_message_received import EventStoreMessageReceived  # noqa: E402
+from kubemq.pubsub.events_store_subscription import EventsStoreSubscription  # noqa: E402
 
 
 class TestSubscribeToEventsProcessingError:
@@ -2632,9 +2588,7 @@ class TestSubscribeToEventsProcessingError:
         """EventMessageReceived.decode raising -> proc_err path."""
         client = _make_connected_client(mock_transport)
         pb_ev = _make_pb_event()
-        mock_transport.subscribe_to_events = MagicMock(
-            return_value=AsyncIteratorMock([pb_ev])
-        )
+        mock_transport.subscribe_to_events = MagicMock(return_value=AsyncIteratorMock([pb_ev]))
 
         sub = EventsSubscription(
             channel="ch",
@@ -2657,9 +2611,7 @@ class TestSubscribeToEventsStoreErrorCallbackRaises:
         """error_callback raises in store async-iter subscribe -> logged."""
         client = _make_connected_client(mock_transport)
         pb_ev = _make_pb_event()
-        mock_transport.subscribe_to_events = MagicMock(
-            return_value=AsyncIteratorMock([pb_ev])
-        )
+        mock_transport.subscribe_to_events = MagicMock(return_value=AsyncIteratorMock([pb_ev]))
 
         def bad_handler(event):
             raise ValueError("handler crash")
@@ -2688,9 +2640,7 @@ class TestSubscribeToEventsStoreProcessingError:
         """EventStoreMessageReceived.decode raising -> proc_err path."""
         client = _make_connected_client(mock_transport)
         pb_ev = _make_pb_event()
-        mock_transport.subscribe_to_events = MagicMock(
-            return_value=AsyncIteratorMock([pb_ev])
-        )
+        mock_transport.subscribe_to_events = MagicMock(return_value=AsyncIteratorMock([pb_ev]))
 
         sub = EventsStoreSubscription(
             channel="ch",
@@ -2861,9 +2811,7 @@ class TestSubscribeWithCallbackProcessingError:
         """EventMessageReceived.decode raising -> proc_err re-raised."""
         client = _make_connected_client(mock_transport)
         pb_ev = _make_pb_event()
-        mock_transport.subscribe_to_events = MagicMock(
-            return_value=AsyncIteratorMock([pb_ev])
-        )
+        mock_transport.subscribe_to_events = MagicMock(return_value=AsyncIteratorMock([pb_ev]))
 
         async def callback(event):
             pass
@@ -2911,9 +2859,7 @@ class TestSubscribeStoreWithCallbackProcessingError:
         """EventStoreMessageReceived.decode raising -> proc_err re-raised."""
         client = _make_connected_client(mock_transport)
         pb_ev = _make_pb_event()
-        mock_transport.subscribe_to_events = MagicMock(
-            return_value=AsyncIteratorMock([pb_ev])
-        )
+        mock_transport.subscribe_to_events = MagicMock(return_value=AsyncIteratorMock([pb_ev]))
 
         async def callback(event):
             pass
@@ -2923,9 +2869,7 @@ class TestSubscribeStoreWithCallbackProcessingError:
         ):
             with pytest.raises(RuntimeError, match="store cb decode"):
                 await client.subscribe_store_with_callback(
-                    EventsStoreSubscription(
-                        channel="ch", on_receive_event_callback=lambda e: None
-                    ),
+                    EventsStoreSubscription(channel="ch", on_receive_event_callback=lambda e: None),
                     callback,
                 )
 
@@ -2948,9 +2892,7 @@ class TestSubscribeStoreWithCallbackRetryableNoErrorCb:
 
         with patch("kubemq.pubsub.async_client.asyncio.sleep", new_callable=AsyncMock):
             await client.subscribe_store_with_callback(
-                EventsStoreSubscription(
-                    channel="ch", on_receive_event_callback=lambda e: None
-                ),
+                EventsStoreSubscription(channel="ch", on_receive_event_callback=lambda e: None),
                 cb,
             )
 
@@ -2965,9 +2907,7 @@ class TestSubscribeStoreWithCallbackConcurrentErrorCallbackRaises:
         """error_callback raises in concurrent store path -> silently caught."""
         client = _make_connected_client(mock_transport)
         pb_ev = _make_pb_event()
-        mock_transport.subscribe_to_events = MagicMock(
-            return_value=AsyncIteratorMock([pb_ev])
-        )
+        mock_transport.subscribe_to_events = MagicMock(return_value=AsyncIteratorMock([pb_ev]))
 
         async def bad_cb(event):
             raise ValueError("concurrent store err")

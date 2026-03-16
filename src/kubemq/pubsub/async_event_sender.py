@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
-import uuid
 from collections.abc import AsyncIterator
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from kubemq.grpc import Event, Result
 
@@ -48,7 +48,7 @@ class AsyncEventSender:
         if self._stream_task is None or self._stream_task.done():
             self._stream_task = asyncio.create_task(self._stream_loop())
 
-    async def send(self, event: Event) -> Optional[Result]:
+    async def send(self, event: Event) -> Result | None:
         """Enqueue an event for sending.
 
         For fire-and-forget events (``Store=False``), returns ``None`` immediately.
@@ -110,7 +110,7 @@ class AsyncEventSender:
         while not self._closed:
             try:
                 msg = await asyncio.wait_for(self._send_queue.get(), timeout=1.0)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 continue
             if msg is _SENTINEL:
                 break
@@ -150,16 +150,12 @@ class AsyncEventSender:
         self._closed = True
         self._allow_new_messages = False
 
-        try:
+        with contextlib.suppress(asyncio.QueueFull):
             self._send_queue.put_nowait(_SENTINEL)
-        except asyncio.QueueFull:
-            pass
 
         if self._stream_task and not self._stream_task.done():
             self._stream_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._stream_task
-            except asyncio.CancelledError:
-                pass
 
         await self._handle_disconnection()

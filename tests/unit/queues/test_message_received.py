@@ -466,7 +466,6 @@ class TestQueueMessageReceivedExtendVisibility:
             msg.extend_visibility_timer(10)
 
     def test_extend_recalculates_timer(self):
-        import time
         msg = QueueMessageReceived(
             id="msg-ext",
             channel="q",
@@ -499,7 +498,6 @@ class TestQueueMessageReceivedRemainingVisibility:
         assert msg.get_remaining_visibility_seconds() == 0
 
     def test_returns_positive_when_active(self):
-        import time
         msg = QueueMessageReceived(
             id="m1",
             channel="q",

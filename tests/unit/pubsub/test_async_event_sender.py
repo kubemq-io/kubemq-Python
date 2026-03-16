@@ -9,7 +9,7 @@ import pytest
 
 from kubemq.core.exceptions import KubeMQBufferFullError
 from kubemq.grpc import Event, Result
-from kubemq.pubsub.async_event_sender import AsyncEventSender, _SENTINEL
+from kubemq.pubsub.async_event_sender import _SENTINEL, AsyncEventSender
 
 
 def _make_sender(*, max_queue_size: int = 100, reconnect_interval: float = 0.01):
@@ -21,7 +21,6 @@ def _make_sender(*, max_queue_size: int = 100, reconnect_interval: float = 0.01)
 
 
 class TestAsyncEventSenderInit:
-
     def test_defaults(self):
         transport = MagicMock()
         sender = AsyncEventSender(transport)
@@ -37,7 +36,6 @@ class TestAsyncEventSenderInit:
 
 
 class TestAsyncEventSenderStart:
-
     @pytest.mark.asyncio
     async def test_start_creates_task(self):
         sender, _ = _make_sender()
@@ -78,7 +76,6 @@ class TestAsyncEventSenderStart:
 
 
 class TestAsyncEventSenderSend:
-
     @pytest.mark.asyncio
     async def test_send_fire_and_forget(self):
         sender, _ = _make_sender()
@@ -130,7 +127,6 @@ class TestAsyncEventSenderSend:
 
 
 class TestAsyncEventSenderStreamLoop:
-
     @pytest.mark.asyncio
     async def test_stream_loop_processes_responses(self):
         sender, transport = _make_sender()
@@ -194,7 +190,6 @@ class TestAsyncEventSenderStreamLoop:
 
 
 class TestAsyncEventSenderRequestGenerator:
-
     @pytest.mark.asyncio
     async def test_yields_events(self):
         sender, _ = _make_sender()
@@ -233,7 +228,6 @@ class TestAsyncEventSenderRequestGenerator:
 
 
 class TestAsyncEventSenderProcessResponse:
-
     @pytest.mark.asyncio
     async def test_resolves_tracked_future(self):
         sender, _ = _make_sender()
@@ -264,7 +258,6 @@ class TestAsyncEventSenderProcessResponse:
 
 
 class TestAsyncEventSenderHandleDisconnection:
-
     @pytest.mark.asyncio
     async def test_errors_all_pending_futures(self):
         sender, _ = _make_sender()
@@ -304,7 +297,6 @@ class TestAsyncEventSenderHandleDisconnection:
 
 
 class TestAsyncEventSenderClose:
-
     @pytest.mark.asyncio
     async def test_close_sets_closed(self):
         sender, _ = _make_sender()

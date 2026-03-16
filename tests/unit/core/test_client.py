@@ -751,13 +751,13 @@ class TestBaseClientEnsureConnectedEdgeCases:
 # Additional Coverage Tests — uncovered lines in core/client.py
 # ==============================================================================
 
-import asyncio
-import logging
-import threading
-import time
+import asyncio  # noqa: E402
+import logging  # noqa: E402
+import threading  # noqa: E402
+import time  # noqa: E402
 
-from kubemq.core.client import _resolve_logger
-from kubemq.core.exceptions import KubeMQError, KubeMQValidationError
+from kubemq.core.client import _resolve_logger  # noqa: E402
+from kubemq.core.exceptions import KubeMQError, KubeMQValidationError  # noqa: E402
 
 
 class TestResolveLogger:

@@ -1,5 +1,4 @@
 from datetime import datetime
-from typing import Optional
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -8,13 +7,15 @@ from kubemq.grpc import Response as pbResponse
 
 
 class CommandResponseMessage(BaseModel):
-    command_received: Optional[CommandMessageReceived] = None
+    """Response message for a command request."""
+
+    command_received: CommandMessageReceived | None = None
     client_id: str = Field(default="")
     request_id: str = Field(default="")
     is_executed: bool = Field(default=False)
     timestamp: datetime = Field(default_factory=datetime.now)
     error: str = Field(default="")
-    metadata: Optional[str] = None
+    metadata: str | None = None
     body: bytes = Field(default=b"")
     tags: dict[str, str] = Field(default_factory=dict)
 
@@ -22,8 +23,9 @@ class CommandResponseMessage(BaseModel):
 
     @field_validator("command_received")
     def validate_command_received(
-        cls, v: Optional[CommandMessageReceived]
-    ) -> Optional[CommandMessageReceived]:
+        cls, v: CommandMessageReceived | None
+    ) -> CommandMessageReceived | None:
+        """Validate that the command request is present and has a reply channel."""
         if v is None:
             raise ValueError("Command response must have a command request.")
         if v.reply_channel == "":
@@ -32,6 +34,7 @@ class CommandResponseMessage(BaseModel):
 
     @classmethod
     def decode(cls, pb_response: pbResponse) -> "CommandResponseMessage":
+        """Decode a protobuf Response into a CommandResponseMessage."""
         return cls(
             client_id=pb_response.ClientID,
             request_id=pb_response.RequestID,
@@ -44,6 +47,7 @@ class CommandResponseMessage(BaseModel):
         )
 
     def encode(self, client_id: str) -> pbResponse:
+        """Encode the response message to a protobuf Response."""
         if not self.command_received:
             raise ValueError("Command received is required for encoding.")
         if not self.command_received.id or self.command_received.id.strip() == "":

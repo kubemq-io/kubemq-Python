@@ -447,6 +447,7 @@ class TestCommandsSubscriptionDecodeDeprecated:
 
     def test_decode_emits_deprecation_warning(self):
         import warnings
+
         sub = CommandsSubscription(
             channel="ch",
             on_receive_command_callback=MagicMock(),

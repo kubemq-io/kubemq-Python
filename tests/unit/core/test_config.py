@@ -509,7 +509,6 @@ class TestClientConfigRetryAndTimeouts:
 
 
 class TestTLSConfigExtendedValidation:
-
     def test_unreadable_file_raises_permission_error(self):
         with tempfile.NamedTemporaryFile(suffix=".pem", delete=False) as cf:
             cert_path = Path(cf.name)
@@ -518,6 +517,7 @@ class TestTLSConfigExtendedValidation:
 
         try:
             from unittest.mock import patch as _patch
+
             with _patch("kubemq.core.config.os.access", return_value=False):
                 with pytest.raises(PermissionError, match="not readable"):
                     TLSConfig(enabled=True, cert_file=cert_path, key_file=key_path)
@@ -538,7 +538,8 @@ class TestTLSConfigExtendedValidation:
             with pytest.raises(ValueError, match="Cannot specify both cert_file and cert_pem"):
                 TLSConfig(
                     enabled=True,
-                    cert_file=cert_path, cert_pem=b"PEM",
+                    cert_file=cert_path,
+                    cert_pem=b"PEM",
                     key_file=key_path,
                 )
         finally:
@@ -555,7 +556,8 @@ class TestTLSConfigExtendedValidation:
                 TLSConfig(
                     enabled=True,
                     cert_file=cert_path,
-                    key_file=key_path, key_pem=b"PEM",
+                    key_file=key_path,
+                    key_pem=b"PEM",
                 )
         finally:
             os.unlink(cert_path)
@@ -572,7 +574,6 @@ class TestTLSConfigExtendedValidation:
 
 
 class TestClientConfigPostInitValidation:
-
     def test_empty_auth_token_raises(self):
         with pytest.raises(ValueError, match="auth_token must be non-empty"):
             ClientConfig(address="localhost:50000", auth_token="   ")
@@ -615,7 +616,6 @@ class TestClientConfigPostInitValidation:
 
 
 class TestClientConfigTokenPresent:
-
     def test_token_present_true(self):
         config = ClientConfig(address="localhost:50000", auth_token="secret")
         assert config.token_present is True
@@ -626,7 +626,6 @@ class TestClientConfigTokenPresent:
 
 
 class TestClientConfigIsLocalhost:
-
     def test_ipv6_bracket_is_localhost(self):
         config = ClientConfig(address="[::1]:50000")
         assert config._is_localhost() is True
@@ -649,7 +648,6 @@ class TestClientConfigIsLocalhost:
 
 
 class TestClientConfigFromFileWithTLS:
-
     def test_from_file_with_tls_and_keepalive_sections(self):
         with tempfile.NamedTemporaryFile(suffix=".pem", delete=False) as cf:
             cert_path = cf.name
@@ -674,9 +672,7 @@ ping_interval_in_seconds = 30
 ping_timeout_in_seconds = 10
 """
 
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".toml", delete=False
-        ) as toml_f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".toml", delete=False) as toml_f:
             toml_f.write(config_data)
             toml_f.flush()
             toml_path = toml_f.name
@@ -699,10 +695,10 @@ ping_timeout_in_seconds = 10
 
 
 class TestClientConfigFromDotenvImportError:
-
     def test_from_dotenv_without_dotenv_raises(self):
         import sys
         from unittest.mock import patch as _patch
+
         with _patch.dict(sys.modules, {"dotenv": None}):
             with pytest.raises(ImportError, match="python-dotenv is required"):
                 ClientConfig.from_dotenv()

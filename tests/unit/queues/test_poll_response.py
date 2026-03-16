@@ -545,9 +545,7 @@ class TestQueuesPollResponseRequestTypeAndMetadata:
         pb_resp.RequestTypeData = 5
         pb_resp.Metadata = {}
 
-        response = QueuesPollResponse.decode(
-            pb_resp, "client", MagicMock()
-        )
+        response = QueuesPollResponse.decode(pb_resp, "client", MagicMock())
 
         assert response.request_type_data == 5
 
@@ -565,9 +563,7 @@ class TestQueuesPollResponseRequestTypeAndMetadata:
         pb_resp.RequestTypeData = 0
         pb_resp.Metadata = {"key": "value"}
 
-        response = QueuesPollResponse.decode(
-            pb_resp, "client", MagicMock()
-        )
+        response = QueuesPollResponse.decode(pb_resp, "client", MagicMock())
 
         assert response.response_metadata == {"key": "value"}
 
@@ -650,7 +646,7 @@ class TestQueuesPollResponseDecodeException:
             )
 
 
-class TestQueuesPollResponseStrException:
+class TestQueuesPollResponseStrExceptionPath:
     """Test __str__ exception handler path."""
 
     def test_str_exception_path(self):

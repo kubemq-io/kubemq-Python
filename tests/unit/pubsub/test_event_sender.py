@@ -32,7 +32,6 @@ def _make_sender(*, max_queue_size: int = 10_000) -> tuple[EventSender, MagicMoc
 
 
 class TestEventSenderSend:
-
     def test_send_non_store_event(self):
         sender, _, _ = _make_sender()
         event = Event(EventID="e1", Store=False)
@@ -84,7 +83,6 @@ class TestEventSenderSend:
 
 
 class TestEventSenderHandleDisconnection:
-
     def test_clears_queue(self):
         sender, _, _ = _make_sender()
         for i in range(5):
@@ -122,7 +120,6 @@ class TestEventSenderHandleDisconnection:
 
 
 class TestEventSenderSendQueueWarning:
-
     def test_send_queue_high_utilization_warning(self):
         sender, _, _ = _make_sender(max_queue_size=10)
         for i in range(9):
@@ -132,7 +129,6 @@ class TestEventSenderSendQueueWarning:
 
 
 class TestEventSenderHandleDisconnectionPendingResponses:
-
     def test_handle_disconnection_with_pending_responses(self):
         sender, _, _ = _make_sender()
         container, evt = {}, threading.Event()
@@ -144,7 +140,6 @@ class TestEventSenderHandleDisconnectionPendingResponses:
 
 
 class TestEventSenderClose:
-
     def test_close_does_not_error(self):
         sender, _, shutdown_event = _make_sender()
         shutdown_event.set()
@@ -154,7 +149,7 @@ class TestEventSenderClose:
 # SendEventsStream Tests
 # ==============================================================================
 
-import grpc
+import grpc  # noqa: E402
 
 
 class _FakeRpcError(grpc.RpcError):
@@ -306,6 +301,7 @@ class TestEventSenderStreamResponseEdgeCases:
                 yield r1
                 shutdown_event.set()
                 yield r2
+
             return _responses()
 
         sender.clientStub.SendEventsStream.side_effect = fake_stream
@@ -372,14 +368,11 @@ class TestEventSenderHandleDisconnectionEmptyRace:
         sender, _, _ = _make_sender()
 
         call_count = 0
-        original_empty = sender.sending_queue.empty
 
         def fake_empty():
             nonlocal call_count
             call_count += 1
-            if call_count == 1:
-                return False
-            return True
+            return call_count != 1
 
         sender.sending_queue.empty = fake_empty
         sender.sending_queue.get_nowait = _MagicMock(side_effect=queue.Empty())

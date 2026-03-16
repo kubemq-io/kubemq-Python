@@ -11,7 +11,6 @@ from kubemq._internal.logging import NOOP_LOGGER, NoOpLogger, StdLibLoggerAdapte
 
 
 class TestNoOpLogger:
-
     def test_debug_does_nothing(self):
         NOOP_LOGGER.debug("msg", key="val")
 
@@ -32,7 +31,6 @@ class TestNoOpLogger:
 
 
 class TestStdLibLoggerAdapter:
-
     @patch("kubemq._internal.telemetry.HAS_OTEL", False)
     def test_debug_delegates(self):
         adapter = StdLibLoggerAdapter(name="test.debug", level=logging.DEBUG)
@@ -116,9 +114,8 @@ class TestStdLibLoggerAdapterOTel:
 
     def test_inject_trace_context_with_mocked_otel(self):
         import sys
-        otel_available = "opentelemetry" in sys.modules or True
+
         try:
-            import importlib
             otel_trace = MagicMock()
             mock_ctx = MagicMock()
             mock_ctx.is_valid = True
@@ -128,7 +125,9 @@ class TestStdLibLoggerAdapterOTel:
             mock_span.get_span_context.return_value = mock_ctx
             otel_trace.get_current_span.return_value = mock_span
 
-            with patch.dict(sys.modules, {"opentelemetry": MagicMock(), "opentelemetry.trace": otel_trace}):
+            with patch.dict(
+                sys.modules, {"opentelemetry": MagicMock(), "opentelemetry.trace": otel_trace}
+            ):
                 adapter = StdLibLoggerAdapter.__new__(StdLibLoggerAdapter)
                 adapter._has_otel = True
                 result = adapter._inject_trace_context({"key": "val"})
@@ -140,6 +139,7 @@ class TestStdLibLoggerAdapterOTel:
 
     def test_inject_trace_context_invalid_span(self):
         import sys
+
         try:
             otel_trace = MagicMock()
             mock_ctx = MagicMock()
@@ -148,7 +148,9 @@ class TestStdLibLoggerAdapterOTel:
             mock_span.get_span_context.return_value = mock_ctx
             otel_trace.get_current_span.return_value = mock_span
 
-            with patch.dict(sys.modules, {"opentelemetry": MagicMock(), "opentelemetry.trace": otel_trace}):
+            with patch.dict(
+                sys.modules, {"opentelemetry": MagicMock(), "opentelemetry.trace": otel_trace}
+            ):
                 adapter = StdLibLoggerAdapter.__new__(StdLibLoggerAdapter)
                 adapter._has_otel = True
                 result = adapter._inject_trace_context({"key": "val"})

@@ -20,7 +20,6 @@ from kubemq._internal.transport.reconnect import (
 from kubemq.core.config import JitterType, RetryPolicy
 from kubemq.core.exceptions import KubeMQBufferFullError
 
-
 # -----------------------------------------------------------------------
 # _BoundedByteBuffer (sync, thread-safe)
 # -----------------------------------------------------------------------
@@ -259,9 +258,7 @@ class TestReconnectionManager:
     async def test_cancel_discards_buffer_and_fires_callback(self):
         drain_cb = MagicMock()
         config = ReconnectConfig(reconnect_buffer_size=1024)
-        mgr = ReconnectionManager(
-            config, _make_backoff(), on_buffer_drain=drain_cb
-        )
+        mgr = ReconnectionManager(config, _make_backoff(), on_buffer_drain=drain_cb)
 
         await mgr.buffer_message(b"msg1")
         await mgr.buffer_message(b"msg2")
@@ -273,9 +270,7 @@ class TestReconnectionManager:
     async def test_cancel_with_async_callback(self):
         drain_cb = AsyncMock()
         config = ReconnectConfig(reconnect_buffer_size=1024)
-        mgr = ReconnectionManager(
-            config, _make_backoff(), on_buffer_drain=drain_cb
-        )
+        mgr = ReconnectionManager(config, _make_backoff(), on_buffer_drain=drain_cb)
 
         await mgr.buffer_message(b"msg1")
         await mgr.cancel()
@@ -398,9 +393,7 @@ class TestReconnectionManagerBufferDrainOnSuccess:
             initial_reconnect_delay_ms=50,
         )
         connect_fn = AsyncMock()
-        mgr = ReconnectionManager(
-            config, _make_backoff(), on_buffer_drain=drain_cb
-        )
+        mgr = ReconnectionManager(config, _make_backoff(), on_buffer_drain=drain_cb)
 
         await mgr.buffer_message(b"msg1")
         await mgr.start_reconnection(connect_fn)
@@ -415,9 +408,7 @@ class TestReconnectionManagerBufferDrainOnSuccess:
             initial_reconnect_delay_ms=50,
         )
         connect_fn = AsyncMock()
-        mgr = ReconnectionManager(
-            config, _make_backoff(), on_buffer_drain=drain_cb
-        )
+        mgr = ReconnectionManager(config, _make_backoff(), on_buffer_drain=drain_cb)
 
         await mgr.buffer_message(b"msg1")
         await mgr.start_reconnection(connect_fn)
@@ -434,9 +425,7 @@ class TestReconnectionManagerBufferDrainOnSuccess:
             initial_reconnect_delay_ms=50,
         )
         connect_fn = AsyncMock()
-        mgr = ReconnectionManager(
-            config, _make_backoff(), on_buffer_drain=bad_drain
-        )
+        mgr = ReconnectionManager(config, _make_backoff(), on_buffer_drain=bad_drain)
 
         await mgr.buffer_message(b"msg1")
         await mgr.start_reconnection(connect_fn)
@@ -451,9 +440,7 @@ class TestReconnectionManagerCancelEdge:
             raise RuntimeError("bad drain")
 
         config = ReconnectConfig(reconnect_buffer_size=1024)
-        mgr = ReconnectionManager(
-            config, _make_backoff(), on_buffer_drain=bad_drain
-        )
+        mgr = ReconnectionManager(config, _make_backoff(), on_buffer_drain=bad_drain)
         await mgr.buffer_message(b"msg")
         await mgr.cancel()
 

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import ClassVar
+from typing import Any, ClassVar
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -9,8 +9,7 @@ from kubemq.grpc import QueueMessage as pbQueueMessage
 
 
 class QueueMessageWaitingPulled(BaseModel):
-    """
-    Represents a message that is waiting in a queue or has been pulled from a queue.
+    """Represents a message that is waiting in a queue or has been pulled from a queue.
 
     This class encapsulates all the properties of a message that has been received
     from a KubeMQ queue, either by peeking at the queue (waiting) or by pulling
@@ -84,8 +83,7 @@ class QueueMessageWaitingPulled(BaseModel):
     # Validators
     @field_validator("channel")
     def channel_must_not_be_empty(cls, v: str) -> str:
-        """
-        Validate that the channel is not empty.
+        """Validate that the channel is not empty.
 
         Args:
             v: The channel value to validate
@@ -102,8 +100,7 @@ class QueueMessageWaitingPulled(BaseModel):
 
     # Utility methods
     def is_expired(self) -> bool:
-        """
-        Check if the message has expired.
+        """Check if the message has expired.
 
         Returns:
             bool: True if the message has expired, False otherwise.
@@ -111,8 +108,7 @@ class QueueMessageWaitingPulled(BaseModel):
         return self.expired_at > self.EPOCH and datetime.now() > self.expired_at
 
     def is_delayed(self) -> bool:
-        """
-        Check if the message is delayed.
+        """Check if the message is delayed.
 
         Returns:
             bool: True if the message is delayed, False otherwise.
@@ -120,8 +116,7 @@ class QueueMessageWaitingPulled(BaseModel):
         return self.delayed_to > self.EPOCH and datetime.now() < self.delayed_to
 
     def get_delay_seconds(self) -> float:
-        """
-        Get the number of seconds until the message is no longer delayed.
+        """Get the number of seconds until the message is no longer delayed.
 
         Returns:
             float: The number of seconds until the message is available, or 0 if not delayed.
@@ -132,8 +127,7 @@ class QueueMessageWaitingPulled(BaseModel):
         return max(0, (self.delayed_to - datetime.now()).total_seconds())
 
     def get_age_seconds(self) -> float:
-        """
-        Get the age of the message in seconds.
+        """Get the age of the message in seconds.
 
         Returns:
             float: The age of the message in seconds.
@@ -143,9 +137,8 @@ class QueueMessageWaitingPulled(BaseModel):
 
         return (datetime.now() - self.timestamp).total_seconds()
 
-    def with_updates(self, **kwargs) -> QueueMessageWaitingPulled:
-        """
-        Create a new message with updated values.
+    def with_updates(self, **kwargs: Any) -> QueueMessageWaitingPulled:
+        """Create a new message with updated values.
 
         Since instances are immutable, this method creates a new
         instance with the specified updates.
@@ -162,8 +155,7 @@ class QueueMessageWaitingPulled(BaseModel):
 
     # Encoding/decoding methods
     def encode(self) -> pbQueueMessage:
-        """
-        Encode the message to a protobuf QueueMessage.
+        """Encode the message to a protobuf QueueMessage.
 
         Returns:
             A protobuf QueueMessage containing the encoded message
@@ -195,10 +187,10 @@ class QueueMessageWaitingPulled(BaseModel):
             pb_queue.Attributes.ReRoutedFromQueue = self.re_route_from_queue
 
             if self.expired_at != self.EPOCH:
-                pb_queue.Attributes.ExpirationAt = int(self.expired_at.timestamp() * 1e6)
+                pb_queue.Attributes.ExpirationAt = int(self.expired_at.timestamp() * 1e9)
 
             if self.delayed_to != self.EPOCH:
-                pb_queue.Attributes.DelayedTo = int(self.delayed_to.timestamp() * 1e6)
+                pb_queue.Attributes.DelayedTo = int(self.delayed_to.timestamp() * 1e9)
 
         return pb_queue
 
@@ -208,8 +200,7 @@ class QueueMessageWaitingPulled(BaseModel):
         message: pbQueueMessage,
         receiver_client_id: str,
     ) -> QueueMessageWaitingPulled:
-        """
-        Create a QueueMessageWaitingPulled from a protobuf QueueMessage.
+        """Create a QueueMessageWaitingPulled from a protobuf QueueMessage.
 
         Args:
             message: The protobuf QueueMessage to decode
@@ -249,12 +240,12 @@ class QueueMessageWaitingPulled(BaseModel):
                     message.Attributes.ReRoutedFromQueue if message.Attributes else ""
                 ),
                 expired_at=(
-                    datetime.fromtimestamp(message.Attributes.ExpirationAt / 1e6)
+                    datetime.fromtimestamp(message.Attributes.ExpirationAt / 1e9)
                     if message.Attributes and message.Attributes.ExpirationAt
                     else datetime.fromtimestamp(0)
                 ),
                 delayed_to=(
-                    datetime.fromtimestamp(message.Attributes.DelayedTo / 1e6)
+                    datetime.fromtimestamp(message.Attributes.DelayedTo / 1e9)
                     if message.Attributes and message.Attributes.DelayedTo
                     else datetime.fromtimestamp(0)
                 ),
@@ -264,8 +255,7 @@ class QueueMessageWaitingPulled(BaseModel):
             raise ValueError(f"Failed to decode message: {str(e)}") from e
 
     def __str__(self) -> str:
-        """
-        Get a string representation of the message.
+        """Get a string representation of the message.
 
         Returns:
             A string representation of the message
@@ -286,8 +276,7 @@ class QueueMessageWaitingPulled(BaseModel):
             return f"QueueMessageWaitingPulled: id={self.id}, channel={self.channel}, [Error displaying message: {str(e)}]"
 
     def __repr__(self) -> str:
-        """
-        Get a detailed representation of the message.
+        """Get a detailed representation of the message.
 
         Returns:
             A detailed representation of the message
@@ -305,8 +294,7 @@ class QueueMessageWaitingPulled(BaseModel):
 
 
 class QueueMessagesBase(BaseModel):
-    """
-    Base class for collections of queue messages.
+    """Base class for collections of queue messages.
 
     This class serves as a base for both waiting and pulled message collections.
     It provides common functionality for working with collections of messages.
@@ -331,8 +319,7 @@ class QueueMessagesBase(BaseModel):
     is_peak: bool = Field(default=False, description="Whether this was a peek operation")
 
     def get_messages(self) -> list[QueueMessageWaitingPulled]:
-        """
-        Get the list of messages in the collection.
+        """Get the list of messages in the collection.
 
         Returns:
             The list of messages in the collection.
@@ -340,8 +327,7 @@ class QueueMessagesBase(BaseModel):
         return self.messages
 
     def count(self) -> int:
-        """
-        Get the number of messages in the collection.
+        """Get the number of messages in the collection.
 
         Returns:
             The number of messages in the collection.
@@ -349,17 +335,15 @@ class QueueMessagesBase(BaseModel):
         return len(self.messages)
 
     def is_empty(self) -> bool:
-        """
-        Check if the collection is empty.
+        """Check if the collection is empty.
 
         Returns:
             True if the collection is empty, False otherwise.
         """
         return len(self.messages) == 0
 
-    def with_updates(self, **kwargs) -> QueueMessageWaitingPulled:
-        """
-        Create a new collection with updated values.
+    def with_updates(self, **kwargs: Any) -> QueueMessageWaitingPulled:
+        """Create a new collection with updated values.
 
         Since instances are immutable, this method creates a new
         instance with the specified updates.
@@ -375,8 +359,7 @@ class QueueMessagesBase(BaseModel):
         return self.__class__(**data)  # type: ignore[return-value]
 
     def __str__(self) -> str:
-        """
-        Get a string representation of the collection.
+        """Get a string representation of the collection.
 
         Returns:
             A string representation of the collection
@@ -384,8 +367,7 @@ class QueueMessagesBase(BaseModel):
         return f"{self.__class__.__name__}: count={len(self.messages)}, is_error={self.is_error}, error={self.error}"
 
     def __repr__(self) -> str:
-        """
-        Get a detailed representation of the collection.
+        """Get a detailed representation of the collection.
 
         Returns:
             A detailed representation of the collection
@@ -394,8 +376,7 @@ class QueueMessagesBase(BaseModel):
 
 
 class QueueMessagesWaiting(QueueMessagesBase):
-    """
-    Collection of messages waiting in a queue.
+    """Collection of messages waiting in a queue.
 
     This class represents messages that are waiting in a queue,
     typically retrieved using a peek operation.
@@ -420,8 +401,7 @@ class QueueMessagesWaiting(QueueMessagesBase):
 
 
 class QueueMessagesPulled(QueueMessagesBase):
-    """
-    Collection of messages pulled from a queue.
+    """Collection of messages pulled from a queue.
 
     This class represents messages that have been pulled from a queue,
     typically retrieved using a pull operation.

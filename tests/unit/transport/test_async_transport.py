@@ -283,9 +283,12 @@ class TestAsyncTransportEnsureConnected:
 
     def test_ensure_connected_passes_when_connected(self, mock_config):
         """Test _ensure_connected passes when connected."""
+        from unittest.mock import MagicMock
+
         transport = AsyncTransport(mock_config)
         transport._connected = True
         transport._closing = False
+        transport._stub = MagicMock()
 
         # Should not raise
         transport._ensure_connected()
@@ -774,14 +777,14 @@ class TestAsyncTransportTimeoutHandling:
         mock_stub = MagicMock()
 
         async def timeout_send(*args):
-            raise asyncio.TimeoutError()
+            raise TimeoutError()
 
         mock_stub.SendEvent = timeout_send
 
         with (
             patch("grpc.aio.insecure_channel", return_value=mock_channel),
             patch("kubemq.grpc.kubemq_pb2_grpc.kubemqStub", return_value=mock_stub),
-            patch("asyncio.wait_for", side_effect=asyncio.TimeoutError()),
+            patch("asyncio.wait_for", side_effect=TimeoutError()),
         ):
             await transport.connect(verify=False)
             event = pb.Event()
@@ -800,7 +803,7 @@ class TestAsyncTransportTimeoutHandling:
         with (
             patch("grpc.aio.insecure_channel", return_value=mock_channel),
             patch("kubemq.grpc.kubemq_pb2_grpc.kubemqStub", return_value=mock_stub),
-            patch("asyncio.wait_for", side_effect=asyncio.TimeoutError()),
+            patch("asyncio.wait_for", side_effect=TimeoutError()),
         ):
             await transport.connect(verify=False)
             request = pb.Request()
@@ -819,7 +822,7 @@ class TestAsyncTransportTimeoutHandling:
         with (
             patch("grpc.aio.insecure_channel", return_value=mock_channel),
             patch("kubemq.grpc.kubemq_pb2_grpc.kubemqStub", return_value=mock_stub),
-            patch("asyncio.wait_for", side_effect=asyncio.TimeoutError()),
+            patch("asyncio.wait_for", side_effect=TimeoutError()),
         ):
             await transport.connect(verify=False)
             response = pb.Response()
@@ -950,7 +953,7 @@ class TestAsyncTransportQueueTimeouts:
         with (
             patch("grpc.aio.insecure_channel", return_value=mock_channel),
             patch("kubemq.grpc.kubemq_pb2_grpc.kubemqStub", return_value=mock_stub),
-            patch("asyncio.wait_for", side_effect=asyncio.TimeoutError()),
+            patch("asyncio.wait_for", side_effect=TimeoutError()),
         ):
             await transport.connect(verify=False)
             message = pb.QueueMessage()
@@ -969,7 +972,7 @@ class TestAsyncTransportQueueTimeouts:
         with (
             patch("grpc.aio.insecure_channel", return_value=mock_channel),
             patch("kubemq.grpc.kubemq_pb2_grpc.kubemqStub", return_value=mock_stub),
-            patch("asyncio.wait_for", side_effect=asyncio.TimeoutError()),
+            patch("asyncio.wait_for", side_effect=TimeoutError()),
         ):
             await transport.connect(verify=False)
             request = pb.QueueMessagesBatchRequest()
@@ -988,7 +991,7 @@ class TestAsyncTransportQueueTimeouts:
         with (
             patch("grpc.aio.insecure_channel", return_value=mock_channel),
             patch("kubemq.grpc.kubemq_pb2_grpc.kubemqStub", return_value=mock_stub),
-            patch("asyncio.wait_for", side_effect=asyncio.TimeoutError()),
+            patch("asyncio.wait_for", side_effect=TimeoutError()),
         ):
             await transport.connect(verify=False)
             request = pb.ReceiveQueueMessagesRequest(WaitTimeSeconds=5)
@@ -1007,7 +1010,7 @@ class TestAsyncTransportQueueTimeouts:
         with (
             patch("grpc.aio.insecure_channel", return_value=mock_channel),
             patch("kubemq.grpc.kubemq_pb2_grpc.kubemqStub", return_value=mock_stub),
-            patch("asyncio.wait_for", side_effect=asyncio.TimeoutError()),
+            patch("asyncio.wait_for", side_effect=TimeoutError()),
         ):
             await transport.connect(verify=False)
             request = pb.AckAllQueueMessagesRequest()
@@ -1696,7 +1699,9 @@ class TestAsyncTransportReconnect:
 
         with (
             patch.object(
-                transport, "_create_channel_for_reconnect", return_value=new_channel,
+                transport,
+                "_create_channel_for_reconnect",
+                return_value=new_channel,
             ) as mock_create,
             patch("kubemq.grpc.kubemq_pb2_grpc.kubemqStub", return_value=mock_stub),
         ):
@@ -1720,7 +1725,9 @@ class TestAsyncTransportReconnect:
 
         with (
             patch.object(
-                transport, "_create_channel_for_reconnect", return_value=new_channel,
+                transport,
+                "_create_channel_for_reconnect",
+                return_value=new_channel,
             ),
             patch("kubemq.grpc.kubemq_pb2_grpc.kubemqStub", return_value=mock_stub),
         ):
@@ -1939,7 +1946,7 @@ class TestAsyncTransportVerifyPingTimeout:
         with (
             patch("grpc.aio.insecure_channel", return_value=mock_channel),
             patch("kubemq.grpc.kubemq_pb2_grpc.kubemqStub", return_value=mock_stub),
-            patch("asyncio.wait_for", side_effect=asyncio.TimeoutError()),
+            patch("asyncio.wait_for", side_effect=TimeoutError()),
             caplog.at_level(logging.WARNING),
         ):
             await transport.connect(verify=True)
@@ -2185,7 +2192,6 @@ class TestAsyncTransportSendConnectionErrors:
             with pytest.raises(Exception):
                 await transport.ack_all_queue_messages(pb.AckAllQueueMessagesRequest())
             mock_lost.assert_awaited_once()
-
 
 
 # ==============================================================================

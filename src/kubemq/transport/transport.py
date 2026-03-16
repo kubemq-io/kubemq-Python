@@ -26,12 +26,12 @@ def _get_ssl_credentials(tls_config: TlsConfig) -> ChannelCredentials:
     return grpc.ssl_channel_credentials(root_certificates, private_key, certificate_chain)
 
 
-def _read_file(file_path):
+def _read_file(file_path: str) -> bytes:
     with open(file_path, "rb") as f:
         return f.read()
 
 
-def _get_call_options(connection: Connection) -> Sequence:
+def _get_call_options(connection: Connection) -> Sequence[tuple[str, int]]:
     options = [
         ("grpc.max_send_message_length", connection.max_send_size),
         ("grpc.max_receive_message_length", connection.max_receive_size),
@@ -92,6 +92,7 @@ class SyncTransport:
         self._token_holder = TokenHolder(self._opts.auth_token or None)
 
     def initialize(self) -> "SyncTransport":
+        """Initialize the transport by creating the gRPC channel and verifying connectivity."""
         try:
             if not self._opts.tls.enabled:
                 self._logger.warning(
@@ -138,9 +139,10 @@ class SyncTransport:
                 interceptors=interceptors_async,
             )
 
-        self._async_client = kubemq_pb2_grpc.kubemqStub(self._async_channel)
+        self._async_client = kubemq_pb2_grpc.kubemqStub(self._async_channel)  # type: ignore[no-untyped-call]
 
     def ping(self) -> ServerInfo:
+        """Ping the server and return server information."""
         if self._client is None:
             raise RuntimeError("Transport not initialized - call initialize() first")
         response = self._client.Ping(Empty())
@@ -152,16 +154,23 @@ class SyncTransport:
         )
 
     def kubemq_client(self) -> kubemq_pb2_grpc.kubemqStub:
+        """Get the current gRPC client stub."""
         if self._channel_manager:
             return self._channel_manager.get_client()
+        if self._client is None:
+            raise RuntimeError("Transport not initialized - call initialize() first")
         return self._client
 
     def kubemq_async_client(self) -> kubemq_pb2_grpc.kubemqStub:
+        """Get the async gRPC client stub, initializing if needed."""
         if self._async_client is None:
             self._initialize_async()
+        if self._async_client is None:
+            raise RuntimeError("Failed to initialize async client")
         return self._async_client
 
     def is_connected(self) -> bool:
+        """Check if the transport is connected to the server."""
         if self._channel_manager:
             return self._channel_manager.connection_state.is_accepting_requests()
 
@@ -169,8 +178,7 @@ class SyncTransport:
             return self._is_connected
 
     def recreate_channel(self) -> kubemq_pb2_grpc.kubemqStub:
-        """
-        Recreates the gRPC channel and client after a connection failure.
+        """Recreates the gRPC channel and client after a connection failure.
 
         Returns:
             kubemq_pb2_grpc.kubemqStub: New client instance
@@ -210,6 +218,7 @@ class SyncTransport:
                 self._is_connected = False
 
         if self._async_channel is not None:
+            channel_to_close = self._async_channel
             try:
                 # Check if we're running in an async context
                 asyncio.get_running_loop()
@@ -219,7 +228,7 @@ class SyncTransport:
             except RuntimeError:
                 loop = asyncio.new_event_loop()
                 try:
-                    loop.run_until_complete(self._async_channel.close())
+                    loop.run_until_complete(channel_to_close.close())
                 finally:
                     loop.close()
                 self._async_channel = None

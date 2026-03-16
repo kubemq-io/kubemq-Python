@@ -1,18 +1,12 @@
 from __future__ import annotations
 
-import sys
-from typing import Optional
+from typing import Self
 from uuid import uuid4
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
 from kubemq.common.channel_validators import validate_channel_name
 from kubemq.grpc import Event as pbEvent
-
-if sys.version_info >= (3, 11):
-    from typing import Self
-else:
-    from typing_extensions import Self
 
 
 class EventMessage(BaseModel):
@@ -32,19 +26,21 @@ class EventMessage(BaseModel):
 
     id: str = Field(default_factory=lambda: str(uuid4()))
     channel: str
-    metadata: Optional[str] = None
+    metadata: str | None = None
     body: bytes = Field(default=b"")
     tags: dict[str, str] = Field(default_factory=dict)
 
     @field_validator("channel")
-    def channel_must_exist(cls, v):
+    def channel_must_exist(cls, v: str) -> str:
+        """Validate that the channel is not empty."""
         if not v:
             raise ValueError("Event message must have a channel.")
         validate_channel_name(v)
         return v
 
     @field_validator("metadata", "body", "tags")
-    def at_least_one_must_exist(cls, v, info):
+    def at_least_one_must_exist(cls, v: object, info: ValidationInfo) -> object:
+        """Validate at least one content field is set."""
         if (
             info.data.get("metadata") is None
             and info.data.get("body") == b""
@@ -56,6 +52,7 @@ class EventMessage(BaseModel):
         return v
 
     def encode(self, client_id: str) -> pbEvent:
+        """Encode the event message to a protobuf Event."""
         pb_event = pbEvent()
         pb_event.EventID = self.id or str(uuid4())
         pb_event.ClientID = client_id
@@ -66,7 +63,7 @@ class EventMessage(BaseModel):
         pb_event.Tags.update(self.tags)
         return pb_event
 
-    def with_updates(self, **kwargs) -> Self:
+    def with_updates(self, **kwargs: object) -> Self:
         """Create a new message with updated values.
 
         Since message instances are immutable, this creates a copy

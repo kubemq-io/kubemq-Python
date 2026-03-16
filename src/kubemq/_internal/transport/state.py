@@ -9,14 +9,15 @@ from __future__ import annotations
 import asyncio
 import logging
 import threading
+from collections.abc import Awaitable, Callable
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Awaitable, Callable, Union
+from typing import Any
 
 from kubemq.core.types import ConnectionState
 
 StateCallback = Callable[[], None]
 AsyncStateCallback = Callable[[], Awaitable[None]]
-AnyStateCallback = Union[StateCallback, AsyncStateCallback]
+AnyStateCallback = StateCallback | AsyncStateCallback
 
 
 class ConnectionStateManager:
@@ -86,9 +87,7 @@ class ConnectionStateManager:
         self._fire_callbacks(old_state, new_state)
         return True
 
-    def _fire_callbacks(
-        self, old_state: ConnectionState, new_state: ConnectionState
-    ) -> None:
+    def _fire_callbacks(self, old_state: ConnectionState, new_state: ConnectionState) -> None:
         """Fire callbacks for the given transition.
 
         Callbacks are invoked asynchronously — never block the caller.
@@ -104,11 +103,13 @@ class ConnectionStateManager:
                 if asyncio.iscoroutinefunction(cb):
                     try:
                         loop = asyncio.get_running_loop()
-                        loop.create_task(self._safe_async_callback(cb))
+                        async_cb: AsyncStateCallback = cb  # narrowed by iscoroutinefunction
+                        loop.create_task(self._safe_async_callback(async_cb))
                     except RuntimeError:
                         pass
                 else:
-                    self._get_callback_executor().submit(self._safe_sync_callback, cb)
+                    sync_cb: StateCallback = cb  # type: ignore[assignment]  # narrowed by iscoroutinefunction check
+                    self._get_callback_executor().submit(self._safe_sync_callback, sync_cb)
 
     def _transition_to_callback_keys(
         self, old_state: ConnectionState, new_state: ConnectionState

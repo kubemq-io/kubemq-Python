@@ -2,7 +2,7 @@ from enum import Enum
 
 
 class SubscribeType(Enum):
-    """Type of subscription operation pattern"""
+    """Type of subscription operation pattern."""
 
     SubscribeTypeUndefined = 0
     """Default"""

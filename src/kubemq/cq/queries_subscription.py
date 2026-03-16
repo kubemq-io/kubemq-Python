@@ -1,5 +1,5 @@
 import asyncio
-from typing import Callable, Optional
+from collections.abc import Callable
 
 from pydantic import BaseModel, field_validator
 
@@ -10,8 +10,7 @@ from kubemq.grpc import Subscribe
 
 
 class QueriesSubscription(BaseModel):
-    """
-    QueriesSubscription class represents a subscription to receive query messages from a channel.
+    """QueriesSubscription class represents a subscription to receive query messages from a channel.
 
     Attributes:
         channel (str): The name of the channel to subscribe to.
@@ -21,21 +20,25 @@ class QueriesSubscription(BaseModel):
     """
 
     channel: str
-    group: Optional[str] = None
+    group: str | None = None
     on_receive_query_callback: Callable[[QueryMessageReceived], None]
-    on_error_callback: Optional[Callable[[str], None]] = None
+    on_error_callback: Callable[[str], None] | None = None
 
     model_config = {"arbitrary_types_allowed": True}
 
     @field_validator("channel")
     def channel_must_exist(cls, v: str) -> str:
+        """Validate that the channel is not empty."""
         if not v:
             raise ValueError("query subscription must have a channel.")
         validate_channel_name(v)
         return v
 
     @field_validator("on_receive_query_callback")
-    def callback_must_exist(cls, v: Callable) -> Callable:
+    def callback_must_exist(
+        cls, v: Callable[[QueryMessageReceived], None]
+    ) -> Callable[[QueryMessageReceived], None]:
+        """Validate that the callback is callable."""
         if not callable(v):
             raise ValueError("query subscription must have a on_receive_query_callback function.")
         return v
@@ -81,15 +84,16 @@ class QueriesSubscription(BaseModel):
     def create(
         cls,
         channel: str,
-        group: Optional[str] = None,
-        on_receive_query_callback: Optional[Callable[[QueryMessageReceived], None]] = None,
-        on_error_callback: Optional[Callable[[str], None]] = None,
+        group: str | None = None,
+        on_receive_query_callback: Callable[[QueryMessageReceived], None] | None = None,
+        on_error_callback: Callable[[str], None] | None = None,
     ) -> "QueriesSubscription":
-        """
-        Creates a new QueriesSubscription instance.
+        """Creates a new QueriesSubscription instance.
 
         This method provides backwards compatibility with the original constructor.
         """
+        if on_receive_query_callback is None:
+            raise ValueError("on_receive_query_callback is required")
         return cls(
             channel=channel,
             group=group,

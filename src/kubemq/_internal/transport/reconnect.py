@@ -11,16 +11,17 @@ from __future__ import annotations
 
 import asyncio
 import collections
+import contextlib
 import logging
 import threading
-from collections.abc import Awaitable
-from typing import Any, Callable, Union
+from collections.abc import Awaitable, Callable
+from typing import Any
 
-from kubemq.core.exceptions import KubeMQBufferFullError, KubeMQConnectionError
+from kubemq.core.exceptions import KubeMQBufferFullError
 
 BufferDrainCallback = Callable[[int], None]
 AsyncBufferDrainCallback = Callable[[int], Awaitable[None]]
-AnyBufferDrainCallback = Union[BufferDrainCallback, AsyncBufferDrainCallback]
+AnyBufferDrainCallback = BufferDrainCallback | AsyncBufferDrainCallback
 
 
 class ReconnectConfig:
@@ -67,9 +68,7 @@ class _BoundedByteBuffer:
 
     def __init__(self, max_bytes: int) -> None:
         self._max_bytes = max_bytes
-        self._buffer: collections.deque[tuple[bytes, dict[str, Any]]] = (
-            collections.deque()
-        )
+        self._buffer: collections.deque[tuple[bytes, dict[str, Any]]] = collections.deque()
         self._current_bytes = 0
         self._lock = threading.Lock()
 
@@ -88,8 +87,7 @@ class _BoundedByteBuffer:
         with self._lock:
             if self._current_bytes + len(data) > self._max_bytes:
                 raise KubeMQBufferFullError(
-                    f"Reconnection buffer full "
-                    f"({self._current_bytes}/{self._max_bytes} bytes)",
+                    f"Reconnection buffer full ({self._current_bytes}/{self._max_bytes} bytes)",
                     buffer_size=self._max_bytes,
                     operation="publish",
                 )
@@ -123,9 +121,7 @@ class _AsyncBoundedByteBuffer:
     def __init__(self, max_bytes: int, overflow_mode: str = "error") -> None:
         self._max_bytes = max_bytes
         self._overflow_mode = overflow_mode
-        self._buffer: collections.deque[tuple[bytes, dict[str, Any]]] = (
-            collections.deque()
-        )
+        self._buffer: collections.deque[tuple[bytes, dict[str, Any]]] = collections.deque()
         self._current_bytes = 0
         self._lock = asyncio.Lock()
         self._space_available = asyncio.Event()
@@ -139,9 +135,7 @@ class _AsyncBoundedByteBuffer:
     def count(self) -> int:
         return len(self._buffer)
 
-    async def put(
-        self, data: bytes, metadata: dict[str, Any] | None = None
-    ) -> None:
+    async def put(self, data: bytes, metadata: dict[str, Any] | None = None) -> None:
         """Add item to buffer. Behaviour on full depends on overflow_mode."""
         if self._max_bytes == 0:
             raise KubeMQBufferFullError(
@@ -162,8 +156,7 @@ class _AsyncBoundedByteBuffer:
             async with self._lock:
                 if self._current_bytes + len(data) > self._max_bytes:
                     raise KubeMQBufferFullError(
-                        f"Reconnection buffer full "
-                        f"({self._current_bytes}/{self._max_bytes} bytes)",
+                        f"Reconnection buffer full ({self._current_bytes}/{self._max_bytes} bytes)",
                         buffer_size=self._max_bytes,
                         operation="publish",
                     )
@@ -222,10 +215,7 @@ class ReconnectionManager:
 
     @property
     def is_reconnecting(self) -> bool:
-        return (
-            self._reconnect_task is not None
-            and not self._reconnect_task.done()
-        )
+        return self._reconnect_task is not None and not self._reconnect_task.done()
 
     async def start_reconnection(
         self,
@@ -260,8 +250,7 @@ class ReconnectionManager:
         while not self._cancelled:
             if max_attempts > 0 and attempt >= max_attempts:
                 self._logger.warning(
-                    "Max reconnection attempts reached "
-                    "attempts=%d max_attempts=%d",
+                    "Max reconnection attempts reached attempts=%d max_attempts=%d",
                     attempt,
                     max_attempts,
                 )
@@ -323,9 +312,7 @@ class ReconnectionManager:
                 )
                 attempt += 1
 
-    async def buffer_message(
-        self, data: bytes, metadata: dict[str, Any] | None = None
-    ) -> None:
+    async def buffer_message(self, data: bytes, metadata: dict[str, Any] | None = None) -> None:
         """Buffer a message during reconnection.
 
         Raises:
@@ -338,10 +325,8 @@ class ReconnectionManager:
         self._cancelled = True
         if self._reconnect_task and not self._reconnect_task.done():
             self._reconnect_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._reconnect_task
-            except asyncio.CancelledError:
-                pass
         await self._discard_buffer_and_notify()
 
     async def _discard_buffer_and_notify(self) -> None:
@@ -354,6 +339,4 @@ class ReconnectionManager:
                 else:
                     self._on_buffer_drain(count)
             except Exception:
-                self._logger.error(
-                    "OnBufferDrain callback raised an exception"
-                )
+                self._logger.error("OnBufferDrain callback raised an exception")

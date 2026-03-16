@@ -103,7 +103,7 @@ class AsyncCancellationToken:
         try:
             await asyncio.wait_for(self._event.wait(), timeout)
             return True
-        except asyncio.TimeoutError:
+        except TimeoutError:
             return False
 
     def _register_child(self, child: AsyncCancellationToken) -> None:

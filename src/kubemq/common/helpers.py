@@ -2,8 +2,7 @@ import grpc
 
 
 def decode_grpc_error(error: grpc.RpcError | Exception) -> str:
-    """
-    Decodes the error message from a gRPC error or general exception.
+    """Decodes the error message from a gRPC error or general exception.
 
     Args:
         error: The gRPC error or exception to decode.
@@ -33,8 +32,7 @@ def decode_grpc_error(error: grpc.RpcError | Exception) -> str:
 
 
 def is_channel_error(exception: Exception) -> bool:
-    """
-    Determines if an exception is related to channel connectivity issues.
+    """Determines if an exception is related to channel connectivity issues.
 
     Args:
         exception (Exception): The exception to check

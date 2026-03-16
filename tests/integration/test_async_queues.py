@@ -228,6 +228,7 @@ class TestAsyncQueuesClientAckAll:
     """Integration tests for ack all functionality."""
 
     @pytest.mark.asyncio
+    @pytest.mark.timeout(90)
     async def test_ack_all_messages(self, unique_channel, unique_client_id):
         """Test acknowledging all messages in a queue."""
         from kubemq.core.exceptions import KubeMQTimeoutError
@@ -245,9 +246,13 @@ class TestAsyncQueuesClientAckAll:
                     )
                 )
 
-            # Ack all - may timeout on some servers
+            # Ack all with a short wait time to keep the test fast.
+            # The transport timeout is derived from wait_time_seconds + 5s buffer.
             try:
-                count = await client.ack_all_queue_messages(channel=unique_channel)
+                count = await client.ack_all_queue_messages(
+                    channel=unique_channel,
+                    wait_time_seconds=10,
+                )
                 # Should have acknowledged some messages
                 assert count >= 0
             except KubeMQTimeoutError:

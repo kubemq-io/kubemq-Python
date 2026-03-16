@@ -14,6 +14,7 @@ if TYPE_CHECKING:
 
 T = TypeVar("T", bound="BaseMessage")
 R = TypeVar("R", bound="BaseResponse")
+RM = TypeVar("RM", bound="BaseReceivedMessage")
 
 
 @dataclass
@@ -166,7 +167,7 @@ class BaseReceivedMessage(ABC):
 
     @classmethod
     @abstractmethod
-    def decode(cls: type[T], pb_message: Any) -> T:
+    def decode(cls: type[RM], pb_message: Any) -> RM:
         """Decode a received message from protobuf format.
 
         Args:

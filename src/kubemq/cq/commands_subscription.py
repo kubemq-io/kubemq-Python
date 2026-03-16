@@ -1,5 +1,5 @@
 import asyncio
-from typing import Callable, Optional
+from collections.abc import Callable
 
 from pydantic import BaseModel, ValidationError, field_validator
 
@@ -10,20 +10,26 @@ from kubemq.grpc import Subscribe
 
 
 class CommandsSubscription(BaseModel):
+    """Subscription configuration for commands."""
+
     channel: str
-    group: Optional[str] = None
+    group: str | None = None
     on_receive_command_callback: Callable[[CommandMessageReceived], None]
-    on_error_callback: Optional[Callable[[str], None]] = None
+    on_error_callback: Callable[[str], None] | None = None
 
     @field_validator("channel")
     def channel_must_exist(cls, v: str) -> str:
+        """Validate that the channel is not empty."""
         if not v:
             raise ValueError("command subscription must have a channel.")
         validate_channel_name(v)
         return v
 
     @field_validator("on_receive_command_callback")
-    def callback_must_exist(cls, v: Callable) -> Callable:
+    def callback_must_exist(
+        cls, v: Callable[[CommandMessageReceived], None]
+    ) -> Callable[[CommandMessageReceived], None]:
+        """Validate that the callback is callable."""
         if not callable(v):
             raise ValueError(
                 "command subscription must have a on_receive_command_callback function."
@@ -31,6 +37,7 @@ class CommandsSubscription(BaseModel):
         return v
 
     def raise_on_receive_message(self, received_command: CommandMessageReceived) -> None:
+        """Dispatch the received command to the callback."""
         self.on_receive_command_callback(received_command)
 
     async def raise_on_receive_message_async(
@@ -43,6 +50,7 @@ class CommandsSubscription(BaseModel):
             self.on_receive_command_callback(received_command)
 
     def raise_on_error(self, msg: str) -> None:
+        """Dispatch the error message to the error callback."""
         if self.on_error_callback:
             self.on_error_callback(msg)
 
@@ -81,10 +89,13 @@ class CommandsSubscription(BaseModel):
     def create(
         cls,
         channel: str,
-        group: Optional[str] = None,
-        on_receive_command_callback: Optional[Callable[[CommandMessageReceived], None]] = None,
-        on_error_callback: Optional[Callable[[str], None]] = None,
+        group: str | None = None,
+        on_receive_command_callback: Callable[[CommandMessageReceived], None] | None = None,
+        on_error_callback: Callable[[str], None] | None = None,
     ) -> "CommandsSubscription":
+        """Create a CommandsSubscription with validation."""
+        if on_receive_command_callback is None:
+            raise ValueError("on_receive_command_callback is required")
         try:
             return cls(
                 channel=channel,

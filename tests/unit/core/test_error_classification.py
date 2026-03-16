@@ -37,7 +37,12 @@ GRPC_CODE_EXPECTATIONS = [
     (grpc.StatusCode.DEADLINE_EXCEEDED, ErrorCode.CONNECTION_TIMEOUT, True, KubeMQTimeoutError),
     (grpc.StatusCode.NOT_FOUND, ErrorCode.NOT_FOUND, False, KubeMQChannelError),
     (grpc.StatusCode.ALREADY_EXISTS, ErrorCode.ALREADY_EXISTS, False, KubeMQValidationError),
-    (grpc.StatusCode.PERMISSION_DENIED, ErrorCode.PERMISSION_DENIED, False, KubeMQAuthenticationError),
+    (
+        grpc.StatusCode.PERMISSION_DENIED,
+        ErrorCode.PERMISSION_DENIED,
+        False,
+        KubeMQAuthenticationError,
+    ),
     (grpc.StatusCode.RESOURCE_EXHAUSTED, ErrorCode.RESOURCE_EXHAUSTED, True, KubeMQMessageError),
     (grpc.StatusCode.FAILED_PRECONDITION, ErrorCode.VALIDATION_ERROR, False, KubeMQValidationError),
     (grpc.StatusCode.ABORTED, ErrorCode.ABORTED, True, KubeMQTransactionError),

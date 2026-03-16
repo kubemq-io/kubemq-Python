@@ -8,20 +8,19 @@ from __future__ import annotations
 
 import threading
 from typing import Any
-from unittest.mock import MagicMock, patch
-
-import pytest
-
+from unittest.mock import MagicMock
 
 # ═══════════════════════════════════════════════════════════════════
 # semconv constants
 # ═══════════════════════════════════════════════════════════════════
+
 
 class TestSemconv:
     """Verify all semantic convention constants are defined and consistent."""
 
     def test_messaging_system_value(self) -> None:
         from kubemq._internal.semconv import MESSAGING_SYSTEM_VALUE
+
         assert MESSAGING_SYSTEM_VALUE == "kubemq"
 
     def test_all_metric_names_present(self) -> None:
@@ -49,7 +48,8 @@ class TestSemconv:
 
     def test_duration_histogram_buckets_sorted(self) -> None:
         from kubemq._internal.semconv import DURATION_HISTOGRAM_BUCKETS
-        assert DURATION_HISTOGRAM_BUCKETS == tuple(sorted(DURATION_HISTOGRAM_BUCKETS))
+
+        assert tuple(sorted(DURATION_HISTOGRAM_BUCKETS)) == DURATION_HISTOGRAM_BUCKETS
         assert len(DURATION_HISTOGRAM_BUCKETS) == 18
 
     def test_error_type_constants(self) -> None:
@@ -75,11 +75,13 @@ class TestSemconv:
 # OBS-1: KubeMQInstrumentor (no-op path)
 # ═══════════════════════════════════════════════════════════════════
 
+
 class TestKubeMQInstrumentorNoOp:
     """Test KubeMQInstrumentor when HAS_OTEL is False (no-op path)."""
 
     def _make_instrumentor(self) -> Any:
         from kubemq._internal.telemetry import KubeMQInstrumentor
+
         return KubeMQInstrumentor(
             client_id="test-client",
             address="localhost:50000",
@@ -87,6 +89,7 @@ class TestKubeMQInstrumentorNoOp:
 
     def test_start_span_returns_noop(self) -> None:
         from kubemq._internal.telemetry import _NoOpSpan
+
         inst = self._make_instrumentor()
         span = inst.start_span("publish", "my-channel")
         assert isinstance(span, _NoOpSpan)
@@ -109,6 +112,7 @@ class TestKubeMQInstrumentorNoOp:
 
     def test_default_span_kind_mapping(self) -> None:
         from kubemq._internal.telemetry import KubeMQInstrumentor
+
         assert KubeMQInstrumentor._default_span_kind("publish") == "PRODUCER"
         assert KubeMQInstrumentor._default_span_kind("process") == "CONSUMER"
         assert KubeMQInstrumentor._default_span_kind("receive") == "CONSUMER"
@@ -118,18 +122,21 @@ class TestKubeMQInstrumentorNoOp:
 
     def test_address_parsing(self) -> None:
         from kubemq._internal.telemetry import KubeMQInstrumentor
+
         inst = KubeMQInstrumentor(client_id="c", address="myhost:9090")
         assert inst._host == "myhost"
         assert inst._port == 9090
 
     def test_address_parsing_default_port(self) -> None:
         from kubemq._internal.telemetry import KubeMQInstrumentor
+
         inst = KubeMQInstrumentor(client_id="c", address="myhost")
         assert inst._host == "myhost"
         assert inst._port == 50000
 
     def test_address_parsing_ipv6(self) -> None:
         from kubemq._internal.telemetry import KubeMQInstrumentor
+
         inst = KubeMQInstrumentor(client_id="c", address="[::1]:50000")
         assert inst._host == "[::1]"
         assert inst._port == 50000
@@ -149,11 +156,13 @@ class TestKubeMQInstrumentorNoOp:
 # OBS-2: KubeMQTagsCarrier (no-op path)
 # ═══════════════════════════════════════════════════════════════════
 
+
 class TestKubeMQTagsCarrierNoOp:
     """Test KubeMQTagsCarrier when HAS_OTEL is False (no-op path)."""
 
     def test_inject_noop(self) -> None:
         from kubemq._internal.telemetry import KubeMQTagsCarrier
+
         tags: dict[str, str] = {"existing": "tag"}
         carrier = KubeMQTagsCarrier(tags)
         carrier.inject()
@@ -161,11 +170,13 @@ class TestKubeMQTagsCarrierNoOp:
 
     def test_extract_returns_none(self) -> None:
         from kubemq._internal.telemetry import KubeMQTagsCarrier
+
         carrier = KubeMQTagsCarrier({})
         assert carrier.extract() is None
 
     def test_get_set_keys(self) -> None:
         from kubemq._internal.telemetry import KubeMQTagsCarrier
+
         carrier = KubeMQTagsCarrier({"a": "1"})
         assert carrier.get("a") == "1"
         assert carrier.get("b") is None
@@ -175,6 +186,7 @@ class TestKubeMQTagsCarrierNoOp:
 
     def test_tags_property(self) -> None:
         from kubemq._internal.telemetry import KubeMQTagsCarrier
+
         tags = {"k": "v"}
         carrier = KubeMQTagsCarrier(tags)
         assert carrier.tags is tags
@@ -185,10 +197,12 @@ class TestCreateLinkFromContextNoOp:
 
     def test_returns_none_when_no_otel(self) -> None:
         from kubemq._internal.telemetry import create_link_from_context
+
         assert create_link_from_context(None) is None
 
     def test_returns_none_for_none_ctx(self) -> None:
         from kubemq._internal.telemetry import create_link_from_context
+
         assert create_link_from_context(None) is None
 
 
@@ -196,11 +210,13 @@ class TestCreateLinkFromContextNoOp:
 # OBS-3: KubeMQMetrics (no-op path)
 # ═══════════════════════════════════════════════════════════════════
 
+
 class TestKubeMQMetricsNoOp:
     """Test KubeMQMetrics with _NoOpMeter (no-op path)."""
 
     def _make_metrics(self, **kwargs: Any) -> Any:
-        from kubemq._internal.telemetry import KubeMQMetrics, _NOOP_METER
+        from kubemq._internal.telemetry import _NOOP_METER, KubeMQMetrics
+
         return KubeMQMetrics(meter=_NOOP_METER, **kwargs)
 
     def test_all_instruments_created(self) -> None:
@@ -251,7 +267,8 @@ class TestCardinalityManagement:
     """Test metric cardinality management."""
 
     def _make_metrics(self, **kwargs: Any) -> Any:
-        from kubemq._internal.telemetry import KubeMQMetrics, _NOOP_METER
+        from kubemq._internal.telemetry import _NOOP_METER, KubeMQMetrics
+
         return KubeMQMetrics(meter=_NOOP_METER, **kwargs)
 
     def test_channel_within_threshold_included(self) -> None:
@@ -299,10 +316,7 @@ class TestCardinalityManagement:
             except Exception as e:
                 errors.append(e)
 
-        threads = [
-            threading.Thread(target=worker, args=(f"ch-{i}",))
-            for i in range(100)
-        ]
+        threads = [threading.Thread(target=worker, args=(f"ch-{i}",)) for i in range(100)]
         for t in threads:
             t.start()
         for t in threads:
@@ -317,6 +331,7 @@ class TestCardinalityManagement:
 # ═══════════════════════════════════════════════════════════════════
 # error_code_to_error_type
 # ═══════════════════════════════════════════════════════════════════
+
 
 class TestErrorCodeToErrorType:
     """Test error_code_to_error_type mapping."""
@@ -347,6 +362,7 @@ class TestErrorCodeToErrorType:
 
     def test_non_error_code_returns_fatal(self) -> None:
         from kubemq._internal.telemetry import error_code_to_error_type
+
         assert error_code_to_error_type("not_an_enum") == "fatal"
         assert error_code_to_error_type(None) == "fatal"
         assert error_code_to_error_type(42) == "fatal"
@@ -356,21 +372,25 @@ class TestErrorCodeToErrorType:
 # ClientConfig integration
 # ═══════════════════════════════════════════════════════════════════
 
+
 class TestClientConfigObservability:
     """Test observability fields on ClientConfig."""
 
     def test_default_max_channel_cardinality(self) -> None:
         from kubemq.core.config import ClientConfig
+
         cfg = ClientConfig(address="localhost:50000")
         assert cfg.max_channel_cardinality == 100
 
     def test_default_channel_allowlist_empty(self) -> None:
         from kubemq.core.config import ClientConfig
+
         cfg = ClientConfig(address="localhost:50000")
         assert cfg.channel_allowlist == []
 
     def test_custom_cardinality(self) -> None:
         from kubemq.core.config import ClientConfig
+
         cfg = ClientConfig(
             address="localhost:50000",
             max_channel_cardinality=50,
@@ -381,6 +401,7 @@ class TestClientConfigObservability:
 
     def test_mutable_default_not_shared(self) -> None:
         from kubemq.core.config import ClientConfig
+
         cfg1 = ClientConfig(address="localhost:50000")
         cfg2 = ClientConfig(address="localhost:50000")
         cfg1.channel_allowlist.append("test")

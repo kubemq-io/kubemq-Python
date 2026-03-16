@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -9,8 +10,7 @@ from kubemq.grpc import QueuesDownstreamRequest, QueuesDownstreamRequestType
 
 
 class QueuesPollRequest(BaseModel):
-    """
-    Class representing a request to poll messages from a queue.
+    """Class representing a request to poll messages from a queue.
 
     This class encapsulates the parameters needed to poll messages from a KubeMQ queue.
     It provides methods for validation and encoding to a protobuf request.
@@ -84,8 +84,7 @@ class QueuesPollRequest(BaseModel):
     # Validators
     @field_validator("channel")
     def channel_must_not_be_empty(cls, v: str | None) -> str:
-        """
-        Validate that the channel is not empty.
+        """Validate that the channel is not empty.
 
         Args:
             v: The channel value to validate
@@ -105,8 +104,7 @@ class QueuesPollRequest(BaseModel):
 
     @field_validator("visibility_seconds")
     def validate_visibility_seconds(cls, v: int) -> int:
-        """
-        Validate that the visibility seconds is within acceptable limits.
+        """Validate that the visibility seconds is within acceptable limits.
 
         Args:
             v: The visibility seconds value to validate
@@ -122,9 +120,8 @@ class QueuesPollRequest(BaseModel):
         return v
 
     # Utility methods
-    def with_updates(self, **kwargs) -> QueuesPollRequest:
-        """
-        Create a new poll request with updated values.
+    def with_updates(self, **kwargs: Any) -> QueuesPollRequest:
+        """Create a new poll request with updated values.
 
         Since instances are immutable, this method creates a new
         instance with the specified updates.
@@ -141,8 +138,7 @@ class QueuesPollRequest(BaseModel):
 
     # Encoding methods
     def encode(self, client_id: str = "") -> QueuesDownstreamRequest:
-        """
-        Encode the poll request to a QueuesDownstreamRequest protobuf object.
+        """Encode the poll request to a QueuesDownstreamRequest protobuf object.
 
         This method is used when sending a poll request to the KubeMQ server.
 
@@ -167,8 +163,7 @@ class QueuesPollRequest(BaseModel):
 
     # String representations
     def __str__(self) -> str:
-        """
-        Get a string representation of the poll request.
+        """Get a string representation of the poll request.
 
         Returns:
             A string representation of the poll request
@@ -182,8 +177,7 @@ class QueuesPollRequest(BaseModel):
         )
 
     def __repr__(self) -> str:
-        """
-        Get a detailed representation of the poll request.
+        """Get a detailed representation of the poll request.
 
         Returns:
             A detailed representation of the poll request

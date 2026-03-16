@@ -1,5 +1,4 @@
 from datetime import datetime
-from typing import Optional
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -8,8 +7,7 @@ from kubemq.grpc import Response as pbResponse
 
 
 class QueryResponseMessage(BaseModel):
-    """
-    Class for representing a query response message.
+    """Class for representing a query response message.
 
     Attributes:
         query_received (Optional[QueryMessageReceived]): The received query message.
@@ -23,13 +21,13 @@ class QueryResponseMessage(BaseModel):
         tags (Dict[str, str]): The tags associated with the query response.
     """
 
-    query_received: Optional[QueryMessageReceived] = None
+    query_received: QueryMessageReceived | None = None
     client_id: str = Field(default="")
     request_id: str = Field(default="")
     is_executed: bool = Field(default=False)
     timestamp: datetime = Field(default_factory=datetime.now)
     error: str = Field(default="")
-    metadata: Optional[str] = None
+    metadata: str | None = None
     body: bytes = Field(default=b"")
     tags: dict[str, str] = Field(default_factory=dict)
     cache_hit: bool = Field(default=False)
@@ -37,7 +35,8 @@ class QueryResponseMessage(BaseModel):
     model_config = {"arbitrary_types_allowed": True}
 
     @field_validator("query_received")
-    def validate_query_received(cls, v):
+    def validate_query_received(cls, v: QueryMessageReceived | None) -> QueryMessageReceived | None:
+        """Validate that the query request is present and has a reply channel."""
         if v is None:
             raise ValueError("Query response must have a query request.")
         if v.reply_channel == "":
@@ -46,9 +45,7 @@ class QueryResponseMessage(BaseModel):
 
     @classmethod
     def decode(cls, pb_response: pbResponse) -> "QueryResponseMessage":
-        """
-        Decodes the protocol buffer response and creates a new QueryResponseMessage instance.
-        """
+        """Decodes the protocol buffer response and creates a new QueryResponseMessage instance."""
         return cls(
             client_id=pb_response.ClientID,
             request_id=pb_response.RequestID,
@@ -62,9 +59,7 @@ class QueryResponseMessage(BaseModel):
         )
 
     def encode(self, client_id: str) -> pbResponse:
-        """
-        Encodes the query response message into a protocol buffer response.
-        """
+        """Encodes the query response message into a protocol buffer response."""
         if not self.query_received:
             raise ValueError("Query received is required for encoding.")
         if not self.query_received.id or self.query_received.id.strip() == "":
@@ -92,16 +87,15 @@ class QueryResponseMessage(BaseModel):
     @classmethod
     def create(
         cls,
-        query_received: Optional[QueryMessageReceived] = None,
-        metadata: Optional[str] = None,
+        query_received: QueryMessageReceived | None = None,
+        metadata: str | None = None,
         body: bytes = b"",
-        tags: Optional[dict[str, str]] = None,
+        tags: dict[str, str] | None = None,
         is_executed: bool = False,
         error: str = "",
-        timestamp: Optional[datetime] = None,
+        timestamp: datetime | None = None,
     ) -> "QueryResponseMessage":
-        """
-        Creates a new QueryResponseMessage instance.
+        """Creates a new QueryResponseMessage instance.
 
         This method provides backwards compatibility with the original constructor.
         """
