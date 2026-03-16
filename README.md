@@ -205,6 +205,7 @@ See [SECURITY.md](SECURITY.md) for vulnerability reporting. The SDK supports TLS
 ## Additional Resources
 
 - [KubeMQ Documentation](https://docs.kubemq.io/) — Official KubeMQ documentation and guides
+- [API Reference](https://kubemq-io.github.io/kubemq-Python/) — Auto-generated API documentation
 - [Full Documentation Index](docs/INDEX.md) — Complete SDK documentation index
 - [KubeMQ Concepts](docs/CONCEPTS.md) — Core KubeMQ messaging concepts
 - [SDK Feature Parity Matrix](../sdk-feature-parity-matrix.md) — Cross-SDK feature comparison

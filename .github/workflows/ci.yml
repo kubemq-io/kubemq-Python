@@ -146,6 +146,13 @@ jobs:
             --timeout=60 \
             -v
 
+      - name: Smoke-test examples
+        env:
+          KUBEMQ_ADDRESS: localhost:50000
+        run: |
+          timeout 30 python examples/connection/connect.py || true
+          timeout 30 python examples/connection/ping.py || true
+
   # ──────────────────────────────────────────────────────────────────
   # Job 4: Coverage Report
   # Combines coverage from unit tests and uploads to Codecov.

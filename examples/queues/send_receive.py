@@ -40,3 +40,8 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+# Expected output:
+# Sent: id=<message-id>, sent_at=<timestamp>, error=
+# Received: id=<message-id>, body=Hello from queue!
+#   Message acknowledged

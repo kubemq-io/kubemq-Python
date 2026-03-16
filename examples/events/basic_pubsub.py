@@ -60,3 +60,7 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+# Expected output:
+# Received — Id:<message-id>, Channel:python-events.basic-pubsub, Body:hello kubemq
+# Event sent
