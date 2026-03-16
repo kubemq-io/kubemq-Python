@@ -62,3 +62,7 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+# Expected output:
+# Received — Id:<message-id>, Seq:<sequence>, Body:hello kubemq
+# Send result: <result>
