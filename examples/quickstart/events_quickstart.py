@@ -15,11 +15,11 @@ def on_event(event) -> None:  # type: ignore[no-untyped-def]
 def main() -> None:
     cancel = CancellationToken()
 
-    with PubSubClient(address="localhost:50000") as client:
+    with PubSubClient(address="localhost:50000", client_id="python-events-quickstart-client") as client:
         # Subscribe first so the subscriber is ready
         client.subscribe_to_events(
             subscription=EventsSubscription(
-                channel="quickstart",
+                channel="python-quickstart",
                 on_receive_event_callback=on_event,
                 on_error_callback=lambda e: print(f"Error: {e}"),
             ),
@@ -30,9 +30,7 @@ def main() -> None:
         time.sleep(1)
 
         # Publish an event
-        client.publish_event(
-            EventMessage(channel="quickstart", body=b"Hello KubeMQ!")
-        )
+        client.publish_event(EventMessage(channel="python-quickstart", body=b"Hello KubeMQ!"))
         print("Event sent!")
 
         # Wait for the event to arrive

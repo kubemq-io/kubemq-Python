@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Iterator
 from datetime import datetime
-from typing import ClassVar
+from typing import Any, ClassVar
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -9,8 +10,7 @@ from kubemq.grpc import SendQueueMessageResult
 
 
 class QueueSendResult(BaseModel):
-    """
-    Represents the result of sending a message to a queue.
+    """Represents the result of sending a message to a queue.
 
     This class encapsulates the result of sending a message to a KubeMQ queue.
     It provides information about the message's ID, timestamps, and any errors
@@ -68,8 +68,7 @@ class QueueSendResult(BaseModel):
 
     # Utility methods
     def is_successful(self) -> bool:
-        """
-        Check if the message was sent successfully.
+        """Check if the message was sent successfully.
 
         Returns:
             bool: True if the message was sent successfully, False otherwise.
@@ -77,8 +76,7 @@ class QueueSendResult(BaseModel):
         return not self.is_error and self.id is not None
 
     def is_delayed(self) -> bool:
-        """
-        Check if the message is delayed.
+        """Check if the message is delayed.
 
         Returns:
             bool: True if the message is delayed, False otherwise.
@@ -86,8 +84,7 @@ class QueueSendResult(BaseModel):
         return self.delayed_to is not None and self.delayed_to > datetime.now()
 
     def has_expiration(self) -> bool:
-        """
-        Check if the message has an expiration time.
+        """Check if the message has an expiration time.
 
         Returns:
             bool: True if the message has an expiration time, False otherwise.
@@ -95,8 +92,7 @@ class QueueSendResult(BaseModel):
         return self.expired_at is not None
 
     def get_delay_seconds(self) -> float:
-        """
-        Get the number of seconds until the message is delivered.
+        """Get the number of seconds until the message is delivered.
 
         Returns:
             float: The number of seconds until the message is delivered, or 0 if not delayed.
@@ -107,9 +103,8 @@ class QueueSendResult(BaseModel):
         assert self.delayed_to is not None
         return max(0, (self.delayed_to - datetime.now()).total_seconds())
 
-    def with_updates(self, **kwargs) -> QueueSendResult:
-        """
-        Create a new result with updated values.
+    def with_updates(self, **kwargs: Any) -> QueueSendResult:
+        """Create a new result with updated values.
 
         Since instances are immutable, this method creates a new
         instance with the specified updates.
@@ -127,8 +122,7 @@ class QueueSendResult(BaseModel):
     # Decoding methods
     @classmethod
     def decode(cls, result: SendQueueMessageResult) -> QueueSendResult:
-        """
-        Create a QueueSendResult from a protobuf SendQueueMessageResult.
+        """Create a QueueSendResult from a protobuf SendQueueMessageResult.
 
         Args:
             result: The protobuf result to decode
@@ -164,8 +158,7 @@ class QueueSendResult(BaseModel):
 
     # String representations
     def __str__(self) -> str:
-        """
-        Get a string representation of the send result.
+        """Get a string representation of the send result.
 
         Returns:
             A string representation of the send result
@@ -183,8 +176,7 @@ class QueueSendResult(BaseModel):
             return f"QueueSendResult: [Error displaying result: {str(e)}]"
 
     def __repr__(self) -> str:
-        """
-        Get a detailed representation of the send result.
+        """Get a detailed representation of the send result.
 
         Returns:
             A detailed representation of the send result
@@ -220,8 +212,8 @@ class QueueBatchSendResult(BaseModel):
     def __len__(self) -> int:
         return len(self.results)
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[QueueSendResult]:  # type: ignore[override]
         return iter(self.results)
 
-    def __getitem__(self, index):
+    def __getitem__(self, index: int) -> QueueSendResult:
         return self.results[index]

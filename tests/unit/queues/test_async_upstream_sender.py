@@ -14,10 +14,12 @@ from kubemq.grpc import (
     QueuesUpstreamResponse,
     SendQueueMessageResult,
 )
-from kubemq.queues.async_upstream_sender import AsyncUpstreamSender, _SENTINEL
+from kubemq.queues.async_upstream_sender import _SENTINEL, AsyncUpstreamSender
 
 
-def _make_sender(*, max_queue_size: int = 100, send_timeout: float = 2.0, reconnect_interval: float = 0.01):
+def _make_sender(
+    *, max_queue_size: int = 100, send_timeout: float = 2.0, reconnect_interval: float = 0.01
+):
     transport = MagicMock()
     sender = AsyncUpstreamSender(
         transport,
@@ -29,7 +31,6 @@ def _make_sender(*, max_queue_size: int = 100, send_timeout: float = 2.0, reconn
 
 
 class TestAsyncUpstreamSenderInit:
-
     def test_defaults(self):
         transport = MagicMock()
         sender = AsyncUpstreamSender(transport)
@@ -45,7 +46,6 @@ class TestAsyncUpstreamSenderInit:
 
 
 class TestAsyncUpstreamSenderStart:
-
     @pytest.mark.asyncio
     async def test_start_creates_task(self):
         sender, _ = _make_sender()
@@ -86,7 +86,6 @@ class TestAsyncUpstreamSenderStart:
 
 
 class TestAsyncUpstreamSenderSend:
-
     @pytest.mark.asyncio
     async def test_send_success(self):
         sender, _ = _make_sender()
@@ -159,7 +158,6 @@ class TestAsyncUpstreamSenderSend:
 
 
 class TestAsyncUpstreamSenderStreamLoop:
-
     @pytest.mark.asyncio
     async def test_processes_responses(self):
         sender, transport = _make_sender()
@@ -224,7 +222,6 @@ class TestAsyncUpstreamSenderStreamLoop:
 
 
 class TestAsyncUpstreamSenderRequestGenerator:
-
     @pytest.mark.asyncio
     async def test_yields_requests(self):
         sender, _ = _make_sender()
@@ -263,7 +260,6 @@ class TestAsyncUpstreamSenderRequestGenerator:
 
 
 class TestAsyncUpstreamSenderProcessResponse:
-
     @pytest.mark.asyncio
     async def test_resolves_future(self):
         sender, _ = _make_sender()
@@ -295,7 +291,6 @@ class TestAsyncUpstreamSenderProcessResponse:
 
 
 class TestAsyncUpstreamSenderHandleDisconnection:
-
     @pytest.mark.asyncio
     async def test_errors_all_pending(self):
         sender, _ = _make_sender()
@@ -334,7 +329,6 @@ class TestAsyncUpstreamSenderHandleDisconnection:
 
 
 class TestAsyncUpstreamSenderClose:
-
     @pytest.mark.asyncio
     async def test_close_sets_closed(self):
         sender, _ = _make_sender()

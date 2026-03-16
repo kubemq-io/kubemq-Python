@@ -12,7 +12,6 @@ from kubemq.core.types import ConnectionState
 
 
 class TestStateTransitions:
-
     def test_initial_state_is_idle(self):
         mgr = ConnectionStateManager()
         assert mgr.state == ConnectionState.IDLE
@@ -70,7 +69,6 @@ class TestStateTransitions:
 
 
 class TestCallbackRegistration:
-
     def test_on_connected_fires(self):
         mgr = ConnectionStateManager()
         called = []
@@ -179,7 +177,6 @@ class TestCallbackRegistration:
 
 
 class TestCloseManager:
-
     def test_close_without_callbacks(self):
         mgr = ConnectionStateManager()
         mgr.close()
@@ -196,6 +193,7 @@ class TestStateCallbackAsyncPath:
     @pytest.mark.asyncio
     async def test_async_callback_fires(self):
         import asyncio
+
         mgr = ConnectionStateManager()
         called = []
 
@@ -213,6 +211,7 @@ class TestStateCallbackAsyncPath:
     @pytest.mark.asyncio
     async def test_async_callback_exception_handled(self):
         import asyncio
+
         mgr = ConnectionStateManager(logger=MagicMock())
 
         async def bad_async():

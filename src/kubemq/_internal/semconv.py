@@ -53,8 +53,24 @@ METRIC_SEND_QUEUE_UTILIZATION = "kubemq.send_queue.utilization"
 
 # Histogram bucket boundaries (seconds)
 DURATION_HISTOGRAM_BUCKETS = (
-    0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.075,
-    0.1, 0.25, 0.5, 0.75, 1.0, 2.5, 5.0, 7.5, 10.0, 30.0, 60.0,
+    0.001,
+    0.0025,
+    0.005,
+    0.01,
+    0.025,
+    0.05,
+    0.075,
+    0.1,
+    0.25,
+    0.5,
+    0.75,
+    1.0,
+    2.5,
+    5.0,
+    7.5,
+    10.0,
+    30.0,
+    60.0,
 )
 
 # error.type value mapping (from REQ-ERR-2 categories)

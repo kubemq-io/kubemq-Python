@@ -7,17 +7,20 @@ import time
 import uuid
 from pathlib import Path
 
-from kubemq._internal.telemetry import KubeMQTagsCarrier, create_link_from_context, error_code_to_error_type
+from pydantic import ValidationError
+
+from kubemq._internal.deprecation import deprecated, deprecated_async
+from kubemq._internal.telemetry import (
+    KubeMQTagsCarrier,
+    error_code_to_error_type,
+)
 from kubemq.common import create_channel_request
 from kubemq.common.channel_stats import QueuesChannel
 from kubemq.common.requests import delete_channel_request, list_queues_channels
-from pydantic import ValidationError
-
 from kubemq.core import BaseClient, ClientConfig
-from kubemq._internal.deprecation import deprecated, deprecated_async
-from kubemq.core.exceptions import KubeMQValidationError
 from kubemq.core.compat import run_in_thread
 from kubemq.core.config import KeepAliveConfig, TLSConfig
+from kubemq.core.exceptions import KubeMQValidationError
 from kubemq.grpc import (
     QueuesDownstreamRequest,
     QueuesDownstreamRequestType,
@@ -171,11 +174,13 @@ class Client(BaseClient):
         connection_monitor = threading.Thread(target=self._monitor_connection, daemon=True)
         connection_monitor.start()
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> Client:
         """Async context manager entry."""
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(
+        self, exc_type: type | None, exc_val: BaseException | None, exc_tb: object | None
+    ) -> None:
         """Async context manager exit."""
         await self.close_async()
 
@@ -276,6 +281,7 @@ class Client(BaseClient):
                         MESSAGING_MESSAGE_BODY_SIZE,
                         MESSAGING_MESSAGE_ID,
                     )
+
                     span.set_attribute(MESSAGING_MESSAGE_ID, message.id)
                     span.set_attribute(MESSAGING_MESSAGE_BODY_SIZE, len(message.body))
                 result = sender.send(pb_message)
@@ -306,7 +312,24 @@ class Client(BaseClient):
             message: The message to send.
 
         Returns:
-            QueueSendResult with the result of the send operation.
+            QueueSendResult: Contains ``is_error`` (bool), ``error``
+            (error description), ``message_id`` (server-assigned ID),
+            ``sent_at`` (timestamp), and ``expired_at`` (expiration time).
+
+        Raises:
+            KubeMQValidationError: If the message fails validation (e.g.,
+                empty channel, body exceeds ``max_send_size``).
+            KubeMQConnectionError: If the server is unreachable or the
+                connection is lost.
+            KubeMQAuthenticationError: If the auth token is invalid or
+                expired, or the client lacks permission for the channel.
+            KubeMQTimeoutError: If the operation exceeds the server deadline.
+            KubeMQClientClosedError: If the client has already been closed.
+
+        See Also:
+            :meth:`send_queue_message`: Streaming variant with higher
+                throughput.
+            :meth:`receive_queue_messages`: Consume messages from a queue.
         """
         self._validate_message_size(message.body)
         self._ensure_connected()
@@ -324,6 +347,7 @@ class Client(BaseClient):
                         MESSAGING_MESSAGE_BODY_SIZE,
                         MESSAGING_MESSAGE_ID,
                     )
+
                     span.set_attribute(MESSAGING_MESSAGE_ID, message.id)
                     span.set_attribute(MESSAGING_MESSAGE_BODY_SIZE, len(message.body))
                 result = self._transport.kubemq_client().SendQueueMessage(pb_message)
@@ -346,11 +370,44 @@ class Client(BaseClient):
     def send_queue_message(self, message: QueueMessage) -> QueueSendResult:
         """Send a message to a queue.
 
+        Uses the bidirectional streaming upstream sender for higher
+        throughput than the unary :meth:`send_queue_message_simple`.
+
         Args:
             message: The message to send.
 
         Returns:
-            QueueSendResult with the result of the send operation.
+            QueueSendResult: Contains ``is_error`` (bool), ``error``
+            (error description), ``message_id`` (server-assigned ID),
+            ``sent_at`` (timestamp), and ``expired_at`` (expiration time).
+
+        Raises:
+            KubeMQValidationError: If the message fails validation (e.g.,
+                empty channel, body exceeds ``max_send_size``).
+            KubeMQConnectionError: If the server is unreachable or the
+                connection is lost.
+            KubeMQAuthenticationError: If the auth token is invalid or
+                expired, or the client lacks permission for the channel.
+            KubeMQTimeoutError: If the operation exceeds the server deadline.
+            KubeMQClientClosedError: If the client has already been closed.
+
+        See Also:
+            :class:`~kubemq.queues.queues_message.QueueMessage`:
+                Message type for queue operations.
+            :meth:`receive_queue_messages`: Consume messages from a queue.
+            :meth:`send_queue_messages_batch`: Send multiple messages
+                atomically.
+
+        Example:
+            >>> from kubemq.queues import Client
+            >>> from kubemq.queues.queues_message import QueueMessage
+            >>> with Client(address="localhost:50000") as client:
+            ...     result = client.send_queue_message(QueueMessage(
+            ...         channel="queues.tasks",
+            ...         body=b'{"task": "send_email", "to": "user@example.com"}',
+            ...         metadata="email-task",
+            ...     ))
+            ...     print(f"Sent: {not result.is_error}, ID: {result.message_id}")
         """
         return self._send_queue_message_impl(message)
 
@@ -365,11 +422,21 @@ class Client(BaseClient):
             message: The message to send
 
         Returns:
-            QueueSendResult with the result of the send operation
+            QueueSendResult: Contains ``is_error``, ``error``,
+            ``message_id``, ``sent_at``, and ``expired_at`` fields.
+
+        Raises:
+            KubeMQValidationError: If the message fails validation.
+            KubeMQConnectionError: If the server is unreachable.
+            KubeMQAuthenticationError: If authentication or authorization
+                fails.
+            KubeMQClientClosedError: If the client has already been closed.
         """
         return self._send_queue_message_impl(message)
 
-    @deprecated_async(replacement="AsyncQueuesClient.send_queue_message()", since="4.0.0", removal="5.0.0")
+    @deprecated_async(
+        replacement="AsyncQueuesClient.send_queue_message()", since="4.0.0", removal="5.0.0"
+    )
     async def send_queues_message_async(self, message: QueueMessage) -> QueueSendResult:
         """Send a message to the queues asynchronously.
 
@@ -380,7 +447,15 @@ class Client(BaseClient):
             message: The message to send
 
         Returns:
-            QueueSendResult with the result of the send operation
+            QueueSendResult: Contains ``is_error``, ``error``,
+            ``message_id``, ``sent_at``, and ``expired_at`` fields.
+
+        Raises:
+            KubeMQValidationError: If the message fails validation.
+            KubeMQConnectionError: If the server is unreachable.
+            KubeMQAuthenticationError: If authentication or authorization
+                fails.
+            KubeMQClientClosedError: If the client has already been closed.
         """
         return await run_in_thread(self._send_queue_message_impl, message)
 
@@ -391,10 +466,27 @@ class Client(BaseClient):
         with ``BatchID`` correlation and aggregate ``HaveErrors`` flag.
 
         Args:
-            messages: List of messages to send.
+            messages: List of messages to send. Each message must have a
+                valid ``channel`` and ``body``.
 
         Returns:
-            QueueBatchSendResult with batch_id, have_errors, and per-message results.
+            QueueBatchSendResult: Contains ``batch_id`` (correlation ID for
+            the batch), ``have_errors`` (bool indicating if any message
+            failed), and ``results`` (list of per-message
+            :class:`QueueSendResult` objects).
+
+        Raises:
+            KubeMQValidationError: If any message fails validation (e.g.,
+                empty channel, body exceeds ``max_send_size``).
+            KubeMQConnectionError: If the server is unreachable or the
+                connection is lost.
+            KubeMQAuthenticationError: If the auth token is invalid or
+                expired, or the client lacks permission for the channel.
+            KubeMQTimeoutError: If the operation exceeds the server deadline.
+            KubeMQClientClosedError: If the client has already been closed.
+
+        See Also:
+            :meth:`send_queue_message`: Send a single queue message.
         """
         self._ensure_connected()
         assert self._transport is not None
@@ -430,10 +522,18 @@ class Client(BaseClient):
         """Create a queues channel.
 
         Args:
-            channel: The name of the channel to create
+            channel: The name of the channel to create.
 
         Returns:
-            True if successful, None if there was an error
+            bool: ``True`` if the channel was created successfully.
+
+        Raises:
+            KubeMQConnectionError: If the server is unreachable.
+            KubeMQAuthenticationError: If the auth token is invalid or the
+                client lacks permission to create channels.
+            KubeMQTimeoutError: If the operation exceeds the server deadline.
+            KubeMQError: If the server rejects the request (e.g., channel
+                already exists or invalid name).
         """
         return create_channel_request(self._transport, self._config.client_id, channel, "queues")
 
@@ -441,10 +541,17 @@ class Client(BaseClient):
         """Create a queues channel asynchronously.
 
         Args:
-            channel: The name of the channel to create
+            channel: The name of the channel to create.
 
         Returns:
-            True if successful, None if there was an error
+            bool: ``True`` if the channel was created successfully.
+
+        Raises:
+            KubeMQConnectionError: If the server is unreachable.
+            KubeMQAuthenticationError: If the auth token is invalid or the
+                client lacks permission to create channels.
+            KubeMQTimeoutError: If the operation exceeds the server deadline.
+            KubeMQError: If the server rejects the request.
         """
         return await run_in_thread(self.create_queues_channel, channel)
 
@@ -452,10 +559,17 @@ class Client(BaseClient):
         """Delete a queues channel.
 
         Args:
-            channel: The name of the channel to delete
+            channel: The name of the channel to delete.
 
         Returns:
-            True if successful, None if there was an error
+            bool: ``True`` if the channel was deleted successfully.
+
+        Raises:
+            KubeMQConnectionError: If the server is unreachable.
+            KubeMQAuthenticationError: If the auth token is invalid or the
+                client lacks permission to delete channels.
+            KubeMQChannelError: If the channel does not exist.
+            KubeMQTimeoutError: If the operation exceeds the server deadline.
         """
         return delete_channel_request(self._transport, self._config.client_id, channel, "queues")
 
@@ -463,10 +577,17 @@ class Client(BaseClient):
         """Delete a queues channel asynchronously.
 
         Args:
-            channel: The name of the channel to delete
+            channel: The name of the channel to delete.
 
         Returns:
-            True if successful, None if there was an error
+            bool: ``True`` if the channel was deleted successfully.
+
+        Raises:
+            KubeMQConnectionError: If the server is unreachable.
+            KubeMQAuthenticationError: If the auth token is invalid or the
+                client lacks permission to delete channels.
+            KubeMQChannelError: If the channel does not exist.
+            KubeMQTimeoutError: If the operation exceeds the server deadline.
         """
         return await run_in_thread(self.delete_queues_channel, channel)
 
@@ -474,10 +595,19 @@ class Client(BaseClient):
         """List queues channels.
 
         Args:
-            channel_search: Optional filter string
+            channel_search: Optional wildcard filter (e.g., ``"queues.*"``).
+                An empty string returns all channels.
 
         Returns:
-            List of QueuesChannel objects
+            list[QueuesChannel]: Each entry contains the channel ``name``,
+            ``type``, ``is_active`` status, and message statistics
+            (pending, expired, delivered counts).
+
+        Raises:
+            KubeMQConnectionError: If the server is unreachable.
+            KubeMQAuthenticationError: If the auth token is invalid or the
+                client lacks permission.
+            KubeMQTimeoutError: If the operation exceeds the server deadline.
         """
         return list_queues_channels(self._transport, self._config.client_id, channel_search)
 
@@ -485,10 +615,18 @@ class Client(BaseClient):
         """List queues channels asynchronously.
 
         Args:
-            channel_search: Optional filter string
+            channel_search: Optional wildcard filter (e.g., ``"queues.*"``).
+                An empty string returns all channels.
 
         Returns:
-            List of QueuesChannel objects
+            list[QueuesChannel]: Each entry contains the channel ``name``,
+            ``type``, ``is_active`` status, and message statistics.
+
+        Raises:
+            KubeMQConnectionError: If the server is unreachable.
+            KubeMQAuthenticationError: If the auth token is invalid or the
+                client lacks permission.
+            KubeMQTimeoutError: If the operation exceeds the server deadline.
         """
         return await run_in_thread(self.list_queues_channels, channel_search)
 
@@ -561,16 +699,58 @@ class Client(BaseClient):
     ) -> QueuesPollResponse:
         """Receive messages from a queue channel.
 
+        Long-polls the server for up to ``wait_timeout_in_seconds``. If
+        ``auto_ack`` is ``False``, each message must be explicitly
+        acknowledged, rejected, or re-queued before the visibility
+        timeout expires.
+
         Args:
             channel: The name of the channel to receive messages from.
-            max_messages: Maximum number of messages to receive.
-            wait_timeout_in_seconds: Timeout in seconds to wait for messages.
-            auto_ack: Whether to automatically acknowledge messages.
-            visibility_seconds: Visibility timeout in seconds for received messages.
-            metadata: Optional key-value metadata to attach to the downstream request.
+            max_messages: Maximum number of messages to receive (1–1024).
+            wait_timeout_in_seconds: Timeout in seconds to wait for messages
+                (0–3600).
+            auto_ack: Whether to automatically acknowledge messages on
+                receipt.
+            visibility_seconds: Visibility timeout in seconds for received
+                messages. While visible, messages are hidden from other
+                consumers.
+            metadata: Optional key-value metadata to attach to the
+                downstream request.
 
         Returns:
-            QueuesPollResponse containing the received messages.
+            QueuesPollResponse: Contains ``messages`` (list of received
+            queue messages, each supporting ``.ack()``, ``.reject()``,
+            and ``.requeue()``), ``is_error`` (bool), ``error`` (error
+            description), and ``messages_received`` / ``messages_expired``
+            counts.
+
+        Raises:
+            ValueError: If ``max_messages`` is not between 1 and 1024 or
+                ``wait_timeout_in_seconds`` is not between 0 and 3600.
+            KubeMQConnectionError: If the server is unreachable or the
+                connection is lost.
+            KubeMQAuthenticationError: If the auth token is invalid or
+                expired, or the client lacks permission for the channel.
+            KubeMQTimeoutError: If the operation exceeds the server deadline.
+            KubeMQClientClosedError: If the client has already been closed.
+
+        See Also:
+            :meth:`send_queue_message`: Send messages to a queue.
+            :meth:`waiting`: Peek at waiting messages without consuming.
+            :meth:`pull`: Pull and remove messages from a queue.
+
+        Example:
+            >>> from kubemq.queues import Client
+            >>> with Client(address="localhost:50000") as client:
+            ...     response = client.receive_queue_messages(
+            ...         channel="queues.tasks",
+            ...         max_messages=10,
+            ...         wait_timeout_in_seconds=5,
+            ...         auto_ack=False,
+            ...     )
+            ...     for msg in response.messages:
+            ...         print(f"Got: {msg.body}")
+            ...         msg.ack()
         """
         return self._receive_queue_messages_impl(
             channel, max_messages, wait_timeout_in_seconds, auto_ack, visibility_seconds, metadata
@@ -592,13 +772,22 @@ class Client(BaseClient):
 
         Args:
             channel: The name of the channel to receive messages from
-            max_messages: Maximum number of messages to receive
+            max_messages: Maximum number of messages to receive (1–1024)
             wait_timeout_in_seconds: Timeout in seconds to wait for messages
             auto_ack: Whether to automatically acknowledge messages
             visibility_seconds: Visibility timeout in seconds for received messages
 
         Returns:
-            QueuesPollResponse containing the received messages
+            QueuesPollResponse: Contains ``messages``, ``is_error``,
+            ``error``, and message count fields.
+
+        Raises:
+            ValueError: If ``max_messages`` or ``wait_timeout_in_seconds``
+                are out of range.
+            KubeMQConnectionError: If the server is unreachable.
+            KubeMQAuthenticationError: If authentication or authorization
+                fails.
+            KubeMQClientClosedError: If the client has already been closed.
         """
         return self._receive_queue_messages_impl(
             channel, max_messages, wait_timeout_in_seconds, auto_ack, visibility_seconds
@@ -619,13 +808,22 @@ class Client(BaseClient):
 
         Args:
             channel: The name of the channel to receive messages from
-            max_messages: Maximum number of messages to receive
+            max_messages: Maximum number of messages to receive (1–1024)
             wait_timeout_in_seconds: Timeout in seconds to wait for messages
             auto_ack: Whether to automatically acknowledge messages
             visibility_seconds: Visibility timeout in seconds for received messages
 
         Returns:
-            QueuesPollResponse containing the received messages
+            QueuesPollResponse: Contains ``messages``, ``is_error``,
+            ``error``, and message count fields.
+
+        Raises:
+            ValueError: If ``max_messages`` or ``wait_timeout_in_seconds``
+                are out of range.
+            KubeMQConnectionError: If the server is unreachable.
+            KubeMQAuthenticationError: If authentication or authorization
+                fails.
+            KubeMQClientClosedError: If the client has already been closed.
         """
         return await run_in_thread(
             self._receive_queue_messages_impl,
@@ -641,16 +839,36 @@ class Client(BaseClient):
     ) -> QueueMessagesWaiting:
         """Get waiting messages from a queue (peek without removing).
 
+        Retrieves messages that are currently waiting in the queue without
+        consuming them. Messages remain available for other consumers.
+
         Args:
-            channel: The name of the queue channel
-            max_messages: Maximum number of messages to retrieve
-            wait_timeout_in_seconds: Maximum time to wait for messages in seconds
+            channel: The name of the queue channel.
+            max_messages: Maximum number of messages to retrieve (1–1024).
+            wait_timeout_in_seconds: Maximum time to wait for messages in
+                seconds (1–3600).
 
         Returns:
-            QueueMessagesWaiting containing the waiting messages
+            QueueMessagesWaiting: Contains ``messages`` (list of
+            :class:`QueueMessageWaitingPulled` objects), ``is_error``
+            (bool), ``error`` (error description), ``messages_received``
+            and ``messages_expired`` counts, and ``is_peak`` flag.
 
         Raises:
-            ValueError: If parameters are invalid
+            ValueError: If ``channel`` is ``None``, ``max_messages`` is not
+                between 1 and 1024, or ``wait_timeout_in_seconds`` is not
+                between 1 and 3600.
+            KubeMQConnectionError: If the server is unreachable or the
+                connection is lost.
+            KubeMQAuthenticationError: If the auth token is invalid or the
+                client lacks permission for the channel.
+            KubeMQTimeoutError: If the operation exceeds the server deadline.
+            KubeMQClientClosedError: If the client has already been closed.
+
+        See Also:
+            :meth:`pull`: Pull and remove messages from a queue.
+            :meth:`receive_queue_messages`: Consume messages with
+                acknowledgment support.
         """
         self._logger.debug(f"Get waiting messages from queue: {channel}")
         if channel is None:
@@ -697,15 +915,23 @@ class Client(BaseClient):
         """Get waiting messages from a queue asynchronously (peek without removing).
 
         Args:
-            channel: The name of the queue channel
-            max_messages: Maximum number of messages to retrieve
-            wait_timeout_in_seconds: Maximum time to wait for messages in seconds
+            channel: The name of the queue channel.
+            max_messages: Maximum number of messages to retrieve (1–1024).
+            wait_timeout_in_seconds: Maximum time to wait for messages in
+                seconds (1–3600).
 
         Returns:
-            QueueMessagesWaiting containing the waiting messages
+            QueueMessagesWaiting: Contains ``messages``, ``is_error``,
+            ``error``, and message count fields.
 
         Raises:
-            ValueError: If parameters are invalid
+            ValueError: If ``channel`` is ``None``, ``max_messages`` or
+                ``wait_timeout_in_seconds`` are out of range.
+            KubeMQConnectionError: If the server is unreachable.
+            KubeMQAuthenticationError: If authentication or authorization
+                fails.
+            KubeMQTimeoutError: If the operation exceeds the server deadline.
+            KubeMQClientClosedError: If the client has already been closed.
         """
         return await run_in_thread(self.waiting, channel, max_messages, wait_timeout_in_seconds)
 
@@ -714,15 +940,26 @@ class Client(BaseClient):
 
         Args:
             channel: Queue channel to ack all messages.
-            wait_time_seconds: How long the server should wait for messages to ack.
+            wait_time_seconds: How long the server should wait for messages
+                to ack (in seconds).
 
         Returns:
-            Number of messages acknowledged.
+            int: The number of messages that were acknowledged.
+
+        Raises:
+            KubeMQMessageError: If the server returns an error response
+                (e.g., no messages to acknowledge).
+            KubeMQConnectionError: If the server is unreachable or the
+                connection is lost.
+            KubeMQAuthenticationError: If the auth token is invalid or the
+                client lacks permission for the channel.
+            KubeMQTimeoutError: If the operation exceeds the server deadline.
+            KubeMQClientClosedError: If the client has already been closed.
         """
         self._ensure_connected()
         assert self._transport is not None
-        from kubemq.grpc import AckAllQueueMessagesRequest
         from kubemq.core.exceptions import KubeMQMessageError
+        from kubemq.grpc import AckAllQueueMessagesRequest
 
         request = AckAllQueueMessagesRequest()
         request.RequestID = str(uuid.uuid4())
@@ -739,23 +976,43 @@ class Client(BaseClient):
                 channel=channel,
             )
 
-        return response.AffectedMessages
+        return int(response.AffectedMessages)
 
     def pull(
         self, channel: str, max_messages: int, wait_timeout_in_seconds: int
     ) -> QueueMessagesPulled:
         """Pull messages from a queue (retrieve and remove).
 
+        Unlike :meth:`waiting`, this method consumes messages — they are
+        removed from the queue and will not be delivered to other consumers.
+
         Args:
-            channel: The name of the queue channel
-            max_messages: Maximum number of messages to pull
-            wait_timeout_in_seconds: Maximum time to wait for messages in seconds
+            channel: The name of the queue channel.
+            max_messages: Maximum number of messages to pull (1–1024).
+            wait_timeout_in_seconds: Maximum time to wait for messages in
+                seconds (1–3600).
 
         Returns:
-            QueueMessagesPulled containing the pulled messages
+            QueueMessagesPulled: Contains ``messages`` (list of
+            :class:`QueueMessageWaitingPulled` objects), ``is_error``
+            (bool), ``error`` (error description), ``messages_received``
+            and ``messages_expired`` counts.
 
         Raises:
-            ValueError: If parameters are invalid
+            ValueError: If ``channel`` is ``None``, ``max_messages`` is not
+                between 1 and 1024, or ``wait_timeout_in_seconds`` is not
+                between 1 and 3600.
+            KubeMQConnectionError: If the server is unreachable or the
+                connection is lost.
+            KubeMQAuthenticationError: If the auth token is invalid or the
+                client lacks permission for the channel.
+            KubeMQTimeoutError: If the operation exceeds the server deadline.
+            KubeMQClientClosedError: If the client has already been closed.
+
+        See Also:
+            :meth:`waiting`: Peek at messages without removing them.
+            :meth:`receive_queue_messages`: Consume messages with
+                acknowledgment support.
         """
         self._logger.debug(f"Pulling messages from queue: {channel}")
         if channel is None:
@@ -802,14 +1059,22 @@ class Client(BaseClient):
         """Pull messages from a queue asynchronously (retrieve and remove).
 
         Args:
-            channel: The name of the queue channel
-            max_messages: Maximum number of messages to pull
-            wait_timeout_in_seconds: Maximum time to wait for messages in seconds
+            channel: The name of the queue channel.
+            max_messages: Maximum number of messages to pull (1–1024).
+            wait_timeout_in_seconds: Maximum time to wait for messages in
+                seconds (1–3600).
 
         Returns:
-            QueueMessagesPulled containing the pulled messages
+            QueueMessagesPulled: Contains ``messages``, ``is_error``,
+            ``error``, and message count fields.
 
         Raises:
-            ValueError: If parameters are invalid
+            ValueError: If ``channel`` is ``None``, ``max_messages`` or
+                ``wait_timeout_in_seconds`` are out of range.
+            KubeMQConnectionError: If the server is unreachable.
+            KubeMQAuthenticationError: If authentication or authorization
+                fails.
+            KubeMQTimeoutError: If the operation exceeds the server deadline.
+            KubeMQClientClosedError: If the client has already been closed.
         """
         return await run_in_thread(self.pull, channel, max_messages, wait_timeout_in_seconds)

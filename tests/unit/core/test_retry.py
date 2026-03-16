@@ -5,9 +5,7 @@ Covers REQ-ERR-3 (Auto-Retry), REQ-ERR-7 (Retry Throttling).
 
 from __future__ import annotations
 
-import asyncio
-import time
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -24,7 +22,6 @@ from kubemq.core.exceptions import (
     KubeMQTimeoutError,
     KubeMQValidationError,
 )
-
 
 # -----------------------------------------------------------------------
 # BackoffCalculator
@@ -580,9 +577,7 @@ class TestRetryExecutorAsyncElapsedContext:
         executor = RetryExecutor(policy)
 
         async def always_fail():
-            raise KubeMQConnectionError(
-                "fail", code=ErrorCode.UNAVAILABLE, is_retryable=True
-            )
+            raise KubeMQConnectionError("fail", code=ErrorCode.UNAVAILABLE, is_retryable=True)
 
         with pytest.raises(KubeMQConnectionError) as exc_info:
             await executor.execute("Op", always_fail)

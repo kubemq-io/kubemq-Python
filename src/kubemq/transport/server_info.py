@@ -2,8 +2,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class ServerInfo(BaseModel):
-    """
-    Represents information about a server.
+    """Represents information about a server.
 
     Attributes:
         host (str): The host of the server.
@@ -19,6 +18,7 @@ class ServerInfo(BaseModel):
 
     @field_validator("server_start_time", "server_up_time_seconds")
     def validate_positive_time(cls, v: int) -> int:
+        """Validate that time values are non-negative."""
         if v < 0:
             raise ValueError("Time values must be non-negative")
         return v

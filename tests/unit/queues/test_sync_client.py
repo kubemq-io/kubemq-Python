@@ -474,7 +474,9 @@ class TestQueuesClientWaiting:
 
             client = Client(address="localhost:50000")
 
-            with pytest.raises(ValueError, match="wait_timeout_in_seconds must be between 1 and 3600"):
+            with pytest.raises(
+                ValueError, match="wait_timeout_in_seconds must be between 1 and 3600"
+            ):
                 client.waiting(
                     channel="test-queue",
                     max_messages=5,
@@ -562,7 +564,9 @@ class TestQueuesClientPull:
 
             client = Client(address="localhost:50000")
 
-            with pytest.raises(ValueError, match="wait_timeout_in_seconds must be between 1 and 3600"):
+            with pytest.raises(
+                ValueError, match="wait_timeout_in_seconds must be between 1 and 3600"
+            ):
                 client.pull(
                     channel="test-queue",
                     max_messages=5,
@@ -679,11 +683,11 @@ class TestQueuesClientCleanup:
 # Additional Coverage Tests
 # ==============================================================================
 
-import warnings
-import grpc
-import threading
+import warnings  # noqa: E402
 
-from kubemq.core.exceptions import KubeMQValidationError
+import grpc  # noqa: E402
+
+from kubemq.core.exceptions import KubeMQValidationError  # noqa: E402
 
 
 class FakeRpcError(grpc.RpcError):
@@ -771,7 +775,7 @@ class TestQueuesClientMonitorConnection:
             mock_transport.is_connected.side_effect = [False, True, True]
 
             call_count = 0
-            original_sleep = __import__("time").sleep
+            __import__("time").sleep
 
             def fake_sleep(interval):
                 nonlocal call_count
@@ -820,9 +824,7 @@ class TestQueuesClientPingAsync:
                 warnings.simplefilter("always")
                 result = await client.ping_async()
 
-                deprecation_warnings = [
-                    x for x in w if issubclass(x.category, DeprecationWarning)
-                ]
+                deprecation_warnings = [x for x in w if issubclass(x.category, DeprecationWarning)]
                 assert len(deprecation_warnings) > 0
             assert result is not None
 
@@ -1120,9 +1122,7 @@ class TestQueuesClientDeprecatedMethods:
                 warnings.simplefilter("always")
                 result = client.send_queues_message(message)
 
-                deprecation_warnings = [
-                    x for x in w if issubclass(x.category, DeprecationWarning)
-                ]
+                deprecation_warnings = [x for x in w if issubclass(x.category, DeprecationWarning)]
                 assert len(deprecation_warnings) > 0
 
             assert result.is_error is False
@@ -1152,9 +1152,7 @@ class TestQueuesClientDeprecatedMethods:
                 warnings.simplefilter("always")
                 result = client.receive_queues_messages(channel="test-queue")
 
-                deprecation_warnings = [
-                    x for x in w if issubclass(x.category, DeprecationWarning)
-                ]
+                deprecation_warnings = [x for x in w if issubclass(x.category, DeprecationWarning)]
                 assert len(deprecation_warnings) > 0
 
             assert isinstance(result, QueuesPollResponse)
@@ -1258,11 +1256,9 @@ class TestQueuesClientDeprecatedMethods:
 
             with warnings.catch_warnings(record=True) as w:
                 warnings.simplefilter("always")
-                result = await client.send_queues_message_async(message)
+                await client.send_queues_message_async(message)
 
-                deprecation_warnings = [
-                    x for x in w if issubclass(x.category, DeprecationWarning)
-                ]
+                deprecation_warnings = [x for x in w if issubclass(x.category, DeprecationWarning)]
                 assert len(deprecation_warnings) > 0
 
     def test_receive_queue_messages_none_response(self):
@@ -1566,7 +1562,9 @@ class TestReceiveQueueMessagesExceptionPath:
 
             client = Client(address="localhost:50000")
 
-            with pytest.raises(ValueError, match="wait_timeout_in_seconds must be between 0 and 3600"):
+            with pytest.raises(
+                ValueError, match="wait_timeout_in_seconds must be between 0 and 3600"
+            ):
                 client.receive_queue_messages(channel="q", wait_timeout_in_seconds=-1)
 
     def test_receive_no_client_id_raises(self):
@@ -1627,5 +1625,3 @@ class TestAckAllQueueMessagesErrorPath:
 
             with pytest.raises(KubeMQMessageError, match="queue locked"):
                 client.ack_all_queue_messages("locked-queue")
-
-

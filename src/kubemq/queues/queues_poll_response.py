@@ -3,7 +3,8 @@ from __future__ import annotations
 import logging
 import threading
 import uuid
-from typing import Callable, Protocol
+from collections.abc import Callable
+from typing import Any, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -17,12 +18,14 @@ from kubemq.queues.queues_message_received import QueueMessageReceived
 
 # Define a protocol for the response handler
 class ResponseHandlerProtocol(Protocol):
-    def __call__(self, request: QueuesDownstreamRequest) -> QueuesDownstreamResponse: ...
+    """Protocol for response handler callables."""
+
+    def __call__(self, request: QueuesDownstreamRequest) -> QueuesDownstreamResponse:
+        """Handle a downstream request and return a response."""
 
 
 class QueuesPollResponse(BaseModel):
-    """
-    Represents a response from polling messages from a queue.
+    """Represents a response from polling messages from a queue.
 
     This class encapsulates the response received when polling messages from a KubeMQ queue.
     It provides methods for acknowledging, rejecting, and re-queuing messages, as well as
@@ -99,15 +102,14 @@ class QueuesPollResponse(BaseModel):
     )
 
     # Constructor
-    def __init__(self, **data):
+    def __init__(self, **data: Any) -> None:
         super().__init__(**data)
         self._lock = threading.Lock()
 
     # Validators
     @field_validator("visibility_seconds")
     def validate_visibility_seconds(cls, v: int) -> int:
-        """
-        Validate that the visibility seconds is within acceptable limits.
+        """Validate that the visibility seconds is within acceptable limits.
 
         Args:
             v: The visibility seconds value to validate
@@ -124,8 +126,7 @@ class QueuesPollResponse(BaseModel):
 
     # Public API methods
     def ack_all(self) -> None:
-        """
-        Acknowledge all messages in the response.
+        """Acknowledge all messages in the response.
 
         This method sends an acknowledgment to the server for all messages,
         indicating that they have been successfully processed and can be
@@ -138,8 +139,7 @@ class QueuesPollResponse(BaseModel):
         self._do_operation(QueuesDownstreamRequestType.AckAll)
 
     def reject_all(self) -> None:
-        """
-        Reject all messages in the response.
+        """Reject all messages in the response.
 
         This method sends a rejection to the server for all messages,
         indicating that they could not be processed and should be
@@ -152,8 +152,7 @@ class QueuesPollResponse(BaseModel):
         self._do_operation(QueuesDownstreamRequestType.NAckAll)
 
     def re_queue_all(self, channel: str) -> None:
-        """
-        Re-queue all messages in the response to another channel.
+        """Re-queue all messages in the response to another channel.
 
         This method sends a request to re-queue all messages to another channel.
 
@@ -194,8 +193,7 @@ class QueuesPollResponse(BaseModel):
 
     # Utility methods
     def count(self) -> int:
-        """
-        Get the number of messages in the response.
+        """Get the number of messages in the response.
 
         Returns:
             The number of messages in the response.
@@ -203,17 +201,15 @@ class QueuesPollResponse(BaseModel):
         return len(self.messages)
 
     def is_empty(self) -> bool:
-        """
-        Check if the response contains no messages.
+        """Check if the response contains no messages.
 
         Returns:
             True if the response contains no messages, False otherwise.
         """
         return len(self.messages) == 0
 
-    def with_updates(self, **kwargs) -> QueuesPollResponse:
-        """
-        Create a new response with updated values.
+    def with_updates(self, **kwargs: Any) -> QueuesPollResponse:
+        """Create a new response with updated values.
 
         Args:
             **kwargs: The fields to update and their new values
@@ -264,8 +260,7 @@ class QueuesPollResponse(BaseModel):
         re_queue_channel: str = "",
         metadata: dict[str, str] | None = None,
     ) -> None:
-        """
-        Perform an operation on all messages in the response.
+        """Perform an operation on all messages in the response.
 
         Args:
             request_type: The type of operation to perform.
@@ -318,8 +313,7 @@ class QueuesPollResponse(BaseModel):
         request_visibility_seconds: int = 0,
         request_auto_ack: bool = False,
     ) -> QueuesPollResponse:
-        """
-        Create a QueuesPollResponse from a protobuf QueuesDownstreamResponse.
+        """Create a QueuesPollResponse from a protobuf QueuesDownstreamResponse.
 
         Args:
             response: The protobuf response to decode
@@ -364,15 +358,16 @@ class QueuesPollResponse(BaseModel):
                 visibility_seconds=request_visibility_seconds,
                 is_auto_acked=request_auto_ack,
                 request_type_data=int(response.RequestTypeData) if response.RequestTypeData else 0,
-                response_metadata=dict(response.Metadata) if hasattr(response, "Metadata") and response.Metadata else {},
+                response_metadata=dict(response.Metadata)
+                if hasattr(response, "Metadata") and response.Metadata
+                else {},
             )
         except Exception as e:
             raise ValueError(f"Failed to decode response: {str(e)}") from e
 
     # String representations
     def __str__(self) -> str:
-        """
-        Get a string representation of the poll response.
+        """Get a string representation of the poll response.
 
         Returns:
             A string representation of the poll response
@@ -390,8 +385,7 @@ class QueuesPollResponse(BaseModel):
             return f"QueuesPollResponse: [Error displaying response: {str(e)}]"
 
     def __repr__(self) -> str:
-        """
-        Get a detailed representation of the poll response.
+        """Get a detailed representation of the poll response.
 
         Returns:
             A detailed representation of the poll response

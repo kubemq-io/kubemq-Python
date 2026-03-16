@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import os
+import re
 import socket
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum, unique
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, ClassVar, Union
+from typing import TYPE_CHECKING, Any, ClassVar
 
 if TYPE_CHECKING:
     from kubemq.core.types import AsyncCredentialProvider, CredentialProvider
@@ -100,22 +102,15 @@ class TLSConfig:
             valid_versions = ("1.2", "1.3")
             if self.min_tls_version not in valid_versions:
                 raise ValueError(
-                    f"min_tls_version must be one of {valid_versions}, "
-                    f"got {self.min_tls_version!r}"
+                    f"min_tls_version must be one of {valid_versions}, got {self.min_tls_version!r}"
                 )
 
             if self.cert_file and self.cert_pem:
-                raise ValueError(
-                    "Cannot specify both cert_file and cert_pem — choose one"
-                )
+                raise ValueError("Cannot specify both cert_file and cert_pem — choose one")
             if self.key_file and self.key_pem:
-                raise ValueError(
-                    "Cannot specify both key_file and key_pem — choose one"
-                )
+                raise ValueError("Cannot specify both key_file and key_pem — choose one")
             if self.ca_file and self.ca_pem:
-                raise ValueError(
-                    "Cannot specify both ca_file and ca_pem — choose one"
-                )
+                raise ValueError("Cannot specify both ca_file and ca_pem — choose one")
 
 
 @dataclass(frozen=True)
@@ -195,17 +190,11 @@ class RetryPolicy:
         if not (0 <= self.max_retries <= 10):
             raise ValueError(f"max_retries must be 0–10, got {self.max_retries}")
         if not (50 <= self.initial_backoff_ms <= 5000):
-            raise ValueError(
-                f"initial_backoff_ms must be 50–5000, got {self.initial_backoff_ms}"
-            )
+            raise ValueError(f"initial_backoff_ms must be 50–5000, got {self.initial_backoff_ms}")
         if not (1000 <= self.max_backoff_ms <= 120_000):
-            raise ValueError(
-                f"max_backoff_ms must be 1000–120000, got {self.max_backoff_ms}"
-            )
+            raise ValueError(f"max_backoff_ms must be 1000–120000, got {self.max_backoff_ms}")
         if not (1.5 <= self.backoff_multiplier <= 3.0):
-            raise ValueError(
-                f"backoff_multiplier must be 1.5–3.0, got {self.backoff_multiplier}"
-            )
+            raise ValueError(f"backoff_multiplier must be 1.5–3.0, got {self.backoff_multiplier}")
         if not (0 <= self.max_concurrent_retries <= 100):
             raise ValueError(
                 f"max_concurrent_retries must be 0–100, got {self.max_concurrent_retries}"
@@ -302,6 +291,25 @@ class ClientConfig:
     Thread Safety:
         This class is **not** thread-safe. Configure before passing to a
         client constructor. Do not modify after client creation.
+
+    Example:
+        >>> from kubemq.core.config import ClientConfig, TLSConfig, KeepAliveConfig
+        >>> config = ClientConfig(
+        ...     address="kubemq.prod.example.com:50000",
+        ...     client_id="order-service",
+        ...     auth_token="my-secret-token",
+        ...     tls=TLSConfig(
+        ...         enabled=True,
+        ...         cert_file="/certs/client.pem",
+        ...         key_file="/certs/client-key.pem",
+        ...         ca_file="/certs/ca.pem",
+        ...     ),
+        ...     keep_alive=KeepAliveConfig(
+        ...         enabled=True,
+        ...         ping_interval_in_seconds=15,
+        ...         ping_timeout_in_seconds=5,
+        ...     ),
+        ... )
     """
 
     # Class-level defaults
@@ -376,7 +384,7 @@ class ClientConfig:
     channel_allowlist: list[str] = field(default_factory=list)
 
     # Credential provider (AUTH-4)
-    credential_provider: Union[CredentialProvider, AsyncCredentialProvider, None] = field(
+    credential_provider: CredentialProvider | AsyncCredentialProvider | None = field(
         default=None, repr=False
     )
     credential_timeout: float = 5.0
@@ -395,8 +403,7 @@ class ClientConfig:
         # Fail-fast: reject empty-string auth_token (DX-4.1)
         if self.auth_token is not None and not self.auth_token.strip():
             raise ValueError(
-                "auth_token must be non-empty when provided. "
-                "Use None to disable authentication."
+                "auth_token must be non-empty when provided. Use None to disable authentication."
             )
 
         # Fail-fast: reject empty-string client_id (DX-4.3)
@@ -408,7 +415,8 @@ class ClientConfig:
 
         # Set defaults for mutable fields
         if not self.client_id:
-            self.client_id = socket.gethostname()
+            hostname = socket.gethostname()
+            self.client_id = re.sub(r'[^a-zA-Z0-9_-]', '_', hostname)
         if self.max_send_size <= 0:
             self.max_send_size = self.DEFAULT_MAX_MESSAGE_SIZE
         if self.max_receive_size <= 0:
@@ -604,7 +612,7 @@ class ClientConfig:
         try:
             import tomllib
         except ImportError:
-            import tomli as tomllib  # type: ignore[import-not-found]
+            import tomli as tomllib  # type: ignore[no-redef]
 
         with open(path, "rb") as f:
             data = tomllib.load(f)
@@ -668,7 +676,7 @@ class ClientConfig:
             ClientConfig instance
         """
         try:
-            from dotenv import load_dotenv  # type: ignore[import-not-found]
+            from dotenv import load_dotenv
         except ImportError as e:
             raise ImportError(
                 "python-dotenv is required for from_dotenv(). "

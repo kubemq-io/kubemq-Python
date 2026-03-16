@@ -139,6 +139,7 @@ class TestEmptyPayloads:
 
     def test_event_message_requires_channel(self) -> None:
         from pydantic import ValidationError
+
         from kubemq.pubsub import EventMessage
 
         with pytest.raises(ValidationError):

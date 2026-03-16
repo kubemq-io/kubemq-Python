@@ -35,7 +35,8 @@ class TestInvalidChannelErrors:
 
     async def test_subscribe_empty_channel_raises(self) -> None:
         from pydantic import ValidationError
-        from kubemq.pubsub import AsyncClient, EventsSubscription
+
+        from kubemq.pubsub import EventsSubscription
 
         with pytest.raises(ValidationError):
             EventsSubscription(

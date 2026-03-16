@@ -389,9 +389,7 @@ class KubeMQConnectionNotReadyError(KubeMQError):
     Raised when wait_for_ready=False and state is CONNECTING or RECONNECTING.
     """
 
-    def __init__(
-        self, message: str = "Connection is not ready", **kwargs: Any
-    ) -> None:
+    def __init__(self, message: str = "Connection is not ready", **kwargs: Any) -> None:
         kwargs.setdefault("code", ErrorCode.CONNECTION_NOT_READY)
         kwargs.setdefault("is_retryable", False)
         super().__init__(message, **kwargs)
@@ -596,7 +594,7 @@ try:
     _HAS_GRPC = True
 except ImportError:
     _HAS_GRPC = False
-    _GRPC_MAPPING = {}  # type: ignore[assignment]
+    _GRPC_MAPPING = {}
 
 
 # String-based mapping for duck-typed gRPC-like errors

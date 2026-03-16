@@ -1,7 +1,7 @@
 from kubemq.common import CancellationToken
 
 from .async_client import AsyncClient, AsyncCQClient
-from .client import Client
+from .client import Client as Client
 from .command_message import CommandMessage
 from .command_message_received import CommandMessageReceived
 from .command_response_message import CommandResponseMessage

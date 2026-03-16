@@ -9,7 +9,11 @@ import grpc
 import pytest
 
 from kubemq.core.exceptions import KubeMQBufferFullError
-from kubemq.grpc import QueuesDownstreamRequest, QueuesDownstreamRequestType, QueuesDownstreamResponse
+from kubemq.grpc import (
+    QueuesDownstreamRequest,
+    QueuesDownstreamRequestType,
+    QueuesDownstreamResponse,
+)
 from kubemq.queues.downstream_receiver import DownstreamReceiver
 
 
@@ -33,9 +37,7 @@ def _make_mocks():
 
 def _make_receiver(mock_transport, mock_logger, mock_connection, **kwargs):
     with patch("kubemq.queues.downstream_receiver.threading.Thread"):
-        return DownstreamReceiver(
-            mock_transport, mock_logger, mock_connection, **kwargs
-        )
+        return DownstreamReceiver(mock_transport, mock_logger, mock_connection, **kwargs)
 
 
 # ==============================================================================
@@ -51,9 +53,7 @@ class TestDownstreamReceiverSend:
         receiver = _make_receiver(mock_transport, mock_logger, mock_connection)
 
         request = QueuesDownstreamRequest(RequestID="req-1", WaitTimeout=1000)
-        expected_response = QueuesDownstreamResponse(
-            RefRequestId="req-1", IsError=False
-        )
+        expected_response = QueuesDownstreamResponse(RefRequestId="req-1", IsError=False)
 
         def provide_response():
             while "req-1" not in receiver.response_tracking:
@@ -94,9 +94,7 @@ class TestDownstreamReceiverSend:
 
     def test_send_timeout(self):
         mock_transport, mock_logger, mock_connection = _make_mocks()
-        receiver = _make_receiver(
-            mock_transport, mock_logger, mock_connection, timeout_buffer=0.0
-        )
+        receiver = _make_receiver(mock_transport, mock_logger, mock_connection, timeout_buffer=0.0)
 
         request = QueuesDownstreamRequest(RequestID="req-timeout", WaitTimeout=10)
         result = receiver.send(request)
@@ -106,13 +104,9 @@ class TestDownstreamReceiverSend:
 
     def test_send_queue_full(self):
         mock_transport, mock_logger, mock_connection = _make_mocks()
-        receiver = _make_receiver(
-            mock_transport, mock_logger, mock_connection, max_queue_size=1
-        )
+        receiver = _make_receiver(mock_transport, mock_logger, mock_connection, max_queue_size=1)
 
-        receiver.queue.put_nowait(
-            QueuesDownstreamRequest(RequestID="filler", WaitTimeout=1000)
-        )
+        receiver.queue.put_nowait(QueuesDownstreamRequest(RequestID="filler", WaitTimeout=1000))
 
         request = QueuesDownstreamRequest(RequestID="req-full", WaitTimeout=1000)
         result = receiver.send(request)
@@ -151,13 +145,9 @@ class TestDownstreamReceiverSendWithoutResponse:
 
     def test_send_without_response_queue_full(self):
         mock_transport, mock_logger, mock_connection = _make_mocks()
-        receiver = _make_receiver(
-            mock_transport, mock_logger, mock_connection, max_queue_size=1
-        )
+        receiver = _make_receiver(mock_transport, mock_logger, mock_connection, max_queue_size=1)
 
-        receiver.queue.put_nowait(
-            QueuesDownstreamRequest(RequestID="filler", WaitTimeout=1000)
-        )
+        receiver.queue.put_nowait(QueuesDownstreamRequest(RequestID="filler", WaitTimeout=1000))
 
         request = QueuesDownstreamRequest(RequestID="req-full", WaitTimeout=1000)
         with pytest.raises(KubeMQBufferFullError):
@@ -251,8 +241,10 @@ class TestDownstreamReceiverHandleError:
         receiver = _make_receiver(mock_transport, mock_logger, mock_connection)
 
         error = FakeRpcError()
-        with patch.object(receiver, "_handle_disconnection") as mock_disc, \
-             patch.object(receiver, "_recreate_channel", return_value=True) as mock_recreate:
+        with (
+            patch.object(receiver, "_handle_disconnection") as mock_disc,
+            patch.object(receiver, "_recreate_channel", return_value=True) as mock_recreate,
+        ):
             result = receiver._handle_error(error, is_grpc_error=True)
 
         assert result is True
@@ -276,8 +268,10 @@ class TestDownstreamReceiverHandleError:
         receiver = _make_receiver(mock_transport, mock_logger, mock_connection)
 
         error = FakeRpcError()
-        with patch.object(receiver, "_handle_disconnection"), \
-             patch.object(receiver, "_recreate_channel", return_value=False):
+        with (
+            patch.object(receiver, "_handle_disconnection"),
+            patch.object(receiver, "_recreate_channel", return_value=False),
+        ):
             result = receiver._handle_error(error, is_grpc_error=True)
 
         assert result is False
@@ -355,8 +349,11 @@ class TestDownstreamReceiverQueueUtilization:
     def test_send_queue_high_utilization_warning(self):
         mock_transport, mock_logger, mock_connection = _make_mocks()
         receiver = _make_receiver(
-            mock_transport, mock_logger, mock_connection,
-            max_queue_size=10, timeout_buffer=0.0,
+            mock_transport,
+            mock_logger,
+            mock_connection,
+            max_queue_size=10,
+            timeout_buffer=0.0,
         )
 
         for i in range(9):
@@ -472,13 +469,13 @@ class TestDownstreamReceiverSendQueueStream:
             receiver.shutdown_event.set()
             return True
 
-        with patch.object(receiver, '_handle_error', side_effect=handle_and_stop) as mock_handle:
+        with patch.object(receiver, "_handle_error", side_effect=handle_and_stop) as mock_handle:
             receiver._send_queue_stream()
 
         mock_handle.assert_called_once()
         args, kwargs = mock_handle.call_args
         assert isinstance(args[0], grpc.RpcError)
-        assert kwargs.get('is_grpc_error') is True
+        assert kwargs.get("is_grpc_error") is True
 
     def test_generic_exception_path(self):
         mock_transport, mock_logger, mock_connection = _make_mocks()
@@ -492,13 +489,13 @@ class TestDownstreamReceiverSendQueueStream:
             receiver.shutdown_event.set()
             return True
 
-        with patch.object(receiver, '_handle_error', side_effect=handle_and_stop) as mock_handle:
+        with patch.object(receiver, "_handle_error", side_effect=handle_and_stop) as mock_handle:
             receiver._send_queue_stream()
 
         mock_handle.assert_called_once()
         args, kwargs = mock_handle.call_args
         assert isinstance(args[0], RuntimeError)
-        assert kwargs.get('is_grpc_error', False) is False
+        assert kwargs.get("is_grpc_error", False) is False
 
     def test_exits_when_handle_error_returns_false(self):
         mock_transport, mock_logger, mock_connection = _make_mocks()
@@ -508,7 +505,7 @@ class TestDownstreamReceiverSendQueueStream:
         stub.QueuesDownstream.side_effect = FakeRpcError()
         mock_transport.kubemq_client.return_value = stub
 
-        with patch.object(receiver, '_handle_error', return_value=False) as mock_handle:
+        with patch.object(receiver, "_handle_error", return_value=False) as mock_handle:
             receiver._send_queue_stream()
 
         mock_handle.assert_called_once()
@@ -586,8 +583,10 @@ class TestDownstreamReceiverHandleErrorChannelError:
         receiver = _make_receiver(mock_transport, mock_logger, mock_connection)
 
         error = Exception("channel closed unexpectedly")
-        with patch.object(receiver, "_handle_disconnection"), \
-             patch.object(receiver, "_recreate_channel", return_value=True) as mock_recreate:
+        with (
+            patch.object(receiver, "_handle_disconnection"),
+            patch.object(receiver, "_recreate_channel", return_value=True) as mock_recreate,
+        ):
             result = receiver._handle_error(error)
 
         assert result is True
@@ -607,7 +606,7 @@ class TestDownstreamReceiverSendQueueStreamGenericFalse:
         stub.QueuesDownstream.side_effect = RuntimeError("boom")
         mock_transport.kubemq_client.return_value = stub
 
-        with patch.object(receiver, '_handle_error', return_value=False):
+        with patch.object(receiver, "_handle_error", return_value=False):
             receiver._send_queue_stream()
 
         assert not receiver.shutdown_event.is_set()

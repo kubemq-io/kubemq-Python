@@ -757,9 +757,7 @@ class TestSyncPubSubClientPublishErrors:
                 warnings.simplefilter("always")
                 client.publish_event(message)
 
-                deprecation_warnings = [
-                    x for x in w if issubclass(x.category, DeprecationWarning)
-                ]
+                deprecation_warnings = [x for x in w if issubclass(x.category, DeprecationWarning)]
                 assert len(deprecation_warnings) == 0
 
             mock_sender.send.assert_called_once()
@@ -787,9 +785,7 @@ class TestSyncPubSubClientPublishErrors:
                 warnings.simplefilter("always")
                 result = client.publish_event_store(message)
 
-                deprecation_warnings = [
-                    x for x in w if issubclass(x.category, DeprecationWarning)
-                ]
+                deprecation_warnings = [x for x in w if issubclass(x.category, DeprecationWarning)]
                 assert len(deprecation_warnings) == 0
 
             assert result.sent is True
@@ -1085,7 +1081,6 @@ class TestSyncPubSubClientSubscribeTaskAsync:
     @pytest.mark.asyncio
     async def test_subscribe_task_async_delivers_messages(self):
         """Test that messages from the stream are forwarded to decode_callable."""
-        from unittest.mock import AsyncMock
 
         client = self._make_client()
 
@@ -1197,9 +1192,9 @@ class TestSyncPubSubClientSubscribeTaskAsync:
 # Additional Coverage Tests
 # ==============================================================================
 
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock  # noqa: E402
 
-from kubemq.core.exceptions import KubeMQValidationError
+from kubemq.core.exceptions import KubeMQValidationError  # noqa: E402
 
 
 class TestSyncPubSubClientPublishEventValidationError:
@@ -1843,9 +1838,7 @@ class TestSyncPubSubClientSubscribeTaskNonRetryable:
         def error_callable(err):
             errors.append(err)
 
-        client._subscribe_task(
-            stream_callable, decode_callable, error_callable, cancel_token, "ch"
-        )
+        client._subscribe_task(stream_callable, decode_callable, error_callable, cancel_token, "ch")
 
         assert len(errors) >= 1
         assert "Stream broken" in errors[0]
@@ -1882,9 +1875,7 @@ class TestSyncPubSubClientSendEventUnarySpan:
             client.send_event(message)
 
             assert mock_span.set_attribute.call_count == 2
-            mock_instrumentor._metrics.record_sent_message.assert_called_once_with(
-                "publish", "ch"
-            )
+            mock_instrumentor._metrics.record_sent_message.assert_called_once_with("publish", "ch")
             mock_instrumentor._metrics.record_operation_duration.assert_called_once()
 
 

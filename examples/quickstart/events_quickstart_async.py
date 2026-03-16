@@ -8,10 +8,8 @@ from kubemq import AsyncPubSubClient, EventMessage
 
 
 async def main() -> None:
-    async with AsyncPubSubClient(address="localhost:50000") as client:
-        await client.publish_event(
-            EventMessage(channel="quickstart", body=b"Hello async KubeMQ!")
-        )
+    async with AsyncPubSubClient(address="localhost:50000", client_id="python-events-quickstart-async-client") as client:
+        await client.publish_event(EventMessage(channel="python-quickstart", body=b"Hello async KubeMQ!"))
         print("Async event sent!")
 
 

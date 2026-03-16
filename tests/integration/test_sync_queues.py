@@ -46,9 +46,7 @@ class TestSyncQueuesSend:
 class TestSyncQueuesReceive:
     """Sync Queues receive integration tests."""
 
-    def test_send_and_receive_queue_message(
-        self, sync_queues_client: QueuesClient
-    ) -> None:
+    def test_send_and_receive_queue_message(self, sync_queues_client: QueuesClient) -> None:
         channel = f"test-queues-sync-recv-{uuid.uuid4().hex[:8]}"
 
         sync_queues_client.send_queue_message(
