@@ -6,21 +6,21 @@ import time
 
 from kubemq import (
     CancellationToken,
+    Client,
     EventMessage,
-    EventMessageReceived,
+    EventReceived,
     EventsSubscription,
-    PubSubClient,
 )
 
 
 def main() -> None:
-    with PubSubClient(
+    with Client(
         address="localhost:50000",
         client_id="python-events-cancel-subscription-client",
     ) as client:
         cancel = CancellationToken()
 
-        def on_receive(event: EventMessageReceived) -> None:
+        def on_receive(event: EventReceived) -> None:
             print(f"Received: {event.body.decode('utf-8')}")
 
         def on_error(err: str) -> None:
@@ -36,7 +36,7 @@ def main() -> None:
         )
         time.sleep(1)
 
-        client.publish_event(
+        client.send_event(
             EventMessage(channel="python-events.cancel-subscription", body=b"before cancel")
         )
         time.sleep(1)
@@ -45,7 +45,7 @@ def main() -> None:
         print("Subscription cancelled")
 
         time.sleep(1)
-        client.publish_event(
+        client.send_event(
             EventMessage(channel="python-events.cancel-subscription", body=b"after cancel")
         )
         print("Message sent after cancel — subscriber will NOT receive it")

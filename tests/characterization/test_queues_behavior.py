@@ -58,19 +58,19 @@ class TestQueueMessageBehavior:
         Note: In v3.x, the fields are named:
         - delay_in_seconds (not policy_delay_seconds)
         - expiration_in_seconds (not policy_expiration_seconds)
-        - attempts_before_dead_letter_queue (not policy_max_receive_count)
+        - max_receive_count (not policy_max_receive_count)
         """
         msg = QueueMessage(
             channel="test",
             body=b"test",
             expiration_in_seconds=60,
             delay_in_seconds=10,
-            attempts_before_dead_letter_queue=3,
-            dead_letter_queue="test-dlq",  # Required when attempts > 0
+            max_receive_count=3,
+            max_receive_queue="test-dlq",  # Required when attempts > 0
         )
         assert msg.expiration_in_seconds == 60
         assert msg.delay_in_seconds == 10
-        assert msg.attempts_before_dead_letter_queue == 3
+        assert msg.max_receive_count == 3
 
 
 @pytest.mark.characterization
@@ -118,12 +118,11 @@ class TestQueuesClientMethodSignatures:
         assert "max_messages" in params
         assert "wait_timeout_in_seconds" in params
         assert "auto_ack" in params
-        assert "visibility_seconds" in params
 
-    def test_waiting_method_exists(self):
-        """Capture: Client has waiting() method."""
-        assert hasattr(Client, "waiting")
-        assert callable(Client.waiting)
+    def test_peek_queue_messages_method_exists(self):
+        """Capture: Client has peek_queue_messages() method."""
+        assert hasattr(Client, "peek_queue_messages")
+        assert callable(Client.peek_queue_messages)
 
     def test_pull_method_exists(self):
         """Capture: Client has pull() method."""
@@ -139,7 +138,7 @@ class TestQueuesClientMethodSignatures:
             "delete_queues_channel_async",
             "list_queues_channels_async",
             "receive_queues_messages_async",
-            "waiting_async",
+            "peek_queue_messages_async",
             "pull_async",
             "close_async",
         ]

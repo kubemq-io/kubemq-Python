@@ -14,11 +14,11 @@ from kubemq.common.cancellation_token import CancellationToken
 from kubemq.core.config import ClientConfig
 from kubemq.cq.client import Client
 from kubemq.cq.command_message import CommandMessage
-from kubemq.cq.command_response_message import CommandResponseMessage
+from kubemq.cq.command_response_message import CommandResponse
 from kubemq.cq.commands_subscription import CommandsSubscription
 from kubemq.cq.queries_subscription import QueriesSubscription
 from kubemq.cq.query_message import QueryMessage
-from kubemq.cq.query_response_message import QueryResponseMessage
+from kubemq.cq.query_response_message import QueryResponse
 from kubemq.grpc import kubemq_pb2 as pb
 
 
@@ -106,7 +106,7 @@ class TestSyncCQClientCommands:
     """Tests for command sending methods."""
 
     def test_send_command_request_returns_response(self):
-        """Test send_command_request returns CommandResponseMessage."""
+        """Test send_command_request returns CommandResponse."""
         with patch("kubemq.transport.transport.Transport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
@@ -174,7 +174,7 @@ class TestSyncCQClientQueries:
     """Tests for query sending methods."""
 
     def test_send_query_request_returns_response(self):
-        """Test send_query_request returns QueryResponseMessage."""
+        """Test send_query_request returns QueryResponse."""
         with patch("kubemq.transport.transport.Transport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
@@ -243,7 +243,7 @@ class TestSyncCQClientResponses:
 
     def test_send_response_message_command(self):
         """Test send_response_message for command response."""
-        from kubemq.cq.command_message_received import CommandMessageReceived
+        from kubemq.cq.command_message_received import CommandReceived
 
         with patch("kubemq.transport.transport.Transport") as mock_transport_class:
             mock_transport = MagicMock()
@@ -256,7 +256,7 @@ class TestSyncCQClientResponses:
             mock_transport.kubemq_client.return_value = mock_stub
 
             # Create a mock command received to pass to response
-            command_received = CommandMessageReceived(
+            command_received = CommandReceived(
                 id="cmd-123",
                 from_client_id="sender-client",
                 timestamp="2024-01-01T00:00:00Z",
@@ -264,7 +264,7 @@ class TestSyncCQClientResponses:
                 reply_channel="reply-channel",
             )
 
-            response = CommandResponseMessage(
+            response = CommandResponse(
                 command_received=command_received,
                 is_executed=True,
             )
@@ -274,7 +274,7 @@ class TestSyncCQClientResponses:
 
     def test_send_response_message_query(self):
         """Test send_response_message for query response."""
-        from kubemq.cq.query_message_received import QueryMessageReceived
+        from kubemq.cq.query_message_received import QueryReceived
 
         with patch("kubemq.transport.transport.Transport") as mock_transport_class:
             mock_transport = MagicMock()
@@ -287,7 +287,7 @@ class TestSyncCQClientResponses:
             mock_transport.kubemq_client.return_value = mock_stub
 
             # Create a mock query received to pass to response
-            query_received = QueryMessageReceived(
+            query_received = QueryReceived(
                 id="qry-123",
                 from_client_id="sender-client",
                 timestamp="2024-01-01T00:00:00Z",
@@ -295,7 +295,7 @@ class TestSyncCQClientResponses:
                 reply_channel="reply-channel",
             )
 
-            response = QueryResponseMessage(
+            response = QueryResponse(
                 query_received=query_received,
                 is_executed=True,
                 body=b"result data",
@@ -306,7 +306,7 @@ class TestSyncCQClientResponses:
 
     def test_send_response_message_async_emits_deprecation_warning(self):
         """Test send_response_message_async emits deprecation warning."""
-        from kubemq.cq.command_message_received import CommandMessageReceived
+        from kubemq.cq.command_message_received import CommandReceived
 
         with patch("kubemq.transport.transport.Transport") as mock_transport_class:
             mock_transport = MagicMock()
@@ -318,7 +318,7 @@ class TestSyncCQClientResponses:
             mock_stub = MagicMock()
             mock_transport.kubemq_client.return_value = mock_stub
 
-            command_received = CommandMessageReceived(
+            command_received = CommandReceived(
                 id="cmd-123",
                 from_client_id="sender-client",
                 timestamp="2024-01-01T00:00:00Z",
@@ -326,7 +326,7 @@ class TestSyncCQClientResponses:
                 reply_channel="reply-channel",
             )
 
-            response = CommandResponseMessage(
+            response = CommandResponse(
                 command_received=command_received,
                 is_executed=True,
             )
@@ -696,9 +696,7 @@ class TestSyncCQClientCommandErrors:
                 client.send_command(message)
 
     def test_send_command_validation_error_raises_kubemq_validation_error(self):
-        """Test that a ValidationError is wrapped in KubeMQValidationError."""
-        from pydantic import ValidationError as PydanticValidationError
-
+        """Test that a ValueError is wrapped in KubeMQValidationError."""
         with patch("kubemq.transport.transport.Transport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
@@ -715,10 +713,7 @@ class TestSyncCQClientCommandErrors:
                 timeout_in_seconds=10,
             )
 
-            validation_err = PydanticValidationError.from_exception_data(
-                title="CommandMessage",
-                line_errors=[],
-            )
+            validation_err = ValueError("CommandMessage validation failed")
             with patch.object(CommandMessage, "encode", side_effect=validation_err):
                 with pytest.raises(KubeMQValidationError):
                     client.send_command(message)
@@ -755,9 +750,7 @@ class TestSyncCQClientQueryErrors:
                 client.send_query(message)
 
     def test_send_query_validation_error_raises_kubemq_validation_error(self):
-        """Test that a ValidationError is wrapped in KubeMQValidationError."""
-        from pydantic import ValidationError as PydanticValidationError
-
+        """Test that a ValueError is wrapped in KubeMQValidationError."""
         with patch("kubemq.transport.transport.Transport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
@@ -774,10 +767,7 @@ class TestSyncCQClientQueryErrors:
                 timeout_in_seconds=10,
             )
 
-            validation_err = PydanticValidationError.from_exception_data(
-                title="QueryMessage",
-                line_errors=[],
-            )
+            validation_err = ValueError("QueryMessage validation failed")
             with patch.object(QueryMessage, "encode", side_effect=validation_err):
                 with pytest.raises(KubeMQValidationError):
                     client.send_query(message)
@@ -899,7 +889,7 @@ class TestSyncCQClientNewVerbs:
     """Tests for the non-deprecated send_command / send_query verbs."""
 
     def test_send_command_returns_command_response_message(self):
-        """Test send_command (non-deprecated) returns CommandResponseMessage."""
+        """Test send_command (non-deprecated) returns CommandResponse."""
         with patch("kubemq.transport.transport.Transport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
@@ -922,7 +912,7 @@ class TestSyncCQClientNewVerbs:
             )
             response = client.send_command(message)
 
-            assert isinstance(response, CommandResponseMessage)
+            assert isinstance(response, CommandResponse)
             assert response.is_executed is True
 
     def test_send_command_does_not_emit_deprecation_warning(self):
@@ -955,7 +945,7 @@ class TestSyncCQClientNewVerbs:
                 assert len(deprecation_warnings) == 0
 
     def test_send_query_returns_query_response_message(self):
-        """Test send_query (non-deprecated) returns QueryResponseMessage."""
+        """Test send_query (non-deprecated) returns QueryResponse."""
         with patch("kubemq.transport.transport.Transport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
@@ -979,7 +969,7 @@ class TestSyncCQClientNewVerbs:
             )
             response = client.send_query(message)
 
-            assert isinstance(response, QueryResponseMessage)
+            assert isinstance(response, QueryResponse)
             assert response.is_executed is True
 
     def test_send_query_does_not_emit_deprecation_warning(self):
@@ -1208,10 +1198,8 @@ class TestSyncCQClientCloseAsync:
 class TestSyncCQClientSendCommandValidationError:
     """Tests for ValidationError path in _send_command_impl covering lines 208-213."""
 
-    def test_send_command_validation_error_wraps_pydantic(self):
-        """Test that pydantic.ValidationError from encode is wrapped in KubeMQValidationError."""
-        from pydantic import ValidationError as PydanticValidationError
-
+    def test_send_command_validation_error_wraps_value_error(self):
+        """Test that ValueError from encode is wrapped in KubeMQValidationError."""
         with patch("kubemq.transport.transport.Transport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
@@ -1228,10 +1216,7 @@ class TestSyncCQClientSendCommandValidationError:
                 timeout_in_seconds=10,
             )
 
-            validation_err = PydanticValidationError.from_exception_data(
-                title="CommandMessage",
-                line_errors=[],
-            )
+            validation_err = ValueError("CommandMessage validation failed")
             with patch.object(CommandMessage, "encode", side_effect=validation_err):
                 with pytest.raises(KubeMQValidationError) as exc_info:
                     client.send_command(message)
@@ -1241,10 +1226,8 @@ class TestSyncCQClientSendCommandValidationError:
 class TestSyncCQClientSendQueryValidationError:
     """Tests for ValidationError path in _send_query_impl covering lines 288-293."""
 
-    def test_send_query_validation_error_wraps_pydantic(self):
-        """Test that pydantic.ValidationError from encode is wrapped in KubeMQValidationError."""
-        from pydantic import ValidationError as PydanticValidationError
-
+    def test_send_query_validation_error_wraps_value_error(self):
+        """Test that ValueError from encode is wrapped in KubeMQValidationError."""
         with patch("kubemq.transport.transport.Transport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
@@ -1261,10 +1244,7 @@ class TestSyncCQClientSendQueryValidationError:
                 timeout_in_seconds=10,
             )
 
-            validation_err = PydanticValidationError.from_exception_data(
-                title="QueryMessage",
-                line_errors=[],
-            )
+            validation_err = ValueError("QueryMessage validation failed")
             with patch.object(QueryMessage, "encode", side_effect=validation_err):
                 with pytest.raises(KubeMQValidationError) as exc_info:
                     client.send_query(message)
@@ -1276,7 +1256,7 @@ class TestSyncCQClientSendResponseException:
 
     def test_send_response_message_transport_exception_reraises(self):
         """Test that exception from transport.SendResponse is re-raised."""
-        from kubemq.cq.command_message_received import CommandMessageReceived
+        from kubemq.cq.command_message_received import CommandReceived
 
         with patch("kubemq.transport.transport.Transport") as mock_transport_class:
             mock_transport = MagicMock()
@@ -1289,14 +1269,14 @@ class TestSyncCQClientSendResponseException:
             mock_stub.SendResponse.side_effect = RuntimeError("transport error")
             mock_transport.kubemq_client.return_value = mock_stub
 
-            command_received = CommandMessageReceived(
+            command_received = CommandReceived(
                 id="cmd-123",
                 from_client_id="sender",
                 timestamp="2024-01-01T00:00:00Z",
                 channel="test-commands",
                 reply_channel="reply-channel",
             )
-            response = CommandResponseMessage(
+            response = CommandResponse(
                 command_received=command_received,
                 is_executed=True,
             )
@@ -1306,7 +1286,7 @@ class TestSyncCQClientSendResponseException:
 
     def test_send_response_message_grpc_error_reraises(self):
         """Test that gRPC error from transport.SendResponse is re-raised."""
-        from kubemq.cq.command_message_received import CommandMessageReceived
+        from kubemq.cq.command_message_received import CommandReceived
 
         with patch("kubemq.transport.transport.Transport") as mock_transport_class:
             mock_transport = MagicMock()
@@ -1319,14 +1299,14 @@ class TestSyncCQClientSendResponseException:
             mock_stub.SendResponse.side_effect = FakeRpcError()
             mock_transport.kubemq_client.return_value = mock_stub
 
-            command_received = CommandMessageReceived(
+            command_received = CommandReceived(
                 id="cmd-456",
                 from_client_id="sender",
                 timestamp="2024-01-01T00:00:00Z",
                 channel="test-commands",
                 reply_channel="reply-channel",
             )
-            response = CommandResponseMessage(
+            response = CommandResponse(
                 command_received=command_received,
                 is_executed=True,
             )

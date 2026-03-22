@@ -6,23 +6,23 @@ import time
 
 from kubemq import (
     CancellationToken,
+    Client,
     EventStoreMessage,
-    EventStoreMessageReceived,
+    EventStoreReceived,
     EventsStoreSubscription,
-    PubSubClient,
 )
-from kubemq.pubsub.events_store_subscription import EventsStoreType
+from kubemq.pubsub.events_store_subscription import EventStoreStartPosition
 
 
 def main() -> None:
-    with PubSubClient(
+    with Client(
         address="localhost:50000",
         client_id="python-events-store-stream-send-client",
     ) as client:
         cancel = CancellationToken()
-        received: list[EventStoreMessageReceived] = []
+        received: list[EventStoreReceived] = []
 
-        def on_receive(event: EventStoreMessageReceived) -> None:
+        def on_receive(event: EventStoreReceived) -> None:
             received.append(event)
             print(f"Received seq={event.sequence}: {event.body.decode('utf-8')}")
 
@@ -34,14 +34,14 @@ def main() -> None:
                 channel="python-events-store.stream-send",
                 on_receive_event_callback=on_receive,
                 on_error_callback=on_error,
-                events_store_type=EventsStoreType.StartNewOnly,
+                events_store_type=EventStoreStartPosition.StartFromNew,
             ),
             cancel=cancel,
         )
         time.sleep(1)
 
         for i in range(10):
-            result = client.publish_event_store(
+            result = client.send_event_store(
                 EventStoreMessage(
                     channel="python-events-store.stream-send",
                     body=f"StoreEvent-{i + 1}".encode(),

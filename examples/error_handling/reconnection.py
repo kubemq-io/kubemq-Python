@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from kubemq import ClientConfig, EventMessage, KeepAliveConfig, PubSubClient
+from kubemq import Client, ClientConfig, EventMessage, KeepAliveConfig
 
 
 def main() -> None:
@@ -24,7 +24,7 @@ def main() -> None:
     )
 
     try:
-        with PubSubClient(config=config) as client:
+        with Client(config=config) as client:
             info = client.ping()
             print(f"Connected to {info.host}")
             print(f"Auto-reconnect: {config.auto_reconnect}")
@@ -32,7 +32,7 @@ def main() -> None:
             print(f"Reconnect interval: {config.reconnect_interval_seconds}s")
 
             # Normal operation
-            client.publish_event(
+            client.send_event(
                 EventMessage(
                     channel="python-error-handling.reconnection",
                     body=b"message with reconnection configured",

@@ -9,7 +9,6 @@ from pathlib import Path
 from typing import Any
 
 import grpc
-from pydantic import ValidationError
 
 from kubemq._internal.deprecation import deprecated, deprecated_async
 from kubemq._internal.telemetry import (
@@ -31,13 +30,13 @@ from kubemq.core.compat import run_in_thread
 from kubemq.core.config import KeepAliveConfig, TLSConfig
 from kubemq.core.exceptions import KubeMQValidationError
 from kubemq.cq.command_message import CommandMessage
-from kubemq.cq.command_message_received import CommandMessageReceived
-from kubemq.cq.command_response_message import CommandResponseMessage
+from kubemq.cq.command_message_received import CommandReceived
+from kubemq.cq.command_response_message import CommandResponse
 from kubemq.cq.commands_subscription import CommandsSubscription
 from kubemq.cq.queries_subscription import QueriesSubscription
 from kubemq.cq.query_message import QueryMessage
-from kubemq.cq.query_message_received import QueryMessageReceived
-from kubemq.cq.query_response_message import QueryResponseMessage
+from kubemq.cq.query_message_received import QueryReceived
+from kubemq.cq.query_response_message import QueryResponse
 from kubemq.transport.server_info import ServerInfo
 
 
@@ -198,7 +197,7 @@ class Client(BaseClient):
 
     # Command methods — GS-aligned verbs
 
-    def _send_command_impl(self, message: CommandMessage) -> CommandResponseMessage:
+    def _send_command_impl(self, message: CommandMessage) -> CommandResponse:
         """Internal implementation for sending a command."""
         self._validate_message_size(message.body)
         start = time.perf_counter()
@@ -222,8 +221,8 @@ class Client(BaseClient):
                     span.set_attribute(MESSAGING_MESSAGE_BODY_SIZE, len(message.body))
                 response = self._transport.kubemq_client().SendRequest(pb_req)
                 self._instrumentor._metrics.record_sent_message("send", message.channel)
-                return CommandResponseMessage().decode(response)
-            except ValidationError as e:
+                return CommandResponse().decode(response)
+            except (ValueError, TypeError) as e:
                 error_type_val = "validation"
                 self._instrumentor.record_error(span, e, error_type_val)
                 raise KubeMQValidationError(str(e), is_retryable=False) from e
@@ -237,7 +236,7 @@ class Client(BaseClient):
                     duration, "send", message.channel, error_type_val
                 )
 
-    def send_command(self, message: CommandMessage) -> CommandResponseMessage:
+    def send_command(self, message: CommandMessage) -> CommandResponse:
         """Send a command request and wait for response.
 
         Sends a command to a subscriber and blocks until a response is
@@ -247,7 +246,7 @@ class Client(BaseClient):
             message: The command message to send.
 
         Returns:
-            CommandResponseMessage: Contains ``command_received`` (bool
+            CommandResponse: Contains ``command_received`` (bool
             indicating a subscriber processed the command),
             ``is_executed`` (bool indicating execution success),
             ``error`` (error description from the responder),
@@ -286,7 +285,7 @@ class Client(BaseClient):
         return self._send_command_impl(message)
 
     @deprecated(replacement="send_command()", since="4.0.0", removal="5.0.0")
-    def send_command_request(self, message: CommandMessage) -> CommandResponseMessage:
+    def send_command_request(self, message: CommandMessage) -> CommandResponse:
         """Send a command request and wait for response.
 
         Deprecated:
@@ -296,7 +295,7 @@ class Client(BaseClient):
             message: The command message to send
 
         Returns:
-            CommandResponseMessage: Contains ``is_executed``, ``error``,
+            CommandResponse: Contains ``is_executed``, ``error``,
             and ``tags`` fields.
 
         Raises:
@@ -310,7 +309,7 @@ class Client(BaseClient):
         return self._send_command_impl(message)
 
     @deprecated_async(replacement="AsyncCQClient.send_command()", since="4.0.0", removal="5.0.0")
-    async def send_command_request_async(self, message: CommandMessage) -> CommandResponseMessage:
+    async def send_command_request_async(self, message: CommandMessage) -> CommandResponse:
         """Send a command request asynchronously.
 
         Deprecated:
@@ -320,7 +319,7 @@ class Client(BaseClient):
             message: The command message to send
 
         Returns:
-            CommandResponseMessage: Contains ``is_executed``, ``error``,
+            CommandResponse: Contains ``is_executed``, ``error``,
             and ``tags`` fields.
 
         Raises:
@@ -335,7 +334,7 @@ class Client(BaseClient):
 
     # Query methods — GS-aligned verbs
 
-    def _send_query_impl(self, message: QueryMessage) -> QueryResponseMessage:
+    def _send_query_impl(self, message: QueryMessage) -> QueryResponse:
         """Internal implementation for sending a query."""
         self._validate_message_size(message.body)
         start = time.perf_counter()
@@ -359,8 +358,8 @@ class Client(BaseClient):
                     span.set_attribute(MESSAGING_MESSAGE_BODY_SIZE, len(message.body))
                 response = self._transport.kubemq_client().SendRequest(pb_req)
                 self._instrumentor._metrics.record_sent_message("send", message.channel)
-                return QueryResponseMessage().decode(response)
-            except ValidationError as e:
+                return QueryResponse().decode(response)
+            except (ValueError, TypeError) as e:
                 error_type_val = "validation"
                 self._instrumentor.record_error(span, e, error_type_val)
                 raise KubeMQValidationError(str(e), is_retryable=False) from e
@@ -374,7 +373,7 @@ class Client(BaseClient):
                     duration, "send", message.channel, error_type_val
                 )
 
-    def send_query(self, message: QueryMessage) -> QueryResponseMessage:
+    def send_query(self, message: QueryMessage) -> QueryResponse:
         """Send a query request and wait for response.
 
         Sends a query to a subscriber and blocks until a response
@@ -385,7 +384,7 @@ class Client(BaseClient):
             message: The query message to send.
 
         Returns:
-            QueryResponseMessage: Contains ``body`` (response payload as
+            QueryResponse: Contains ``body`` (response payload as
             bytes), ``metadata`` (response metadata string),
             ``is_executed`` (bool indicating execution success),
             ``error`` (error description from the responder),
@@ -424,7 +423,7 @@ class Client(BaseClient):
         return self._send_query_impl(message)
 
     @deprecated(replacement="send_query()", since="4.0.0", removal="5.0.0")
-    def send_query_request(self, message: QueryMessage) -> QueryResponseMessage:
+    def send_query_request(self, message: QueryMessage) -> QueryResponse:
         """Send a query request and wait for response.
 
         Deprecated:
@@ -434,7 +433,7 @@ class Client(BaseClient):
             message: The query message to send
 
         Returns:
-            QueryResponseMessage: Contains ``body``, ``metadata``,
+            QueryResponse: Contains ``body``, ``metadata``,
             ``is_executed``, ``error``, and ``tags`` fields.
 
         Raises:
@@ -448,7 +447,7 @@ class Client(BaseClient):
         return self._send_query_impl(message)
 
     @deprecated_async(replacement="AsyncCQClient.send_query()", since="4.0.0", removal="5.0.0")
-    async def send_query_request_async(self, message: QueryMessage) -> QueryResponseMessage:
+    async def send_query_request_async(self, message: QueryMessage) -> QueryResponse:
         """Send a query request asynchronously.
 
         Deprecated:
@@ -458,7 +457,7 @@ class Client(BaseClient):
             message: The query message to send
 
         Returns:
-            QueryResponseMessage: Contains ``body``, ``metadata``,
+            QueryResponse: Contains ``body``, ``metadata``,
             ``is_executed``, ``error``, and ``tags`` fields.
 
         Raises:
@@ -472,7 +471,7 @@ class Client(BaseClient):
         return await run_in_thread(self._send_query_impl, message)
 
     # Response methods
-    def send_response_message(self, message: CommandResponseMessage | QueryResponseMessage) -> None:
+    def send_response_message(self, message: CommandResponse | QueryResponse) -> None:
         """Send a response message back to the command/query sender.
 
         Called from within a command or query subscription callback to
@@ -480,8 +479,8 @@ class Client(BaseClient):
 
         Args:
             message: The response message to send. Use
-                :class:`CommandResponseMessage` for commands or
-                :class:`QueryResponseMessage` for queries.
+                :class:`CommandResponse` for commands or
+                :class:`QueryResponse` for queries.
 
         Raises:
             KubeMQConnectionError: If the server is unreachable or the
@@ -519,9 +518,7 @@ class Client(BaseClient):
                 )
 
     @deprecated_async(replacement="AsyncCQClient.send_response()", since="4.0.0", removal="5.0.0")
-    async def send_response_message_async(
-        self, message: CommandResponseMessage | QueryResponseMessage
-    ) -> None:
+    async def send_response_message_async(self, message: CommandResponse | QueryResponse) -> None:
         """Send a response message asynchronously.
 
         Deprecated:
@@ -868,7 +865,7 @@ class Client(BaseClient):
                     subscription.encode(client_id)
                 ),
                 lambda message: subscription.raise_on_receive_message(
-                    CommandMessageReceived().decode(message)
+                    CommandReceived().decode(message)
                 ),
                 lambda error: subscription.raise_on_error(error),
                 cancel_token_event,
@@ -880,7 +877,7 @@ class Client(BaseClient):
                     subscription.encode(client_id)
                 ),
                 lambda message: subscription.raise_on_receive_message(
-                    QueryMessageReceived().decode(message)
+                    QueryReceived().decode(message)
                 ),
                 lambda error: subscription.raise_on_error(error),
                 cancel_token_event,
@@ -1027,7 +1024,7 @@ class Client(BaseClient):
                     subscription.encode(client_id)
                 ),
                 lambda message: subscription.raise_on_receive_message_async(
-                    CommandMessageReceived().decode(message)
+                    CommandReceived().decode(message)
                 ),
                 lambda error: subscription.raise_on_error_async(error),
                 cancel_token_event,
@@ -1039,7 +1036,7 @@ class Client(BaseClient):
                     subscription.encode(client_id)
                 ),
                 lambda message: subscription.raise_on_receive_message_async(
-                    QueryMessageReceived().decode(message)
+                    QueryReceived().decode(message)
                 ),
                 lambda error: subscription.raise_on_error_async(error),
                 cancel_token_event,

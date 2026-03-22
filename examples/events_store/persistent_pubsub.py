@@ -6,24 +6,24 @@ import time
 
 from kubemq import (
     CancellationToken,
+    Client,
     EventStoreMessage,
-    EventStoreMessageReceived,
+    EventStoreReceived,
     EventsStoreSubscription,
     KubeMQConnectionError,
     KubeMQError,
-    PubSubClient,
 )
-from kubemq.pubsub.events_store_subscription import EventsStoreType
+from kubemq.pubsub.events_store_subscription import EventStoreStartPosition
 
 
 def main() -> None:
     try:
-        with PubSubClient(
+        with Client(
             address="localhost:50000",
             client_id="python-events-store-persistent-pubsub-client",
         ) as client:
 
-            def on_receive_event(event: EventStoreMessageReceived) -> None:
+            def on_receive_event(event: EventStoreReceived) -> None:
                 print(
                     f"Received — Id:{event.id}, Seq:{event.sequence}, "
                     f"Body:{event.body.decode('utf-8')}"
@@ -38,13 +38,13 @@ def main() -> None:
                     channel="python-events-store.persistent-pubsub",
                     on_receive_event_callback=on_receive_event,
                     on_error_callback=on_error,
-                    events_store_type=EventsStoreType.StartNewOnly,
+                    events_store_type=EventStoreStartPosition.StartFromNew,
                 ),
                 cancel=cancel,
             )
             time.sleep(1)
 
-            result = client.send_events_store_message(
+            result = client.send_event_store(
                 EventStoreMessage(
                     channel="python-events-store.persistent-pubsub",
                     body=b"hello kubemq",

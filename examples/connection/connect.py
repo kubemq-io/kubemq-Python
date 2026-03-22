@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from kubemq import PubSubClient
+from kubemq import Client
 
 
 def main() -> None:
-    with PubSubClient(
+    with Client(
         address="localhost:50000",  # TODO: Replace with your KubeMQ server address
         client_id="python-connection-connect-client",
     ) as client:

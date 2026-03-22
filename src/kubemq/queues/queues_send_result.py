@@ -1,15 +1,15 @@
 from __future__ import annotations
 
+import dataclasses
 from collections.abc import Iterator
 from datetime import datetime
 from typing import Any, ClassVar
 
-from pydantic import BaseModel, ConfigDict, Field
-
 from kubemq.grpc import SendQueueMessageResult
 
 
-class QueueSendResult(BaseModel):
+@dataclasses.dataclass(frozen=True)
+class QueueSendResult:
     """Represents the result of sending a message to a queue.
 
     This class encapsulates the result of sending a message to a KubeMQ queue.
@@ -44,27 +44,16 @@ class QueueSendResult(BaseModel):
         ```
     """
 
-    model_config = ConfigDict(arbitrary_types_allowed=True, frozen=True)
-
     # Class attributes
     EPOCH: ClassVar[datetime] = datetime.fromtimestamp(0)
 
     # Instance attributes
-    id: str | None = Field(default=None, description="The unique identifier of the message")
-    sent_at: datetime | None = Field(
-        default=None, description="The timestamp when the message was sent"
-    )
-    expired_at: datetime | None = Field(
-        default=None, description="The timestamp when the message will expire"
-    )
-    delayed_to: datetime | None = Field(
-        default=None, description="The timestamp when the message will be delivered"
-    )
-    is_error: bool = Field(
-        default=False,
-        description="Indicates if there was an error while sending the message",
-    )
-    error: str | None = Field(default=None, description="The error message if `is_error` is True")
+    id: str | None = None
+    sent_at: datetime | None = None
+    expired_at: datetime | None = None
+    delayed_to: datetime | None = None
+    is_error: bool = False
+    error: str | None = None
 
     # Utility methods
     def is_successful(self) -> bool:
@@ -115,9 +104,7 @@ class QueueSendResult(BaseModel):
         Returns:
             A new instance with the updated values
         """
-        data = self.model_dump()
-        data.update(kwargs)
-        return self.__class__(**data)
+        return dataclasses.replace(self, **kwargs)
 
     # Decoding methods
     @classmethod
@@ -191,23 +178,17 @@ class QueueSendResult(BaseModel):
         )
 
 
-class QueueBatchSendResult(BaseModel):
+@dataclasses.dataclass(frozen=True)
+class QueueBatchSendResult:
     """Result of a batch send operation via gRPC ``SendQueueMessagesBatch``.
 
     Surfaces the full server response including the aggregate ``have_errors``
     flag and ``batch_id`` correlation, in addition to per-message results.
     """
 
-    model_config = ConfigDict(frozen=True)
-
-    batch_id: str = Field(description="Server-echoed batch tracking ID")
-    results: list[QueueSendResult] = Field(
-        default_factory=list, description="Per-message send results"
-    )
-    have_errors: bool = Field(
-        default=False,
-        description="True if any message in the batch failed",
-    )
+    batch_id: str = ""
+    results: list[QueueSendResult] = dataclasses.field(default_factory=list)
+    have_errors: bool = False
 
     def __len__(self) -> int:
         return len(self.results)

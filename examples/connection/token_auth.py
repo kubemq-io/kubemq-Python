@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from kubemq import EventMessage, PubSubClient
+from kubemq import Client, EventMessage
 
 
 def main() -> None:
-    with PubSubClient(
+    with Client(
         address="localhost:50000",
         auth_token="your-authentication-token",
         client_id="python-connection-token-auth-client",
@@ -14,7 +14,7 @@ def main() -> None:
         info = client.ping()
         print(f"Authenticated and connected to {info.host}")
 
-        client.publish_event(
+        client.send_event(
             EventMessage(
                 channel="python-connection.token-auth",
                 body=b"Authenticated message",

@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from kubemq import PubSubClient
+from kubemq import Client
 
 
 def main() -> None:
-    with PubSubClient(
+    with Client(
         address="localhost:50000",
         client_id="python-connection-ping-client",
     ) as client:

@@ -12,7 +12,7 @@ from typing import (
     Any,
 )
 
-from pydantic import ValidationError
+import dataclasses
 
 from kubemq._internal.deprecation import deprecated_async
 from kubemq._internal.retry import BackoffCalculator
@@ -32,11 +32,11 @@ from kubemq.core.exceptions import (
 )
 from kubemq.pubsub.async_event_sender import AsyncEventSender
 from kubemq.pubsub.event_message import EventMessage
-from kubemq.pubsub.event_message_received import EventMessageReceived
-from kubemq.pubsub.event_send_result import EventSendResult
+from kubemq.pubsub.event_message_received import EventReceived
+from kubemq.pubsub.event_send_result import EventStoreResult
 from kubemq.pubsub.event_store_message import EventStoreMessage
-from kubemq.pubsub.event_store_message_received import EventStoreMessageReceived
-from kubemq.pubsub.events_store_subscription import EventsStoreSubscription, EventsStoreType
+from kubemq.pubsub.event_store_message_received import EventStoreReceived
+from kubemq.pubsub.events_store_subscription import EventsStoreSubscription, EventStoreStartPosition
 from kubemq.pubsub.events_subscription import EventsSubscription
 
 if TYPE_CHECKING:
@@ -45,8 +45,8 @@ if TYPE_CHECKING:
 _logger = logging.getLogger("kubemq.pubsub.async_client")
 
 # Type aliases for callbacks
-AsyncEventCallback = Callable[[EventMessageReceived], Awaitable[None]]
-AsyncEventStoreCallback = Callable[[EventStoreMessageReceived], Awaitable[None]]
+AsyncEventCallback = Callable[[EventReceived], Awaitable[None]]
+AsyncEventStoreCallback = Callable[[EventStoreReceived], Awaitable[None]]
 AsyncErrorCallback = Callable[[Exception], Awaitable[None]]
 
 
@@ -114,13 +114,18 @@ class AsyncClient(NativeAsyncBaseClient):
         """Lazily initialize the bidirectional event stream sender."""
         if self._event_sender is None:
             self._ensure_connected()
-            assert self._transport is not None
-            self._event_sender = AsyncEventSender(self._transport)
+            self._event_sender = AsyncEventSender(self._pick_pool_transport())
             await self._event_sender.start()
         return self._event_sender
 
     async def close(self) -> None:
-        """Close the client and its event sender."""
+        """Close the client and its event sender.
+
+        Releases the bidirectional event stream and transport resources.
+
+        See Also:
+            :meth:`kubemq.pubsub.client.Client.close`: Sync counterpart.
+        """
         if self._event_sender is not None:
             await self._event_sender.close()
             self._event_sender = None
@@ -134,13 +139,28 @@ class AsyncClient(NativeAsyncBaseClient):
         """Publish a fire-and-forget event via bidirectional stream.
 
         Uses ``SendEventsStream`` for high-throughput, fire-and-forget delivery.
+        Unlike :meth:`send_event_unary`, this method does not return a result
+        from the server.
 
         Args:
             message: The event message to publish.
 
         Raises:
-            KubeMQConnectionError: If not connected.
-            KubeMQValidationError: If message is invalid.
+            KubeMQValidationError: If the message fails validation (e.g.,
+                empty channel, body exceeds ``max_send_size``).
+            KubeMQConnectionError: If the server is unreachable or the
+                connection is lost.
+            KubeMQAuthenticationError: If the auth token is invalid or
+                expired, or the client lacks permission for the channel.
+            KubeMQClientClosedError: If the client has already been closed.
+
+        See Also:
+            :class:`~kubemq.pubsub.event_message.EventMessage`:
+                Message type used for events.
+            :meth:`kubemq.pubsub.client.Client.publish_event`: Sync counterpart.
+            :meth:`subscribe_to_events`: Subscribe to receive events on a
+                channel.
+            :meth:`send_event_unary`: Unary RPC variant with server confirmation.
         """
         self._validate_message_size(message.body)
         start = time.perf_counter()
@@ -162,7 +182,7 @@ class AsyncClient(NativeAsyncBaseClient):
                 sender = await self._get_event_sender()
                 await sender.send(pb_event)
                 self._instrumentor._metrics.record_sent_message("publish", message.channel)
-            except ValidationError as e:
+            except (ValueError, TypeError) as e:
                 error_type_val = "validation"
                 self._instrumentor.record_error(span, e, error_type_val)
                 raise KubeMQValidationError(str(e), is_retryable=False) from e
@@ -176,6 +196,19 @@ class AsyncClient(NativeAsyncBaseClient):
                     duration, "publish", message.channel, error_type_val
                 )
 
+    async def publish_event_fast(self, message: EventMessage) -> None:
+        """Publish fire-and-forget event — fast path, no instrumentation."""
+        sender = await self._get_event_sender()
+        pb_event = message.encode(self._config.client_id or "")
+        await sender.send(pb_event)
+
+    async def send_event_store_fast(self, message: EventStoreMessage) -> EventStoreResult:
+        """Send persistent event — fast path, no instrumentation."""
+        sender = await self._get_event_sender()
+        pb_event = message.encode(self._config.client_id or "")
+        result = await sender.send(pb_event)
+        return EventStoreResult.decode(result) if result else EventStoreResult()
+
     async def send_event_unary(self, message: EventMessage) -> None:
         """Send an event message via unary SendEvent RPC.
 
@@ -185,8 +218,25 @@ class AsyncClient(NativeAsyncBaseClient):
             message: The event message to send.
 
         Raises:
-            KubeMQValidationError: If message is invalid.
-            KubeMQError: If the server returns Sent=false.
+            KubeMQValidationError: If the message fails validation (e.g.,
+                empty channel, body exceeds ``max_send_size``).
+            KubeMQConnectionError: If the server is unreachable or the
+                connection is lost.
+            KubeMQAuthenticationError: If the auth token is invalid or
+                expired, or the client lacks permission for the channel.
+            KubeMQTimeoutError: If the operation exceeds the server deadline.
+            KubeMQClientClosedError: If the client has already been closed.
+            KubeMQError: If the server returns ``Sent=false`` with an error
+                message.
+
+        See Also:
+            :class:`~kubemq.pubsub.event_message.EventMessage`:
+                Message type used for events.
+            :meth:`kubemq.pubsub.client.Client.send_event`: Sync counterpart.
+            :meth:`subscribe_to_events`: Subscribe to receive events on a
+                channel.
+            :meth:`publish_event`: Fire-and-forget variant using the
+                streaming sender.
         """
         self._validate_message_size(message.body)
         self._ensure_connected()
@@ -211,7 +261,7 @@ class AsyncClient(NativeAsyncBaseClient):
                 self._instrumentor._metrics.record_sent_message("publish", message.channel)
                 if result and not result.Sent and result.Error:
                     raise KubeMQError(result.Error)
-            except ValidationError as e:
+            except (ValueError, TypeError) as e:
                 error_type_val = "validation"
                 self._instrumentor.record_error(span, e, error_type_val)
                 raise KubeMQValidationError(str(e), is_retryable=False) from e
@@ -231,17 +281,51 @@ class AsyncClient(NativeAsyncBaseClient):
 
         Deprecated:
             Use ``publish_event()`` instead. Will be removed in v5.0.
+
+        Args:
+            message: The event message to send.
+
+        Raises:
+            KubeMQValidationError: If the message fails validation.
+            KubeMQConnectionError: If the server is unreachable.
+            KubeMQAuthenticationError: If authentication or authorization
+                fails.
+            KubeMQClientClosedError: If the client has already been closed.
+
+        See Also:
+            :meth:`publish_event`: Preferred replacement.
+            :meth:`kubemq.pubsub.client.Client.send_events_message`: Sync
+                counterpart (also deprecated).
         """
         return await self.publish_event(message)
 
-    async def publish_event_store(self, message: EventStoreMessage) -> EventSendResult:
+    async def send_event_store(self, message: EventStoreMessage) -> EventStoreResult:
         """Publish a persistent event store message.
 
         Args:
             message: The event store message to publish.
 
         Returns:
-            EventSendResult with persistence confirmation.
+            EventStoreResult: Contains ``sent`` (bool indicating delivery
+            success), ``id`` (the server-assigned message ID), and
+            ``error`` (error description if the send failed).
+
+        Raises:
+            KubeMQValidationError: If the message fails validation (e.g.,
+                empty channel, body exceeds ``max_send_size``).
+            KubeMQConnectionError: If the server is unreachable or the
+                connection is lost.
+            KubeMQAuthenticationError: If the auth token is invalid or
+                expired, or the client lacks permission for the channel.
+            KubeMQClientClosedError: If the client has already been closed.
+
+        See Also:
+            :class:`~kubemq.pubsub.event_store_message.EventStoreMessage`:
+                Message type for persistent events.
+            :meth:`kubemq.pubsub.client.Client.send_event_store`: Sync
+                counterpart.
+            :meth:`subscribe_to_events_store`: Subscribe to receive stored
+                events with replay capability.
         """
         self._validate_message_size(message.body)
         start = time.perf_counter()
@@ -263,8 +347,8 @@ class AsyncClient(NativeAsyncBaseClient):
                 sender = await self._get_event_sender()
                 result = await sender.send(pb_event)
                 self._instrumentor._metrics.record_sent_message("publish", message.channel)
-                return EventSendResult.decode(result) if result else EventSendResult()
-            except ValidationError as e:
+                return EventStoreResult.decode(result) if result else EventStoreResult()
+            except (ValueError, TypeError) as e:
                 error_type_val = "validation"
                 self._instrumentor.record_error(span, e, error_type_val)
                 raise KubeMQValidationError(str(e), is_retryable=False) from e
@@ -278,20 +362,38 @@ class AsyncClient(NativeAsyncBaseClient):
                     duration, "publish", message.channel, error_type_val
                 )
 
-    @deprecated_async(replacement="publish_event_store()", since="4.0.0", removal="5.0.0")
-    async def send_event_store(self, message: EventStoreMessage) -> EventSendResult:
+    @deprecated_async(replacement="send_event_store()", since="4.0.0", removal="5.0.0")
+    async def send_events_store_message(self, message: EventStoreMessage) -> EventStoreResult:
         """Send an event to events store (persistent).
 
         Deprecated:
-            Use ``publish_event_store()`` instead. Will be removed in v5.0.
+            Use ``send_event_store()`` instead. Will be removed in v5.0.
+
+        Args:
+            message: The event store message to send.
+
+        Returns:
+            EventStoreResult: Contains ``sent``, ``id``, and ``error`` fields.
+
+        Raises:
+            KubeMQValidationError: If the message fails validation.
+            KubeMQConnectionError: If the server is unreachable.
+            KubeMQAuthenticationError: If authentication or authorization
+                fails.
+            KubeMQClientClosedError: If the client has already been closed.
+
+        See Also:
+            :meth:`send_event_store`: Preferred replacement.
+            :meth:`kubemq.pubsub.client.Client.send_events_store_message`: Sync
+                counterpart (also deprecated).
         """
-        return await self.publish_event_store(message)
+        return await self.send_event_store(message)
 
     async def send_events_batch(
         self,
         messages: list[EventMessage],
         max_concurrent: int = 100,
-    ) -> list[EventSendResult]:
+    ) -> list[EventStoreResult]:
         """Send multiple events concurrently with backpressure control.
 
         Args:
@@ -299,20 +401,34 @@ class AsyncClient(NativeAsyncBaseClient):
             max_concurrent: Maximum concurrent sends (default 100)
 
         Returns:
-            List of results (success or error for each)
+            list[EventStoreResult]: One result per message, in the same order
+            as the input. Each result contains ``sent``, ``id``, and
+            ``error`` fields.
+
+        Raises:
+            KubeMQValidationError: If any message fails validation.
+            KubeMQConnectionError: If the server is unreachable.
+            KubeMQAuthenticationError: If authentication or authorization
+                fails.
+            KubeMQClientClosedError: If the client has already been closed.
+
+        See Also:
+            :meth:`publish_event`: Single-event fire-and-forget publishing.
+            :meth:`send_events_store_batch`: Batch publishing for persistent
+                events.
         """
         self._ensure_connected()
 
         # Use semaphore for backpressure
         semaphore = asyncio.Semaphore(max_concurrent)
 
-        async def bounded_send(msg: EventMessage, index: int) -> tuple[int, EventSendResult]:
+        async def bounded_send(msg: EventMessage, index: int) -> tuple[int, EventStoreResult]:
             async with semaphore:
                 try:
                     await self.publish_event(msg)
                     return (
                         index,
-                        EventSendResult(
+                        EventStoreResult(
                             id=msg.id,
                             sent=True,
                             error="",
@@ -321,7 +437,7 @@ class AsyncClient(NativeAsyncBaseClient):
                 except Exception as e:
                     return (
                         index,
-                        EventSendResult(
+                        EventStoreResult(
                             id=msg.id,
                             sent=False,
                             error=str(e),
@@ -339,7 +455,7 @@ class AsyncClient(NativeAsyncBaseClient):
         self,
         messages: list[EventStoreMessage],
         max_concurrent: int = 100,
-    ) -> list[EventSendResult]:
+    ) -> list[EventStoreResult]:
         """Send multiple events store messages concurrently with backpressure control.
 
         Args:
@@ -347,21 +463,35 @@ class AsyncClient(NativeAsyncBaseClient):
             max_concurrent: Maximum concurrent sends (default 100)
 
         Returns:
-            List of results for each message
+            list[EventStoreResult]: One result per message, in the same order
+            as the input. Each result contains ``sent``, ``id``, and
+            ``error`` fields.
+
+        Raises:
+            KubeMQValidationError: If any message fails validation.
+            KubeMQConnectionError: If the server is unreachable.
+            KubeMQAuthenticationError: If authentication or authorization
+                fails.
+            KubeMQClientClosedError: If the client has already been closed.
+
+        See Also:
+            :meth:`send_event_store`: Single-message persistent publishing.
+            :meth:`send_events_batch`: Batch publishing for fire-and-forget
+                events.
         """
         self._ensure_connected()
 
         semaphore = asyncio.Semaphore(max_concurrent)
 
-        async def bounded_send(msg: EventStoreMessage, index: int) -> tuple[int, EventSendResult]:
+        async def bounded_send(msg: EventStoreMessage, index: int) -> tuple[int, EventStoreResult]:
             async with semaphore:
                 try:
-                    result = await self.publish_event_store(msg)
+                    result = await self.send_event_store(msg)
                     return (index, result)
                 except Exception as e:
                     return (
                         index,
-                        EventSendResult(
+                        EventStoreResult(
                             id=msg.id,
                             sent=False,
                             error=str(e),
@@ -382,7 +512,7 @@ class AsyncClient(NativeAsyncBaseClient):
         self,
         subscription: EventsSubscription,
         cancellation_token: AsyncCancellationToken | None = None,
-    ) -> AsyncIterator[EventMessageReceived]:
+    ) -> AsyncIterator[EventReceived]:
         """Subscribe to events with automatic stream reconnection.
 
         Stream-level transient errors trigger re-subscribe with exponential
@@ -394,7 +524,16 @@ class AsyncClient(NativeAsyncBaseClient):
             cancellation_token: Optional token to cancel subscription
 
         Yields:
-            EventMessageReceived for each event
+            EventReceived: For each event received on the channel.
+
+        Raises:
+            KubeMQValidationError: If the subscription configuration is
+                invalid (e.g., empty channel or missing callbacks).
+            KubeMQConnectionError: If the server is unreachable or the
+                initial connection fails.
+            KubeMQAuthenticationError: If the auth token is invalid or the
+                client lacks permission for the target channel.
+            KubeMQClientClosedError: If the client has already been closed.
 
         Cancellation:
             Pass an ``AsyncCancellationToken`` to cancel the subscription.
@@ -409,6 +548,14 @@ class AsyncClient(NativeAsyncBaseClient):
                     client.subscribe_to_events(sub, token),
                     timeout=60.0,
                 )
+
+        See Also:
+            :class:`~kubemq.pubsub.events_subscription.EventsSubscription`:
+                Subscription configuration for events.
+            :meth:`kubemq.pubsub.client.Client.subscribe_to_events`: Sync
+                counterpart.
+            :meth:`publish_event`: Publish events to a channel.
+            :meth:`subscribe_with_callback`: Callback-based subscription variant.
 
         Example:
             token = AsyncCancellationToken()
@@ -446,7 +593,7 @@ class AsyncClient(NativeAsyncBaseClient):
                             "process", subscription.channel, links=links or None
                         ) as span:
                             try:
-                                event = EventMessageReceived.decode(pb_event)
+                                event = EventReceived.decode(pb_event)
 
                                 if subscription.on_receive_event_callback is not None:
                                     try:
@@ -549,11 +696,37 @@ class AsyncClient(NativeAsyncBaseClient):
         finally:
             await self._unregister_subscription(token)
 
+    async def subscribe_to_events_fast(
+        self,
+        subscription: EventsSubscription,
+        cancellation_token: AsyncCancellationToken | None = None,
+    ) -> AsyncIterator[EventReceived]:
+        """Subscribe to events — fast path, no instrumentation per message."""
+        self._ensure_connected()
+        assert self._transport is not None
+        token = cancellation_token or AsyncCancellationToken()
+        request = subscription.encode(self._config.client_id or "")
+        async for pb_event in self._transport.subscribe_to_events(request, token):
+            yield EventReceived.decode(pb_event)
+
+    async def subscribe_to_events_store_fast(
+        self,
+        subscription: EventsStoreSubscription,
+        cancellation_token: AsyncCancellationToken | None = None,
+    ) -> AsyncIterator[EventStoreReceived]:
+        """Subscribe to events store — fast path, no instrumentation per message."""
+        self._ensure_connected()
+        assert self._transport is not None
+        token = cancellation_token or AsyncCancellationToken()
+        request = subscription.encode(self._config.client_id or "")
+        async for pb_event in self._transport.subscribe_to_events(request, token):
+            yield EventStoreReceived.decode(pb_event)
+
     async def subscribe_to_events_store(
         self,
         subscription: EventsStoreSubscription,
         cancellation_token: AsyncCancellationToken | None = None,
-    ) -> AsyncIterator[EventStoreMessageReceived]:
+    ) -> AsyncIterator[EventStoreReceived]:
         """Subscribe to events store with automatic stream reconnection.
 
         Stream-level transient errors trigger re-subscribe with exponential
@@ -565,11 +738,30 @@ class AsyncClient(NativeAsyncBaseClient):
             cancellation_token: Optional token to cancel subscription
 
         Yields:
-            EventStoreMessageReceived for each event
+            EventStoreReceived: For each stored event received on the
+            channel.
+
+        Raises:
+            KubeMQValidationError: If the subscription configuration is
+                invalid (e.g., empty channel or missing callbacks).
+            KubeMQConnectionError: If the server is unreachable or the
+                initial connection fails.
+            KubeMQAuthenticationError: If the auth token is invalid or the
+                client lacks permission for the target channel.
+            KubeMQClientClosedError: If the client has already been closed.
 
         Cancellation:
             Pass an ``AsyncCancellationToken`` to cancel the subscription.
             When cancelled, the async iterator terminates.
+
+        See Also:
+            :class:`~kubemq.pubsub.events_store_subscription.EventsStoreSubscription`:
+                Subscription configuration for persistent events.
+            :meth:`kubemq.pubsub.client.Client.subscribe_to_events_store`: Sync
+                counterpart.
+            :meth:`send_event_store`: Publish persistent events.
+            :meth:`subscribe_store_with_callback`: Callback-based subscription
+                variant.
         """
         self._ensure_connected()
         assert self._transport is not None
@@ -585,11 +777,10 @@ class AsyncClient(NativeAsyncBaseClient):
             while not token.is_cancelled:
                 try:
                     if last_sequence > 0:
-                        resume_sub = subscription.model_copy(
-                            update={
-                                "events_store_type": EventsStoreType.StartAtSequence,
-                                "events_store_sequence_value": last_sequence + 1,
-                            }
+                        resume_sub = dataclasses.replace(
+                            subscription,
+                            events_store_type=EventStoreStartPosition.StartAtSequence,
+                            events_store_sequence_value=last_sequence + 1,
                         )
                         request = resume_sub.encode(self._config.client_id or "")
                     else:
@@ -610,7 +801,7 @@ class AsyncClient(NativeAsyncBaseClient):
                             "process", subscription.channel, links=links or None
                         ) as span:
                             try:
-                                event = EventStoreMessageReceived.decode(pb_event)
+                                event = EventStoreReceived.decode(pb_event)
 
                                 if event.sequence > 0:
                                     last_sequence = event.sequence
@@ -745,10 +936,23 @@ class AsyncClient(NativeAsyncBaseClient):
 
         Raises:
             ValueError: If ``max_concurrent_callbacks`` < 1 or > 1000.
+            KubeMQValidationError: If the subscription configuration is
+                invalid (e.g., empty channel or missing callbacks).
+            KubeMQConnectionError: If the server is unreachable or the
+                initial connection fails.
+            KubeMQAuthenticationError: If the auth token is invalid or the
+                client lacks permission for the target channel.
+            KubeMQClientClosedError: If the client has already been closed.
 
         Cancellation:
             Pass an ``AsyncCancellationToken`` to cancel the subscription.
             When cancelled, in-flight callbacks are awaited before return.
+
+        See Also:
+            :meth:`subscribe_to_events`: Iterator-based subscription variant.
+            :meth:`kubemq.pubsub.client.Client.subscribe_to_events`: Sync
+                counterpart.
+            :meth:`publish_event`: Publish events to a channel.
 
         Long-Running Callbacks:
             If your callback performs CPU-intensive or blocking work,
@@ -801,7 +1005,7 @@ class AsyncClient(NativeAsyncBaseClient):
                                 "process", subscription.channel, links=links or None
                             ) as span:
                                 try:
-                                    event = EventMessageReceived.decode(pb_event)
+                                    event = EventReceived.decode(pb_event)
                                     try:
                                         await callback(event)
                                     except Exception as handler_err:
@@ -838,7 +1042,7 @@ class AsyncClient(NativeAsyncBaseClient):
                         sem = asyncio.Semaphore(max_concurrent_callbacks)
 
                         async def _run_callback(
-                            evt: EventMessageReceived, _sem: asyncio.Semaphore = sem
+                            evt: EventReceived, _sem: asyncio.Semaphore = sem
                         ) -> None:
                             try:
                                 await callback(evt)
@@ -857,7 +1061,7 @@ class AsyncClient(NativeAsyncBaseClient):
 
                         async for pb_event in self._transport.subscribe_to_events(request, token):
                             attempt = 0
-                            event = EventMessageReceived.decode(pb_event)
+                            event = EventReceived.decode(pb_event)
                             self._instrumentor._metrics.record_consumed_message(
                                 "process", subscription.channel
                             )
@@ -934,10 +1138,24 @@ class AsyncClient(NativeAsyncBaseClient):
 
         Raises:
             ValueError: If ``max_concurrent_callbacks`` < 1 or > 1000.
+            KubeMQValidationError: If the subscription configuration is
+                invalid (e.g., empty channel or missing callbacks).
+            KubeMQConnectionError: If the server is unreachable or the
+                initial connection fails.
+            KubeMQAuthenticationError: If the auth token is invalid or the
+                client lacks permission for the target channel.
+            KubeMQClientClosedError: If the client has already been closed.
 
         Cancellation:
             Pass an ``AsyncCancellationToken`` to cancel the subscription.
             When cancelled, in-flight callbacks are awaited before return.
+
+        See Also:
+            :meth:`subscribe_to_events_store`: Iterator-based subscription
+                variant.
+            :meth:`kubemq.pubsub.client.Client.subscribe_to_events_store`: Sync
+                counterpart.
+            :meth:`send_event_store`: Publish persistent events.
         """
         if max_concurrent_callbacks < 1:
             raise ValueError("max_concurrent_callbacks must be >= 1")
@@ -965,11 +1183,10 @@ class AsyncClient(NativeAsyncBaseClient):
             while not token.is_cancelled:
                 try:
                     if last_sequence > 0:
-                        resume_sub = subscription.model_copy(
-                            update={
-                                "events_store_type": EventsStoreType.StartAtSequence,
-                                "events_store_sequence_value": last_sequence + 1,
-                            }
+                        resume_sub = dataclasses.replace(
+                            subscription,
+                            events_store_type=EventStoreStartPosition.StartAtSequence,
+                            events_store_sequence_value=last_sequence + 1,
                         )
                         request = resume_sub.encode(self._config.client_id or "")
                     else:
@@ -991,7 +1208,7 @@ class AsyncClient(NativeAsyncBaseClient):
                                 "process", subscription.channel, links=links or None
                             ) as span:
                                 try:
-                                    event = EventStoreMessageReceived.decode(pb_event)
+                                    event = EventStoreReceived.decode(pb_event)
                                     if event.sequence > 0:
                                         last_sequence = event.sequence
                                     try:
@@ -1029,7 +1246,7 @@ class AsyncClient(NativeAsyncBaseClient):
                         sem = asyncio.Semaphore(max_concurrent_callbacks)
 
                         async def _run_store_callback(
-                            evt: EventStoreMessageReceived, _sem: asyncio.Semaphore = sem
+                            evt: EventStoreReceived, _sem: asyncio.Semaphore = sem
                         ) -> None:
                             try:
                                 await callback(evt)
@@ -1048,7 +1265,7 @@ class AsyncClient(NativeAsyncBaseClient):
 
                         async for pb_event in self._transport.subscribe_to_events(request, token):
                             attempt = 0
-                            event = EventStoreMessageReceived.decode(pb_event)
+                            event = EventStoreReceived.decode(pb_event)
                             if event.sequence > 0:
                                 last_sequence = event.sequence
                             self._instrumentor._metrics.record_consumed_message(

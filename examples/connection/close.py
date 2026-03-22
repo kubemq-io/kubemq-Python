@@ -2,16 +2,16 @@
 
 from __future__ import annotations
 
-from kubemq import EventMessage, PubSubClient
+from kubemq import Client, EventMessage
 
 
 def main() -> None:
-    client = PubSubClient(
+    client = Client(
         address="localhost:50000",
         client_id="python-connection-close-client",
     )
     try:
-        client.publish_event(
+        client.send_event(
             EventMessage(channel="python-connection.close", body=b"Hello before close")
         )
         print("Event sent successfully")

@@ -10,9 +10,9 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from kubemq.common.subscribe_type import SubscribeType
-from kubemq.pubsub.event_message_received import EventMessageReceived
-from kubemq.pubsub.event_store_message_received import EventStoreMessageReceived
-from kubemq.pubsub.events_store_subscription import EventsStoreSubscription, EventsStoreType
+from kubemq.pubsub.event_message_received import EventReceived
+from kubemq.pubsub.event_store_message_received import EventStoreReceived
+from kubemq.pubsub.events_store_subscription import EventsStoreSubscription, EventStoreStartPosition
 from kubemq.pubsub.events_subscription import EventsSubscription
 
 
@@ -102,7 +102,7 @@ class TestEventsSubscriptionCallbacks:
             on_receive_event_callback=callback,
         )
 
-        event = EventMessageReceived(
+        event = EventReceived(
             id="msg-1",
             channel="test-channel",
             body=b"test body",
@@ -146,7 +146,7 @@ class TestEventsSubscriptionCallbacks:
             on_receive_event_callback=callback,
         )
 
-        event = EventMessageReceived(
+        event = EventReceived(
             id="msg-1",
             channel="test-channel",
             body=b"test",
@@ -165,7 +165,7 @@ class TestEventsSubscriptionCallbacks:
             on_receive_event_callback=callback,
         )
 
-        event = EventMessageReceived(
+        event = EventReceived(
             id="msg-1",
             channel="test-channel",
             body=b"test",
@@ -187,7 +187,7 @@ class TestEventsSubscriptionModelDump:
             on_error_callback=MagicMock(),
         )
 
-        dump = sub.model_dump()
+        dump = sub.to_dict()
 
         assert "on_receive_event_callback" not in dump
         assert "on_error_callback" not in dump
@@ -202,60 +202,61 @@ class TestEventsStoreSubscriptionValidation:
         with pytest.raises(ValueError, match="must have a channel"):
             EventsStoreSubscription(
                 channel="",
-                events_store_type=EventsStoreType.StartNewOnly,
+                events_store_type=EventStoreStartPosition.StartFromNew,
                 on_receive_event_callback=MagicMock(),
             )
 
     def test_requires_events_store_type(self):
-        """Test that events_store_type must not be Undefined."""
+        """Test that events_store_type must not be Undefined when validated."""
+        sub = EventsStoreSubscription(
+            channel="test-channel",
+            events_store_type=EventStoreStartPosition.Undefined,
+            on_receive_event_callback=MagicMock(),
+        )
         with pytest.raises(ValueError, match="must have an events store type"):
-            EventsStoreSubscription(
-                channel="test-channel",
-                events_store_type=EventsStoreType.Undefined,
-                on_receive_event_callback=MagicMock(),
-            )
+            sub.validate()
 
     def test_valid_subscription_start_new_only(self):
-        """Test valid subscription with StartNewOnly type."""
+        """Test valid subscription with StartFromNew type."""
         callback = MagicMock()
         sub = EventsStoreSubscription(
             channel="test-channel",
-            events_store_type=EventsStoreType.StartNewOnly,
+            events_store_type=EventStoreStartPosition.StartFromNew,
             on_receive_event_callback=callback,
         )
 
         assert sub.channel == "test-channel"
-        assert sub.events_store_type == EventsStoreType.StartNewOnly
+        assert sub.events_store_type == EventStoreStartPosition.StartFromNew
 
     def test_valid_subscription_start_from_first(self):
         """Test valid subscription with StartFromFirst type."""
         sub = EventsStoreSubscription(
             channel="test-channel",
-            events_store_type=EventsStoreType.StartFromFirst,
+            events_store_type=EventStoreStartPosition.StartFromFirst,
             on_receive_event_callback=MagicMock(),
         )
 
-        assert sub.events_store_type == EventsStoreType.StartFromFirst
+        assert sub.events_store_type == EventStoreStartPosition.StartFromFirst
 
     def test_valid_subscription_start_from_last(self):
         """Test valid subscription with StartFromLast type."""
         sub = EventsStoreSubscription(
             channel="test-channel",
-            events_store_type=EventsStoreType.StartFromLast,
+            events_store_type=EventStoreStartPosition.StartFromLast,
             on_receive_event_callback=MagicMock(),
         )
 
-        assert sub.events_store_type == EventsStoreType.StartFromLast
+        assert sub.events_store_type == EventStoreStartPosition.StartFromLast
 
 
 class TestEventsStoreSubscriptionEncode:
     """Tests for EventsStoreSubscription encoding."""
 
     def test_encode_start_new_only(self):
-        """Test encoding StartNewOnly subscription."""
+        """Test encoding StartFromNew subscription."""
         sub = EventsStoreSubscription(
             channel="encode-channel",
-            events_store_type=EventsStoreType.StartNewOnly,
+            events_store_type=EventStoreStartPosition.StartFromNew,
             on_receive_event_callback=MagicMock(),
         )
 
@@ -263,32 +264,32 @@ class TestEventsStoreSubscriptionEncode:
 
         assert request.Channel == "encode-channel"
         assert request.ClientID == "test-client"
-        assert request.EventsStoreTypeData == EventsStoreType.StartNewOnly.value
+        assert request.EventsStoreTypeData == EventStoreStartPosition.StartFromNew.value
         assert request.SubscribeTypeData == SubscribeType.EventsStore.value
 
     def test_encode_start_from_first(self):
         """Test encoding StartFromFirst subscription."""
         sub = EventsStoreSubscription(
             channel="encode-channel",
-            events_store_type=EventsStoreType.StartFromFirst,
+            events_store_type=EventStoreStartPosition.StartFromFirst,
             on_receive_event_callback=MagicMock(),
         )
 
         request = sub.encode("test-client")
 
-        assert request.EventsStoreTypeData == EventsStoreType.StartFromFirst.value
+        assert request.EventsStoreTypeData == EventStoreStartPosition.StartFromFirst.value
 
     def test_encode_start_from_last(self):
         """Test encoding StartFromLast subscription."""
         sub = EventsStoreSubscription(
             channel="encode-channel",
-            events_store_type=EventsStoreType.StartFromLast,
+            events_store_type=EventStoreStartPosition.StartFromLast,
             on_receive_event_callback=MagicMock(),
         )
 
         request = sub.encode("test-client")
 
-        assert request.EventsStoreTypeData == EventsStoreType.StartFromLast.value
+        assert request.EventsStoreTypeData == EventStoreStartPosition.StartFromLast.value
 
 
 class TestEventsStoreSubscriptionCallbacks:
@@ -299,11 +300,11 @@ class TestEventsStoreSubscriptionCallbacks:
         callback = MagicMock()
         sub = EventsStoreSubscription(
             channel="test-channel",
-            events_store_type=EventsStoreType.StartNewOnly,
+            events_store_type=EventStoreStartPosition.StartFromNew,
             on_receive_event_callback=callback,
         )
 
-        event = EventStoreMessageReceived(
+        event = EventStoreReceived(
             id="msg-1",
             channel="test-channel",
             body=b"test body",
@@ -320,11 +321,11 @@ class TestEventsStoreSubscriptionCallbacks:
         callback = AsyncMock()
         sub = EventsStoreSubscription(
             channel="test-channel",
-            events_store_type=EventsStoreType.StartNewOnly,
+            events_store_type=EventStoreStartPosition.StartFromNew,
             on_receive_event_callback=callback,
         )
 
-        event = EventStoreMessageReceived(
+        event = EventStoreReceived(
             id="msg-1",
             channel="test-channel",
             body=b"test",
@@ -343,11 +344,11 @@ class TestEventsStoreSubscriptionModelDump:
         """Test model_dump converts events_store_type to name."""
         sub = EventsStoreSubscription(
             channel="test-channel",
-            events_store_type=EventsStoreType.StartFromFirst,
+            events_store_type=EventStoreStartPosition.StartFromFirst,
             on_receive_event_callback=MagicMock(),
         )
 
-        dump = sub.model_dump()
+        dump = sub.to_dict()
 
         assert dump["events_store_type"] == "StartFromFirst"
         assert "on_receive_event_callback" not in dump
@@ -356,47 +357,48 @@ class TestEventsStoreSubscriptionModelDump:
         """Test model_dump excludes callback functions."""
         sub = EventsStoreSubscription(
             channel="test-channel",
-            events_store_type=EventsStoreType.StartNewOnly,
+            events_store_type=EventStoreStartPosition.StartFromNew,
             on_receive_event_callback=MagicMock(),
             on_error_callback=MagicMock(),
         )
 
-        dump = sub.model_dump()
+        dump = sub.to_dict()
 
         assert "on_receive_event_callback" not in dump
         assert "on_error_callback" not in dump
 
 
-class TestEventsStoreType:
-    """Tests for EventsStoreType enum."""
+class TestEventStoreStartPosition:
+    """Tests for EventStoreStartPosition enum."""
 
     def test_enum_values(self):
         """Test enum values are correct."""
-        assert EventsStoreType.Undefined.value == 0
-        assert EventsStoreType.StartNewOnly.value == 1
-        assert EventsStoreType.StartFromFirst.value == 2
-        assert EventsStoreType.StartFromLast.value == 3
-        assert EventsStoreType.StartAtSequence.value == 4
-        assert EventsStoreType.StartAtTime.value == 5
-        assert EventsStoreType.StartAtTimeDelta.value == 6
+        assert EventStoreStartPosition.Undefined.value == 0
+        assert EventStoreStartPosition.StartFromNew.value == 1
+        assert EventStoreStartPosition.StartFromFirst.value == 2
+        assert EventStoreStartPosition.StartFromLast.value == 3
+        assert EventStoreStartPosition.StartAtSequence.value == 4
+        assert EventStoreStartPosition.StartAtTime.value == 5
+        assert EventStoreStartPosition.StartAtTimeDelta.value == 6
 
 
 class TestEventsStoreSubscriptionSequenceValidation:
     """Tests for EventsStoreSubscription sequence value validation."""
 
     def test_start_at_sequence_with_zero_raises(self):
+        sub = EventsStoreSubscription(
+            channel="ch",
+            events_store_type=EventStoreStartPosition.StartAtSequence,
+            events_store_sequence_value=0,
+            on_receive_event_callback=MagicMock(),
+        )
         with pytest.raises(ValueError, match="sequence value"):
-            EventsStoreSubscription(
-                channel="ch",
-                events_store_type=EventsStoreType.StartAtSequence,
-                events_store_sequence_value=0,
-                on_receive_event_callback=MagicMock(),
-            )
+            sub.validate()
 
     def test_start_at_sequence_with_positive_value(self):
         sub = EventsStoreSubscription(
             channel="ch",
-            events_store_type=EventsStoreType.StartAtSequence,
+            events_store_type=EventStoreStartPosition.StartAtSequence,
             events_store_sequence_value=42,
             on_receive_event_callback=MagicMock(),
         )
@@ -407,13 +409,14 @@ class TestEventsStoreSubscriptionTimeValidation:
     """Tests for EventsStoreSubscription start time validation."""
 
     def test_start_at_time_with_none_raises(self):
+        sub = EventsStoreSubscription(
+            channel="ch",
+            events_store_type=EventStoreStartPosition.StartAtTime,
+            events_store_start_time=None,
+            on_receive_event_callback=MagicMock(),
+        )
         with pytest.raises(ValueError, match="start time"):
-            EventsStoreSubscription(
-                channel="ch",
-                events_store_type=EventsStoreType.StartAtTime,
-                events_store_start_time=None,
-                on_receive_event_callback=MagicMock(),
-            )
+            sub.validate()
 
     def test_start_at_time_with_datetime(self):
         from datetime import datetime
@@ -421,7 +424,7 @@ class TestEventsStoreSubscriptionTimeValidation:
         dt = datetime(2025, 1, 1, 12, 0, 0)
         sub = EventsStoreSubscription(
             channel="ch",
-            events_store_type=EventsStoreType.StartAtTime,
+            events_store_type=EventStoreStartPosition.StartAtTime,
             events_store_start_time=dt,
             on_receive_event_callback=MagicMock(),
         )
@@ -434,7 +437,7 @@ class TestEventsStoreSubscriptionCallbacksExtended:
     def test_raise_on_receive_message_no_callback(self):
         sub = EventsStoreSubscription(
             channel="ch",
-            events_store_type=EventsStoreType.StartNewOnly,
+            events_store_type=EventStoreStartPosition.StartFromNew,
             on_receive_event_callback=MagicMock(),
         )
         sub.on_receive_event_callback = None
@@ -445,17 +448,17 @@ class TestEventsStoreSubscriptionCallbacksExtended:
         callback = MagicMock()
         sub = EventsStoreSubscription(
             channel="ch",
-            events_store_type=EventsStoreType.StartNewOnly,
+            events_store_type=EventStoreStartPosition.StartFromNew,
             on_receive_event_callback=callback,
         )
-        event = EventStoreMessageReceived(id="m1", channel="ch", body=b"x", sequence=1)
+        event = EventStoreReceived(id="m1", channel="ch", body=b"x", sequence=1)
         await sub.raise_on_receive_message_async(event)
         callback.assert_called_once_with(event)
 
     def test_raise_on_error_no_callback(self):
         sub = EventsStoreSubscription(
             channel="ch",
-            events_store_type=EventsStoreType.StartNewOnly,
+            events_store_type=EventStoreStartPosition.StartFromNew,
             on_receive_event_callback=MagicMock(),
             on_error_callback=None,
         )
@@ -466,7 +469,7 @@ class TestEventsStoreSubscriptionCallbacksExtended:
         err_cb = MagicMock()
         sub = EventsStoreSubscription(
             channel="ch",
-            events_store_type=EventsStoreType.StartNewOnly,
+            events_store_type=EventStoreStartPosition.StartFromNew,
             on_receive_event_callback=MagicMock(),
             on_error_callback=err_cb,
         )
@@ -478,7 +481,7 @@ class TestEventsStoreSubscriptionCallbacksExtended:
         err_cb = AsyncMock()
         sub = EventsStoreSubscription(
             channel="ch",
-            events_store_type=EventsStoreType.StartNewOnly,
+            events_store_type=EventStoreStartPosition.StartFromNew,
             on_receive_event_callback=MagicMock(),
             on_error_callback=err_cb,
         )
@@ -489,7 +492,7 @@ class TestEventsStoreSubscriptionCallbacksExtended:
     async def test_raise_on_error_async_no_callback(self):
         sub = EventsStoreSubscription(
             channel="ch",
-            events_store_type=EventsStoreType.StartNewOnly,
+            events_store_type=EventStoreStartPosition.StartFromNew,
             on_receive_event_callback=MagicMock(),
             on_error_callback=None,
         )
@@ -502,7 +505,7 @@ class TestEventsStoreSubscriptionEncodeExtended:
     def test_encode_start_at_sequence(self):
         sub = EventsStoreSubscription(
             channel="ch",
-            events_store_type=EventsStoreType.StartAtSequence,
+            events_store_type=EventStoreStartPosition.StartAtSequence,
             events_store_sequence_value=100,
             on_receive_event_callback=MagicMock(),
         )
@@ -515,7 +518,7 @@ class TestEventsStoreSubscriptionEncodeExtended:
         dt = datetime(2025, 6, 15, 12, 0, 0)
         sub = EventsStoreSubscription(
             channel="ch",
-            events_store_type=EventsStoreType.StartAtTime,
+            events_store_type=EventStoreStartPosition.StartAtTime,
             events_store_start_time=dt,
             on_receive_event_callback=MagicMock(),
         )
@@ -526,12 +529,12 @@ class TestEventsStoreSubscriptionEncodeExtended:
         """GAP-C1: StartAtTimeDelta value must be encoded correctly."""
         sub = EventsStoreSubscription(
             channel="ch",
-            events_store_type=EventsStoreType.StartAtTimeDelta,
+            events_store_type=EventStoreStartPosition.StartAtTimeDelta,
             events_store_time_delta_seconds=300,
             on_receive_event_callback=MagicMock(),
         )
         request = sub.encode("client-1")
-        assert request.EventsStoreTypeData == EventsStoreType.StartAtTimeDelta.value
+        assert request.EventsStoreTypeData == EventStoreStartPosition.StartAtTimeDelta.value
         assert request.EventsStoreTypeValue == 300
 
 
@@ -539,27 +542,29 @@ class TestEventsStoreSubscriptionTimeDeltaValidation:
     """GAP-C1: Tests for StartAtTimeDelta validation."""
 
     def test_start_at_time_delta_with_zero_raises(self):
+        sub = EventsStoreSubscription(
+            channel="ch",
+            events_store_type=EventStoreStartPosition.StartAtTimeDelta,
+            events_store_time_delta_seconds=0,
+            on_receive_event_callback=MagicMock(),
+        )
         with pytest.raises(ValueError, match="time delta value > 0"):
-            EventsStoreSubscription(
-                channel="ch",
-                events_store_type=EventsStoreType.StartAtTimeDelta,
-                events_store_time_delta_seconds=0,
-                on_receive_event_callback=MagicMock(),
-            )
+            sub.validate()
 
     def test_start_at_time_delta_with_negative_raises(self):
+        sub = EventsStoreSubscription(
+            channel="ch",
+            events_store_type=EventStoreStartPosition.StartAtTimeDelta,
+            events_store_time_delta_seconds=-10,
+            on_receive_event_callback=MagicMock(),
+        )
         with pytest.raises(ValueError, match="time delta value > 0"):
-            EventsStoreSubscription(
-                channel="ch",
-                events_store_type=EventsStoreType.StartAtTimeDelta,
-                events_store_time_delta_seconds=-10,
-                on_receive_event_callback=MagicMock(),
-            )
+            sub.validate()
 
     def test_start_at_time_delta_with_positive_value(self):
         sub = EventsStoreSubscription(
             channel="ch",
-            events_store_type=EventsStoreType.StartAtTimeDelta,
+            events_store_type=EventStoreStartPosition.StartAtTimeDelta,
             events_store_time_delta_seconds=60,
             on_receive_event_callback=MagicMock(),
         )
@@ -573,7 +578,7 @@ class TestEventsStoreSubscriptionWildcardValidation:
         with pytest.raises(ValueError, match="wildcard"):
             EventsStoreSubscription(
                 channel="events.*",
-                events_store_type=EventsStoreType.StartNewOnly,
+                events_store_type=EventStoreStartPosition.StartFromNew,
                 on_receive_event_callback=MagicMock(),
             )
 
@@ -581,7 +586,7 @@ class TestEventsStoreSubscriptionWildcardValidation:
         with pytest.raises(ValueError, match="wildcard"):
             EventsStoreSubscription(
                 channel="events.>",
-                events_store_type=EventsStoreType.StartNewOnly,
+                events_store_type=EventStoreStartPosition.StartFromNew,
                 on_receive_event_callback=MagicMock(),
             )
 
@@ -589,7 +594,7 @@ class TestEventsStoreSubscriptionWildcardValidation:
         with pytest.raises(ValueError, match="whitespace"):
             EventsStoreSubscription(
                 channel="events channel",
-                events_store_type=EventsStoreType.StartNewOnly,
+                events_store_type=EventStoreStartPosition.StartFromNew,
                 on_receive_event_callback=MagicMock(),
             )
 
@@ -597,7 +602,7 @@ class TestEventsStoreSubscriptionWildcardValidation:
         with pytest.raises(ValueError, match="end with"):
             EventsStoreSubscription(
                 channel="events.",
-                events_store_type=EventsStoreType.StartNewOnly,
+                events_store_type=EventStoreStartPosition.StartFromNew,
                 on_receive_event_callback=MagicMock(),
             )
 
@@ -611,11 +616,11 @@ class TestEventsStoreSubscriptionModelDumpExtended:
         dt = datetime(2025, 6, 15, 12, 0, 0)
         sub = EventsStoreSubscription(
             channel="ch",
-            events_store_type=EventsStoreType.StartAtTime,
+            events_store_type=EventStoreStartPosition.StartAtTime,
             events_store_start_time=dt,
             on_receive_event_callback=MagicMock(),
         )
-        dump = sub.model_dump()
+        dump = sub.to_dict()
         assert dump["events_store_start_time"] == dt.isoformat()
         assert "on_receive_event_callback" not in dump
 
@@ -630,7 +635,7 @@ class TestEventsSubscriptionCallbacksExtended:
             channel="ch",
             on_receive_event_callback=callback,
         )
-        event = EventMessageReceived(id="m1", channel="ch", body=b"x")
+        event = EventReceived(id="m1", channel="ch", body=b"x")
         await sub.raise_on_receive_message_async(event)
         callback.assert_called_once_with(event)
 
@@ -675,7 +680,7 @@ class TestEventsSubscriptionModelDumpExtended:
             on_receive_event_callback=MagicMock(),
             on_error_callback=MagicMock(),
         )
-        dump = sub.model_dump()
+        dump = sub.to_dict()
         assert dump["channel"] == "test-ch"
         assert "on_receive_event_callback" not in dump
         assert "on_error_callback" not in dump

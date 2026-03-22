@@ -418,11 +418,33 @@ class TestNativeAsyncBaseClientConnection:
         mock_transport.is_connected = True
         mock_async_transport_class.return_value = mock_transport
 
-        client = ConcreteNativeAsyncBaseClient(address="localhost:50000")
+        client = ConcreteNativeAsyncBaseClient(
+            address="localhost:50000", connection_pool_size=1
+        )
         await client.connect()
 
         assert client._transport is not None
         mock_transport.connect.assert_called_once()
+
+    @pytest.mark.asyncio
+    @patch("kubemq.transport.async_transport.AsyncTransport")
+    async def test_connect_creates_pool(self, mock_async_transport_class):
+        """Test connect() creates connection pool when pool_size > 1."""
+        mock_transport = MagicMock()
+        mock_transport.connect = AsyncMock()
+        mock_transport.close = AsyncMock()
+        mock_transport.is_connected = True
+        mock_async_transport_class.return_value = mock_transport
+
+        client = ConcreteNativeAsyncBaseClient(
+            address="localhost:50000", connection_pool_size=3
+        )
+        await client.connect()
+
+        assert client._transport is not None
+        # 1 primary + 3 pool = 4 total
+        assert mock_transport.connect.call_count == 4
+        assert len(client._pool) == 3
 
     @pytest.mark.asyncio
     @patch("kubemq.transport.async_transport.AsyncTransport")
@@ -433,7 +455,9 @@ class TestNativeAsyncBaseClientConnection:
         mock_transport.is_connected = True
         mock_async_transport_class.return_value = mock_transport
 
-        client = ConcreteNativeAsyncBaseClient(address="localhost:50000")
+        client = ConcreteNativeAsyncBaseClient(
+            address="localhost:50000", connection_pool_size=1
+        )
         await client.connect()
         await client.connect()  # Second call should be no-op
 
@@ -463,7 +487,9 @@ class TestNativeAsyncBaseClientConnection:
         mock_transport.is_connected = True
         mock_async_transport_class.return_value = mock_transport
 
-        client = ConcreteNativeAsyncBaseClient(address="localhost:50000")
+        client = ConcreteNativeAsyncBaseClient(
+            address="localhost:50000", connection_pool_size=1
+        )
         await client.connect()
 
         assert client.is_connected is True
@@ -478,7 +504,9 @@ class TestNativeAsyncBaseClientConnection:
         mock_transport.is_connected = True
         mock_async_transport_class.return_value = mock_transport
 
-        client = ConcreteNativeAsyncBaseClient(address="localhost:50000")
+        client = ConcreteNativeAsyncBaseClient(
+            address="localhost:50000", connection_pool_size=1
+        )
         await client.connect()
         await client.close()
 
@@ -496,7 +524,9 @@ class TestNativeAsyncBaseClientConnection:
         mock_transport.is_connected = True
         mock_async_transport_class.return_value = mock_transport
 
-        client = ConcreteNativeAsyncBaseClient(address="localhost:50000")
+        client = ConcreteNativeAsyncBaseClient(
+            address="localhost:50000", connection_pool_size=1
+        )
         await client.connect()
         await client.close()
         await client.close()  # Second call should be no-op
@@ -610,7 +640,9 @@ class TestNativeAsyncBaseClientContextManager:
         mock_transport.is_connected = True
         mock_async_transport_class.return_value = mock_transport
 
-        async with ConcreteNativeAsyncBaseClient(address="localhost:50000") as client:
+        async with ConcreteNativeAsyncBaseClient(
+            address="localhost:50000", connection_pool_size=1
+        ) as client:
             assert client._transport is not None
 
         mock_transport.close.assert_called_once()
@@ -626,7 +658,9 @@ class TestNativeAsyncBaseClientContextManager:
         mock_async_transport_class.return_value = mock_transport
 
         with pytest.raises(ValueError):
-            async with ConcreteNativeAsyncBaseClient(address="localhost:50000"):
+            async with ConcreteNativeAsyncBaseClient(
+                address="localhost:50000", connection_pool_size=1
+            ):
                 raise ValueError("Test error")
 
         mock_transport.close.assert_called_once()

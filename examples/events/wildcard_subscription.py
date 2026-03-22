@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import time
 
-from kubemq import CancellationToken, EventMessage, EventsSubscription, PubSubClient
+from kubemq import CancellationToken, Client, EventMessage, EventsSubscription
 
 
 def on_event(event) -> None:  # type: ignore[no-untyped-def]
@@ -20,7 +20,7 @@ def on_error(error: str) -> None:
 def main() -> None:
     cancel = CancellationToken()
 
-    with PubSubClient(
+    with Client(
         address="localhost:50000",
         client_id="python-events-wildcard-subscription-client",
     ) as client:
@@ -38,13 +38,13 @@ def main() -> None:
         time.sleep(1)
 
         # Publish events to different sub-channels
-        client.publish_event(
+        client.send_event(
             EventMessage(channel="python-events.wildcard.created", body=b"Order #1001 created")
         )
-        client.publish_event(
+        client.send_event(
             EventMessage(channel="python-events.wildcard.shipped", body=b"Order #1002 shipped")
         )
-        client.publish_event(
+        client.send_event(
             EventMessage(channel="python-events.wildcard.delivered", body=b"Order #1003 delivered")
         )
 

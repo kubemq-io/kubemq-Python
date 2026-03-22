@@ -48,14 +48,14 @@ class TestQueueMessageValidation:
                 expiration_in_seconds=50000,  # More than 12 hours
             )
 
-    def test_validates_dead_letter_queue_configuration(self):
+    def test_validates_max_receive_queue_configuration(self):
         """Test that dead letter queue requires both attempts and queue name."""
-        with pytest.raises(ValueError, match="must also provide a dead_letter_queue"):
+        with pytest.raises(ValueError, match="must also provide a max_receive_queue"):
             QueueMessage(
                 channel="test-queue",
                 body=b"test",
-                attempts_before_dead_letter_queue=3,
-                dead_letter_queue="",  # Empty DLQ when attempts > 0
+                max_receive_count=3,
+                max_receive_queue="",  # Empty DLQ when attempts > 0
             )
 
     def test_valid_message_with_body(self):
@@ -88,8 +88,8 @@ class TestQueueMessageEncode:
             tags={"key1": "value1", "key2": "value2"},
             delay_in_seconds=60,
             expiration_in_seconds=3600,
-            attempts_before_dead_letter_queue=3,
-            dead_letter_queue="dlq-queue",
+            max_receive_count=3,
+            max_receive_queue="dlq-queue",
         )
 
         pb_request = msg.encode("test-client")
@@ -112,8 +112,8 @@ class TestQueueMessageEncode:
             body=b"test body",
             delay_in_seconds=30,
             expiration_in_seconds=120,
-            attempts_before_dead_letter_queue=5,
-            dead_letter_queue="my-dlq",
+            max_receive_count=5,
+            max_receive_queue="my-dlq",
         )
 
         pb_message = msg.encode_message("client-1")
@@ -171,8 +171,8 @@ class TestQueueMessageDecode:
         assert msg.tags == {"decoded": "tag"}
         assert msg.delay_in_seconds == 10
         assert msg.expiration_in_seconds == 60
-        assert msg.attempts_before_dead_letter_queue == 2
-        assert msg.dead_letter_queue == "decoded-dlq"
+        assert msg.max_receive_count == 2
+        assert msg.max_receive_queue == "decoded-dlq"
 
     def test_decode_with_empty_metadata(self):
         """Test decoding message with empty metadata."""

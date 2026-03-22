@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import asyncio
 
-from kubemq import AsyncQueuesClient, QueueMessage
+from kubemq import AsyncClient, QueueMessage
 
 
 async def main() -> None:
-    async with AsyncQueuesClient(
+    async with AsyncClient(
         address="localhost:50000",
         client_id="python-queues-stream-requeue-all-client",
     ) as client:

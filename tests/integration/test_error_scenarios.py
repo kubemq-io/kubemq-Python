@@ -34,11 +34,9 @@ class TestInvalidChannelErrors:
     """Verify error handling for invalid channel operations."""
 
     async def test_subscribe_empty_channel_raises(self) -> None:
-        from pydantic import ValidationError
-
         from kubemq.pubsub import EventsSubscription
 
-        with pytest.raises(ValidationError):
+        with pytest.raises(ValueError):
             EventsSubscription(
                 channel="",
                 on_receive_event_callback=lambda e: None,

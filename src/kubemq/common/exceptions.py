@@ -46,7 +46,14 @@ __all__ = [
 
 
 class ValidationError(KubeMQValidationError):
-    """DEPRECATED: Use KubeMQValidationError instead."""
+    """DEPRECATED: Use ``KubeMQValidationError`` instead.
+
+    Args:
+        message: Human-readable description of the validation failure.
+
+    See Also:
+        ``kubemq.core.exceptions.KubeMQValidationError``
+    """
 
     def __init__(self, message: Any) -> None:
         warnings.warn(
@@ -58,7 +65,14 @@ class ValidationError(KubeMQValidationError):
 
 
 class ConnectionError(KubeMQConnectionError):
-    """DEPRECATED: Use KubeMQConnectionError instead."""
+    """DEPRECATED: Use ``KubeMQConnectionError`` instead.
+
+    Args:
+        message: Description of the connection failure.
+
+    See Also:
+        ``kubemq.core.exceptions.KubeMQConnectionError``
+    """
 
     def __init__(self, message: str) -> None:
         warnings.warn(
@@ -70,7 +84,14 @@ class ConnectionError(KubeMQConnectionError):
 
 
 class SendEventError(KubeMQMessageError):
-    """DEPRECATED: Use KubeMQMessageError instead."""
+    """DEPRECATED: Use ``KubeMQMessageError`` instead.
+
+    Args:
+        message: Description of the send failure.
+
+    See Also:
+        ``kubemq.core.exceptions.KubeMQMessageError``
+    """
 
     def __init__(self, message: str) -> None:
         warnings.warn(
@@ -82,7 +103,14 @@ class SendEventError(KubeMQMessageError):
 
 
 class DeleteChannelError(KubeMQChannelError):
-    """DEPRECATED: Use KubeMQChannelError instead."""
+    """DEPRECATED: Use ``KubeMQChannelError`` instead.
+
+    Args:
+        message: Description of the channel deletion failure.
+
+    See Also:
+        ``kubemq.core.exceptions.KubeMQChannelError``
+    """
 
     def __init__(self, message: str) -> None:
         warnings.warn(
@@ -94,7 +122,14 @@ class DeleteChannelError(KubeMQChannelError):
 
 
 class CreateChannelError(KubeMQChannelError):
-    """DEPRECATED: Use KubeMQChannelError instead."""
+    """DEPRECATED: Use ``KubeMQChannelError`` instead.
+
+    Args:
+        message: Description of the channel creation failure.
+
+    See Also:
+        ``kubemq.core.exceptions.KubeMQChannelError``
+    """
 
     def __init__(self, message: str) -> None:
         warnings.warn(
@@ -106,7 +141,14 @@ class CreateChannelError(KubeMQChannelError):
 
 
 class ListChannelsError(KubeMQChannelError):
-    """DEPRECATED: Use KubeMQChannelError instead."""
+    """DEPRECATED: Use ``KubeMQChannelError`` instead.
+
+    Args:
+        message: Description of the channel listing failure.
+
+    See Also:
+        ``kubemq.core.exceptions.KubeMQChannelError``
+    """
 
     def __init__(self, message: str) -> None:
         warnings.warn(
@@ -118,10 +160,24 @@ class ListChannelsError(KubeMQChannelError):
 
 
 class GRPCError(Exception):
-    """DEPRECATED: Use from_grpc_error() instead.
+    """DEPRECATED: Use ``from_grpc_error()`` instead.
 
-    This class inherits from Exception directly (not BaseError) to maintain
-    backward compatibility with the original exception hierarchy.
+    Wraps a raw gRPC exception into a formatted error with ``message``,
+    ``code``, and ``cause`` attributes.  This class inherits from
+    ``Exception`` directly (not ``BaseError``) to maintain backward
+    compatibility with the original exception hierarchy.
+
+    Args:
+        exc: Either a human-readable error string (legacy path) or the
+            original gRPC ``Exception`` to be wrapped.
+
+    Attributes:
+        message: Extracted or provided error description.
+        code: gRPC status code (``None`` when constructed from a string).
+        cause: Original exception (``None`` when constructed from a string).
+
+    See Also:
+        ``kubemq.core.exceptions.from_grpc_error``
     """
 
     def __init__(self, exc: str | Exception) -> None:

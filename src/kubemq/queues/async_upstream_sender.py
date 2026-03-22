@@ -5,10 +5,10 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
-import uuid
 from collections.abc import AsyncIterator
 from typing import TYPE_CHECKING
 
+from kubemq.common.helpers import fast_id
 from kubemq.grpc import (
     QueueMessage as pbQueueMessage,
     QueuesUpstreamRequest,
@@ -77,20 +77,18 @@ class AsyncUpstreamSender:
 
         message_id = message.MessageID
         request = QueuesUpstreamRequest()
-        request.RequestID = str(uuid.uuid4())
+        request.RequestID = fast_id()
         request.Messages.append(message)
 
         loop = asyncio.get_running_loop()
         future: asyncio.Future[QueuesUpstreamResponse] = loop.create_future()
 
-        async with self._lock:
-            self._response_tracking[request.RequestID] = (future, message_id)
+        self._response_tracking[request.RequestID] = (future, message_id)
 
         try:
             self._send_queue.put_nowait(request)
         except asyncio.QueueFull:
-            async with self._lock:
-                self._response_tracking.pop(request.RequestID, None)
+            self._response_tracking.pop(request.RequestID, None)
             from kubemq.core.exceptions import KubeMQBufferFullError
 
             raise KubeMQBufferFullError(
@@ -102,16 +100,14 @@ class AsyncUpstreamSender:
         try:
             response = await asyncio.wait_for(future, timeout=self._send_timeout)
         except TimeoutError:
-            async with self._lock:
-                self._response_tracking.pop(request.RequestID, None)
+            self._response_tracking.pop(request.RequestID, None)
             return QueueSendResult(
                 id=message_id,
                 is_error=True,
                 error="Error: Timeout waiting for response",
             )
         finally:
-            async with self._lock:
-                self._response_tracking.pop(request.RequestID, None)
+            self._response_tracking.pop(request.RequestID, None)
 
         if response.Results:
             return QueueSendResult.decode(response.Results[0])
@@ -122,55 +118,80 @@ class AsyncUpstreamSender:
         while not self._closed:
             try:
                 self._allow_new_messages = True
-                async for response in self._transport.queues_upstream(self._request_generator()):
-                    if self._closed:
-                        break
-                    await self._process_response(response)
+                await self._run_bidi_stream()
             except Exception as e:
                 if self._closed:
                     break
                 _logger.warning("Queue upstream stream error: %s", e)
-                await self._handle_disconnection()
+                self._handle_disconnection()
                 await asyncio.sleep(self._reconnect_interval)
+
+    async def _run_bidi_stream(self) -> None:
+        """Open bidi stream with concurrent send/receive."""
+        import grpc
+        stub = self._transport._get_stub()
+        call = stub.QueuesUpstream(self._request_generator())
+        await self._transport._register_stream(call)
+
+        try:
+            receiver_task = asyncio.create_task(self._receive_responses(call))
+            try:
+                await receiver_task
+            except asyncio.CancelledError:
+                pass
+        except grpc.aio.AioRpcError as e:
+            if e.code() != grpc.StatusCode.CANCELLED:
+                from kubemq.core.exceptions import from_grpc_error
+                raise from_grpc_error(e) from e
+        finally:
+            await self._transport._unregister_stream(call)
+
+    async def _receive_responses(self, call) -> None:
+        """Read responses from the bidi stream and resolve futures."""
+        import grpc
+        try:
+            async for response in call:
+                if self._closed:
+                    break
+                self._process_response(response)
+        except grpc.aio.AioRpcError as e:
+            if e.code() != grpc.StatusCode.CANCELLED:
+                from kubemq.core.exceptions import from_grpc_error
+                raise from_grpc_error(e) from e
 
     async def _request_generator(self) -> AsyncIterator[QueuesUpstreamRequest]:
         """Drain the send queue and yield requests to the bidi stream."""
         while not self._closed:
-            try:
-                msg = await asyncio.wait_for(self._send_queue.get(), timeout=1.0)
-            except TimeoutError:
-                continue
+            msg = await self._send_queue.get()
             if msg is _SENTINEL:
                 break
             yield msg  # type: ignore[misc]
 
-    async def _process_response(self, response: QueuesUpstreamResponse) -> None:
-        """Resolve the Future for a matched RefRequestID."""
-        async with self._lock:
-            entry = self._response_tracking.get(response.RefRequestID)
-            if entry:
-                future, _ = entry
-                if not future.done():
-                    future.set_result(response)
+    def _process_response(self, response: QueuesUpstreamResponse) -> None:
+        """Resolve the Future for a matched RefRequestID (lock-free)."""
+        entry = self._response_tracking.get(response.RefRequestID)
+        if entry:
+            future, _ = entry
+            if not future.done():
+                future.set_result(response)
 
-    async def _handle_disconnection(self) -> None:
+    def _handle_disconnection(self) -> None:
         """Signal error to all pending Futures and drain the queue."""
-        async with self._lock:
-            self._allow_new_messages = False
-            for request_id, (future, message_id) in self._response_tracking.items():
-                if not future.done():
-                    error_response = QueuesUpstreamResponse(
-                        RefRequestID=request_id,
-                        Results=[
-                            SendQueueMessageResult(
-                                MessageID=message_id,
-                                IsError=True,
-                                Error="Error: Disconnected from server",
-                            )
-                        ],
-                    )
-                    future.set_result(error_response)
-            self._response_tracking.clear()
+        self._allow_new_messages = False
+        for request_id, (future, message_id) in self._response_tracking.items():
+            if not future.done():
+                error_response = QueuesUpstreamResponse(
+                    RefRequestID=request_id,
+                    Results=[
+                        SendQueueMessageResult(
+                            MessageID=message_id,
+                            IsError=True,
+                            Error="Error: Disconnected from server",
+                        )
+                    ],
+                )
+                future.set_result(error_response)
+        self._response_tracking.clear()
 
         while not self._send_queue.empty():
             try:
@@ -193,4 +214,4 @@ class AsyncUpstreamSender:
             with contextlib.suppress(asyncio.CancelledError):
                 await self._stream_task
 
-        await self._handle_disconnection()
+        self._handle_disconnection()

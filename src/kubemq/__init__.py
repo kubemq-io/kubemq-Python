@@ -60,6 +60,9 @@ from importlib.metadata import version as _metadata_version
 # Logging implementations
 from kubemq._internal.logging import NoOpLogger, StdLibLoggerAdapter
 
+# Unified clients (PY-01)
+from kubemq.async_unified_client import AsyncClient
+
 # Async cancellation token
 from kubemq.common.async_cancellation_token import AsyncCancellationToken
 
@@ -136,13 +139,13 @@ from kubemq.cq.async_client import AsyncClient as AsyncCQClient
 
 # CQ messages and types
 from kubemq.cq.command_message import CommandMessage
-from kubemq.cq.command_message_received import CommandMessageReceived
-from kubemq.cq.command_response_message import CommandResponseMessage
+from kubemq.cq.command_message_received import CommandReceived
+from kubemq.cq.command_response_message import CommandResponse
 from kubemq.cq.commands_subscription import CommandsSubscription
 from kubemq.cq.queries_subscription import QueriesSubscription
 from kubemq.cq.query_message import QueryMessage
-from kubemq.cq.query_message_received import QueryMessageReceived
-from kubemq.cq.query_response_message import QueryResponseMessage
+from kubemq.cq.query_message_received import QueryReceived
+from kubemq.cq.query_response_message import QueryResponse
 
 # Sync domain clients with convenient aliases
 from kubemq.pubsub import Client as PubSubClient
@@ -152,10 +155,10 @@ from kubemq.pubsub.async_client import AsyncClient as AsyncPubSubClient
 
 # PubSub messages and types
 from kubemq.pubsub.event_message import EventMessage
-from kubemq.pubsub.event_message_received import EventMessageReceived
-from kubemq.pubsub.event_send_result import EventSendResult
+from kubemq.pubsub.event_message_received import EventReceived
+from kubemq.pubsub.event_send_result import EventStoreResult
 from kubemq.pubsub.event_store_message import EventStoreMessage
-from kubemq.pubsub.event_store_message_received import EventStoreMessageReceived
+from kubemq.pubsub.event_store_message_received import EventStoreReceived
 from kubemq.pubsub.events_store_subscription import EventsStoreSubscription
 from kubemq.pubsub.events_subscription import EventsSubscription
 from kubemq.queues import Client as QueuesClient
@@ -166,6 +169,7 @@ from kubemq.queues.queues_message import QueueMessage
 from kubemq.queues.queues_message_received import QueueMessageReceived
 from kubemq.queues.queues_poll_response import QueuesPollResponse
 from kubemq.queues.queues_send_result import QueueSendResult
+from kubemq.unified_client import Client
 
 # Version — single source of truth from pyproject.toml via installed metadata
 __version__: str
@@ -177,6 +181,9 @@ except Exception:
 __all__ = [
     # Version
     "__version__",
+    # Unified clients (PY-01)
+    "Client",
+    "AsyncClient",
     # Core exceptions and error types
     "ErrorCode",
     "ErrorCategory",
@@ -241,10 +248,10 @@ __all__ = [
     "AsyncHealthChecker",
     # PubSub messages
     "EventMessage",
-    "EventMessageReceived",
-    "EventSendResult",
+    "EventReceived",
+    "EventStoreResult",
     "EventStoreMessage",
-    "EventStoreMessageReceived",
+    "EventStoreReceived",
     "EventsSubscription",
     "EventsStoreSubscription",
     # Queues messages
@@ -254,12 +261,12 @@ __all__ = [
     "QueuesPollResponse",
     # CQ messages
     "CommandMessage",
-    "CommandMessageReceived",
-    "CommandResponseMessage",
+    "CommandReceived",
+    "CommandResponse",
     "CommandsSubscription",
     "QueryMessage",
-    "QueryMessageReceived",
-    "QueryResponseMessage",
+    "QueryReceived",
+    "QueryResponse",
     "QueriesSubscription",
     # Channel statistics
     "PubSubChannel",

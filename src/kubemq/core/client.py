@@ -525,11 +525,17 @@ class NativeAsyncBaseClient(ABC):  # noqa: B024
         self._subscriptions_lock = asyncio.Lock()
         self._subscription_tasks: set[asyncio.Task] = set()  # type: ignore[type-arg]
 
+        # Pipeline concurrency for CQ send operations
+        self._pipeline_sem: asyncio.Semaphore | None = None
+        # gRPC connection pool — round-robin for send operations
+        self._pool: list[AsyncTransport] = []
+        self._pool_counter: int = 0
+
     async def connect(self) -> None:
         """Connect to the KubeMQ server using native async transport.
 
-        This method must be called before using the client, unless
-        using the async context manager.
+        Creates the primary transport and, if ``connection_pool_size > 1``,
+        a pool of additional transports for round-robin send distribution.
 
         Raises:
             KubeMQConnectionError: If connection fails
@@ -546,11 +552,51 @@ class NativeAsyncBaseClient(ABC):  # noqa: B024
             try:
                 self._transport = AsyncTransport(self._config)
                 await self._transport.connect()
-                self._logger.debug(f"Connected to {self._config.address}")
+
+                # Create connection pool for send operations
+                pool_size = self._config.connection_pool_size
+                if pool_size > 1:
+                    for _ in range(pool_size):
+                        t = AsyncTransport(self._config)
+                        await t.connect()
+                        self._pool.append(t)
+
+                self._logger.debug(
+                    "Connected to %s (pool_size=%d)",
+                    self._config.address,
+                    len(self._pool) or 1,
+                )
             except Exception as e:
+                # Clean up any partially created pool
+                for t in self._pool:
+                    try:
+                        await t.close()
+                    except Exception:
+                        pass
+                self._pool.clear()
                 self._transport = None
                 self._logger.error(f"Failed to connect: {e}")
                 raise from_grpc_error(e) from e
+
+    def set_pipeline_concurrency(self, max_concurrent: int) -> None:
+        """Enable pipelined sends with bounded in-flight requests.
+
+        Only affects send_command_fast / send_query_fast paths.
+        Setting to 0 or None disables the limit (default behavior).
+        """
+        if max_concurrent and max_concurrent > 0:
+            self._pipeline_sem = asyncio.Semaphore(max_concurrent)
+        else:
+            self._pipeline_sem = None
+
+    def _pick_pool_transport(self) -> AsyncTransport:
+        """Pick next transport from pool (round-robin). Falls back to primary."""
+        if self._pool:
+            idx = self._pool_counter % len(self._pool)
+            self._pool_counter += 1
+            return self._pool[idx]
+        assert self._transport is not None
+        return self._transport
 
     @property
     def is_connected(self) -> bool:
@@ -668,7 +714,15 @@ class NativeAsyncBaseClient(ABC):  # noqa: B024
                 self._active_subscriptions.clear()
                 self._subscription_tasks.clear()
 
-            # 4. Close transport (handles its own stream drain per SPEC-CONN-4)
+            # 4. Close connection pool transports
+            for t in self._pool:
+                try:
+                    await t.close()
+                except Exception:
+                    pass
+            self._pool.clear()
+
+            # 5. Close primary transport (handles its own stream drain per SPEC-CONN-4)
             if self._transport:
                 await self._transport.close()
                 self._transport = None

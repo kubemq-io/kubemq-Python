@@ -159,65 +159,48 @@ class TestAsyncUpstreamSenderSend:
 
 class TestAsyncUpstreamSenderStreamLoop:
     @pytest.mark.asyncio
-    async def test_processes_responses(self):
-        sender, transport = _make_sender()
-        response = QueuesUpstreamResponse(
-            RefRequestID="req-1",
-            Results=[SendQueueMessageResult(MessageID="m1", IsError=False)],
-        )
-
-        async def fake_stream(gen):
-            yield response
-            sender._closed = True
-
-        transport.queues_upstream = fake_stream
-
-        loop = asyncio.get_running_loop()
-        future = loop.create_future()
-        sender._response_tracking["req-1"] = (future, "m1")
-
+    async def test_stream_loop_exits_when_closed(self):
+        sender, _ = _make_sender()
+        sender._closed = True
         await sender._stream_loop()
-        assert future.done()
 
     @pytest.mark.asyncio
-    async def test_reconnects_on_error(self):
-        sender, transport = _make_sender(reconnect_interval=0.01)
+    async def test_stream_loop_reconnects_on_exception(self):
+        """Test that _stream_loop catches exceptions and retries."""
+        sender, _ = _make_sender(reconnect_interval=0.01)
         call_count = 0
+        original_run = sender._run_bidi_stream
 
-        async def failing_then_ok(gen):
+        async def mock_run():
             nonlocal call_count
             call_count += 1
             if call_count == 1:
                 raise RuntimeError("stream broken")
             sender._closed = True
-            return
-            yield  # noqa: makes this an async generator
 
-        transport.queues_upstream = failing_then_ok
+        sender._run_bidi_stream = mock_run
         await sender._stream_loop()
         assert call_count >= 2
 
     @pytest.mark.asyncio
-    async def test_breaks_on_closed_during_error(self):
-        sender, transport = _make_sender()
+    async def test_stream_loop_breaks_on_closed_during_error(self):
+        sender, _ = _make_sender()
 
-        async def failing_stream(gen):
+        async def mock_run():
             sender._closed = True
-            raise RuntimeError("broken")
-            yield  # noqa: makes this an async generator
+            raise RuntimeError("stream broken")
 
-        transport.queues_upstream = failing_stream
+        sender._run_bidi_stream = mock_run
         await sender._stream_loop()
 
     @pytest.mark.asyncio
-    async def test_breaks_on_closed_during_response(self):
-        sender, transport = _make_sender()
+    async def test_stream_loop_breaks_on_closed_during_response(self):
+        sender, _ = _make_sender()
 
-        async def closing_stream(gen):
+        async def mock_run():
             sender._closed = True
-            yield QueuesUpstreamResponse()
 
-        transport.queues_upstream = closing_stream
+        sender._run_bidi_stream = mock_run
         await sender._stream_loop()
 
 
@@ -260,72 +243,78 @@ class TestAsyncUpstreamSenderRequestGenerator:
 
 
 class TestAsyncUpstreamSenderProcessResponse:
-    @pytest.mark.asyncio
-    async def test_resolves_future(self):
+    def test_resolves_future(self):
         sender, _ = _make_sender()
-        loop = asyncio.get_running_loop()
-        future = loop.create_future()
-        sender._response_tracking["req-1"] = (future, "m1")
+        loop = asyncio.new_event_loop()
+        try:
+            future = loop.create_future()
+            sender._response_tracking["req-1"] = (future, "m1")
 
-        response = QueuesUpstreamResponse(RefRequestID="req-1")
-        await sender._process_response(response)
-        assert future.done()
-        assert future.result() is response
+            response = QueuesUpstreamResponse(RefRequestID="req-1")
+            sender._process_response(response)
+            assert future.done()
+            assert future.result() is response
+        finally:
+            loop.close()
 
-    @pytest.mark.asyncio
-    async def test_ignores_unknown_request_id(self):
+    def test_ignores_unknown_request_id(self):
         sender, _ = _make_sender()
-        await sender._process_response(QueuesUpstreamResponse(RefRequestID="unknown"))
+        sender._process_response(QueuesUpstreamResponse(RefRequestID="unknown"))
 
-    @pytest.mark.asyncio
-    async def test_ignores_done_future(self):
+    def test_ignores_done_future(self):
         sender, _ = _make_sender()
-        loop = asyncio.get_running_loop()
-        future = loop.create_future()
-        future.set_result(QueuesUpstreamResponse(RefRequestID="req-1"))
-        sender._response_tracking["req-1"] = (future, "m1")
+        loop = asyncio.new_event_loop()
+        try:
+            future = loop.create_future()
+            future.set_result(QueuesUpstreamResponse(RefRequestID="req-1"))
+            sender._response_tracking["req-1"] = (future, "m1")
 
-        new_resp = QueuesUpstreamResponse(RefRequestID="req-1")
-        await sender._process_response(new_resp)
-        assert future.result() is not new_resp
+            new_resp = QueuesUpstreamResponse(RefRequestID="req-1")
+            sender._process_response(new_resp)
+            assert future.result() is not new_resp
+        finally:
+            loop.close()
 
 
 class TestAsyncUpstreamSenderHandleDisconnection:
-    @pytest.mark.asyncio
-    async def test_errors_all_pending(self):
+    def test_errors_all_pending(self):
         sender, _ = _make_sender()
-        loop = asyncio.get_running_loop()
-        f1 = loop.create_future()
-        f2 = loop.create_future()
-        sender._response_tracking["req-1"] = (f1, "m1")
-        sender._response_tracking["req-2"] = (f2, "m2")
+        loop = asyncio.new_event_loop()
+        try:
+            f1 = loop.create_future()
+            f2 = loop.create_future()
+            sender._response_tracking["req-1"] = (f1, "m1")
+            sender._response_tracking["req-2"] = (f2, "m2")
 
-        await sender._handle_disconnection()
-        assert f1.done()
-        assert f2.done()
-        assert f1.result().Results[0].IsError is True
-        assert "Disconnected" in f1.result().Results[0].Error
-        assert sender._response_tracking == {}
-        assert sender._allow_new_messages is False
+            sender._handle_disconnection()
+            assert f1.done()
+            assert f2.done()
+            assert f1.result().Results[0].IsError is True
+            assert "Disconnected" in f1.result().Results[0].Error
+            assert sender._response_tracking == {}
+            assert sender._allow_new_messages is False
+        finally:
+            loop.close()
 
-    @pytest.mark.asyncio
-    async def test_drains_queue(self):
+    def test_drains_queue(self):
         sender, _ = _make_sender()
         for i in range(5):
             sender._send_queue.put_nowait(QueuesUpstreamRequest(RequestID=f"r{i}"))
-        await sender._handle_disconnection()
+        sender._handle_disconnection()
         assert sender._send_queue.empty()
 
-    @pytest.mark.asyncio
-    async def test_skips_done_futures(self):
+    def test_skips_done_futures(self):
         sender, _ = _make_sender()
-        loop = asyncio.get_running_loop()
-        future = loop.create_future()
-        future.set_result(QueuesUpstreamResponse(RefRequestID="req-1"))
-        sender._response_tracking["req-1"] = (future, "m1")
+        loop = asyncio.new_event_loop()
+        try:
+            future = loop.create_future()
+            future.set_result(QueuesUpstreamResponse(RefRequestID="req-1"))
+            sender._response_tracking["req-1"] = (future, "m1")
 
-        await sender._handle_disconnection()
-        assert future.result().RefRequestID == "req-1"
+            sender._handle_disconnection()
+            assert future.result().RefRequestID == "req-1"
+        finally:
+            loop.close()
 
 
 class TestAsyncUpstreamSenderClose:

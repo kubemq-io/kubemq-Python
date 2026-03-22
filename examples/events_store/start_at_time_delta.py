@@ -6,22 +6,22 @@ import time
 
 from kubemq import (
     CancellationToken,
+    Client,
     EventStoreMessage,
-    EventStoreMessageReceived,
+    EventStoreReceived,
     EventsStoreSubscription,
-    PubSubClient,
 )
-from kubemq.pubsub.events_store_subscription import EventsStoreType
+from kubemq.pubsub.events_store_subscription import EventStoreStartPosition
 
 
 def main() -> None:
-    with PubSubClient(
+    with Client(
         address="localhost:50000",
         client_id="python-events-store-start-at-time-delta-client",
     ) as client:
         # Pre-populate with some messages
         for i in range(5):
-            client.send_events_store_message(
+            client.send_event_store(
                 EventStoreMessage(
                     channel="python-events-store.start-at-time-delta",
                     body=f"Message-{i + 1}".encode(),
@@ -32,7 +32,7 @@ def main() -> None:
 
         cancel = CancellationToken()
 
-        def on_receive(event: EventStoreMessageReceived) -> None:
+        def on_receive(event: EventStoreReceived) -> None:
             print(
                 f"[StartAtTimeDelta(30s)] Seq:{event.sequence}, "
                 f"Body:{event.body.decode('utf-8')}"
@@ -47,7 +47,7 @@ def main() -> None:
                 channel="python-events-store.start-at-time-delta",
                 on_receive_event_callback=on_receive,
                 on_error_callback=on_error,
-                events_store_type=EventsStoreType.StartAtTimeDelta,
+                events_store_type=EventStoreStartPosition.StartAtTimeDelta,
                 events_store_time_delta_seconds=30,
             ),
             cancel=cancel,

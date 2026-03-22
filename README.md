@@ -115,7 +115,7 @@ timestamp, or receive only new messages.
 ### Queues
 
 Pull-based message queues with acknowledgment, reject, requeue, dead-letter
-queues, delayed delivery, and visibility timeout.
+queues, and delayed delivery.
 [View examples →](https://github.com/kubemq-io/kubemq-Python/tree/v4/examples/queues)
 
 ### Commands

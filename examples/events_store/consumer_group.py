@@ -6,16 +6,16 @@ import time
 
 from kubemq import (
     CancellationToken,
+    Client,
     EventStoreMessage,
-    EventStoreMessageReceived,
+    EventStoreReceived,
     EventsStoreSubscription,
-    PubSubClient,
 )
-from kubemq.pubsub.events_store_subscription import EventsStoreType
+from kubemq.pubsub.events_store_subscription import EventStoreStartPosition
 
 
 def make_handler(name: str):  # type: ignore[no-untyped-def]
-    def handler(event: EventStoreMessageReceived) -> None:
+    def handler(event: EventStoreReceived) -> None:
         print(f"[{name}] Seq:{event.sequence}, Body:{event.body.decode('utf-8')}")
 
     return handler
@@ -26,7 +26,7 @@ def on_error(err: str) -> None:
 
 
 def main() -> None:
-    with PubSubClient(
+    with Client(
         address="localhost:50000",
         client_id="python-events-store-consumer-group-client",
     ) as client:
@@ -38,7 +38,7 @@ def main() -> None:
                 group="processors",
                 on_receive_event_callback=make_handler("Processor-1"),
                 on_error_callback=on_error,
-                events_store_type=EventsStoreType.StartFromFirst,
+                events_store_type=EventStoreStartPosition.StartFromFirst,
             ),
             cancel=cancel,
         )
@@ -48,14 +48,14 @@ def main() -> None:
                 group="processors",
                 on_receive_event_callback=make_handler("Processor-2"),
                 on_error_callback=on_error,
-                events_store_type=EventsStoreType.StartFromFirst,
+                events_store_type=EventStoreStartPosition.StartFromFirst,
             ),
             cancel=cancel,
         )
 
         time.sleep(1)
         for i in range(6):
-            client.send_events_store_message(
+            client.send_event_store(
                 EventStoreMessage(
                     channel="python-events-store.consumer-group",
                     body=f"Event-{i + 1}".encode(),

@@ -16,11 +16,11 @@ from kubemq.common.cancellation_token import CancellationToken
 from kubemq.cq import (
     Client as CQClient,
     CommandMessage,
-    CommandResponseMessage,
+    CommandResponse,
     CommandsSubscription,
     QueriesSubscription,
     QueryMessage,
-    QueryResponseMessage,
+    QueryResponse,
 )
 
 pytestmark = [pytest.mark.integration, pytest.mark.timeout(60)]
@@ -45,7 +45,7 @@ class TestSyncCQCommands:
 
         def on_command(cmd):
             sync_cq_client.send_response_message(
-                CommandResponseMessage(command_received=cmd, is_executed=True)
+                CommandResponse(command_received=cmd, is_executed=True)
             )
             received.set()
 
@@ -92,7 +92,7 @@ class TestSyncCQQueries:
 
         def on_query(query):
             sync_cq_client.send_response_message(
-                QueryResponseMessage(
+                QueryResponse(
                     query_received=query,
                     is_executed=True,
                     body=b"query-response",

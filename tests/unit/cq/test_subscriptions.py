@@ -10,10 +10,10 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from kubemq.common.subscribe_type import SubscribeType
-from kubemq.cq.command_message_received import CommandMessageReceived
+from kubemq.cq.command_message_received import CommandReceived
 from kubemq.cq.commands_subscription import CommandsSubscription
 from kubemq.cq.queries_subscription import QueriesSubscription
-from kubemq.cq.query_message_received import QueryMessageReceived
+from kubemq.cq.query_message_received import QueryReceived
 
 
 class TestCommandsSubscriptionValidation:
@@ -102,7 +102,7 @@ class TestCommandsSubscriptionCallbacks:
             on_receive_command_callback=callback,
         )
 
-        command = CommandMessageReceived(
+        command = CommandReceived(
             id="cmd-1",
             channel="test-channel",
             body=b"test body",
@@ -146,7 +146,7 @@ class TestCommandsSubscriptionCallbacks:
             on_receive_command_callback=callback,
         )
 
-        command = CommandMessageReceived(
+        command = CommandReceived(
             id="cmd-1",
             channel="test-channel",
             body=b"test",
@@ -165,7 +165,7 @@ class TestCommandsSubscriptionCallbacks:
             on_receive_command_callback=callback,
         )
 
-        command = CommandMessageReceived(
+        command = CommandReceived(
             id="cmd-1",
             channel="test-channel",
             body=b"test",
@@ -319,7 +319,7 @@ class TestQueriesSubscriptionCallbacks:
             on_receive_query_callback=callback,
         )
 
-        query = QueryMessageReceived(
+        query = QueryReceived(
             id="qry-1",
             channel="test-channel",
             body=b"test body",
@@ -363,7 +363,7 @@ class TestQueriesSubscriptionCallbacks:
             on_receive_query_callback=callback,
         )
 
-        query = QueryMessageReceived(
+        query = QueryReceived(
             id="qry-1",
             channel="test-channel",
             body=b"test",
@@ -382,7 +382,7 @@ class TestQueriesSubscriptionCallbacks:
             on_receive_query_callback=callback,
         )
 
-        query = QueryMessageReceived(
+        query = QueryReceived(
             id="qry-1",
             channel="test-channel",
             body=b"test",
@@ -524,7 +524,7 @@ class TestQueriesSubscriptionCallbackSync:
             channel="ch",
             on_receive_query_callback=callback,
         )
-        query = QueryMessageReceived(id="q1", channel="ch", body=b"data")
+        query = QueryReceived(id="q1", channel="ch", body=b"data")
         await sub.raise_on_receive_message_async(query)
         callback.assert_called_once_with(query)
 

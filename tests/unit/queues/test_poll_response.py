@@ -30,7 +30,6 @@ class TestQueuesPollResponseCreation:
         assert response.is_transaction_completed is False
         assert response.active_offsets == []
         assert response.receiver_client_id == ""
-        assert response.visibility_seconds == 0
         assert response.is_auto_acked is False
 
     def test_custom_values(self):
@@ -49,7 +48,6 @@ class TestQueuesPollResponseCreation:
             is_transaction_completed=False,
             active_offsets=[1, 2, 3],
             receiver_client_id="receiver",
-            visibility_seconds=30,
             is_auto_acked=False,
         )
 
@@ -57,26 +55,6 @@ class TestQueuesPollResponseCreation:
         assert response.transaction_id == "txn-456"
         assert len(response.messages) == 2
         assert response.active_offsets == [1, 2, 3]
-        assert response.visibility_seconds == 30
-
-
-class TestQueuesPollResponseValidation:
-    """Tests for QueuesPollResponse validation."""
-
-    def test_visibility_seconds_cannot_be_negative(self):
-        """Test visibility_seconds cannot be negative."""
-        with pytest.raises(ValueError, match="cannot be negative"):
-            QueuesPollResponse(visibility_seconds=-1)
-
-    def test_visibility_seconds_can_be_zero(self):
-        """Test visibility_seconds can be zero."""
-        response = QueuesPollResponse(visibility_seconds=0)
-        assert response.visibility_seconds == 0
-
-    def test_visibility_seconds_can_be_positive(self):
-        """Test visibility_seconds can be positive."""
-        response = QueuesPollResponse(visibility_seconds=60)
-        assert response.visibility_seconds == 60
 
 
 class TestQueuesPollResponseDecode:
@@ -99,7 +77,6 @@ class TestQueuesPollResponseDecode:
             response=pb_response,
             receiver_client_id="receiver-1",
             response_handler=response_handler,
-            request_visibility_seconds=30,
             request_auto_ack=False,
         )
 
@@ -107,7 +84,6 @@ class TestQueuesPollResponseDecode:
         assert result.transaction_id == "txn-decode"
         assert result.is_error is False
         assert result.receiver_client_id == "receiver-1"
-        assert result.visibility_seconds == 30
 
     def test_decode_error_response(self):
         """Test decoding an error response."""
@@ -434,11 +410,9 @@ class TestQueuesPollResponseReprDetail:
         response = QueuesPollResponse(
             ref_request_id="req-repr",
             is_auto_acked=True,
-            visibility_seconds=30,
         )
         r = repr(response)
         assert "is_auto_acked=True" in r
-        assert "visibility_seconds=30" in r
 
 
 class TestQueuesPollResponseOperationError:

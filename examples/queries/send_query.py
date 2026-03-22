@@ -6,29 +6,29 @@ import time
 
 from kubemq import (
     CancellationToken,
-    CQClient,
+    Client,
     KubeMQConnectionError,
     KubeMQError,
     KubeMQTimeoutError,
     QueriesSubscription,
     QueryMessage,
-    QueryMessageReceived,
-    QueryResponseMessage,
+    QueryReceived,
+    QueryResponse,
 )
 
 
 def main() -> None:
     try:
-        with CQClient(
+        with Client(
             address="localhost:50000",
             client_id="python-queries-send-query-client",
         ) as client:
             cancel = CancellationToken()
 
-            def on_receive_query(request: QueryMessageReceived) -> None:
+            def on_receive_query(request: QueryReceived) -> None:
                 print(f"Responder received: {request.body.decode('utf-8')}")
                 client.send_response_message(
-                    QueryResponseMessage(
+                    QueryResponse(
                         query_received=request,
                         is_executed=True,
                         body=b"response data payload",
@@ -50,7 +50,7 @@ def main() -> None:
             time.sleep(1)
 
             # Send a query and get the response
-            response = client.send_query_request(
+            response = client.send_query(
                 QueryMessage(
                     channel="python-queries.send-query",
                     body=b"hello kubemq, please reply!",

@@ -17,9 +17,9 @@ from kubemq.core.config import ClientConfig
 from kubemq.grpc import kubemq_pb2 as pb
 from kubemq.pubsub.client import Client
 from kubemq.pubsub.event_message import EventMessage
-from kubemq.pubsub.event_send_result import EventSendResult
+from kubemq.pubsub.event_send_result import EventStoreResult
 from kubemq.pubsub.event_store_message import EventStoreMessage
-from kubemq.pubsub.events_store_subscription import EventsStoreSubscription
+from kubemq.pubsub.events_store_subscription import EventsStoreSubscription, EventStoreStartPosition
 from kubemq.pubsub.events_subscription import EventsSubscription
 
 
@@ -256,7 +256,7 @@ class TestSyncPubSubClientEventsStore:
     """Tests for event store methods."""
 
     def test_send_events_store_message_returns_result(self):
-        """Test send_events_store_message returns EventSendResult."""
+        """Test send_events_store_message returns EventStoreResult."""
         with patch("kubemq.transport.transport.Transport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
@@ -295,8 +295,8 @@ class TestSyncPubSubClientEventsStore:
             message = EventStoreMessage(channel="test-channel", body=b"test body")
             result = client.send_events_store_message(message)
 
-            # Should return empty EventSendResult when no result
-            assert isinstance(result, EventSendResult)
+            # Should return empty EventStoreResult when no result
+            assert isinstance(result, EventStoreResult)
             assert result.sent is False
 
     def test_send_events_store_message_async_emits_deprecation_warning(self):
@@ -536,6 +536,7 @@ class TestSyncPubSubClientSubscriptions:
             subscription = EventsStoreSubscription(
                 channel="test-channel",
                 on_receive_event_callback=lambda msg: None,
+                events_store_type=EventStoreStartPosition.StartFromNew,
             )
 
             with patch("kubemq.pubsub.client.threading.Thread") as mock_thread:
@@ -720,7 +721,7 @@ class TestSyncPubSubClientPublishErrors:
             with pytest.raises(grpc.RpcError):
                 client.publish_event(message)
 
-    def test_publish_event_store_grpc_error(self):
+    def test_send_event_store_grpc_error(self):
         """Test that a gRPC error from event store sender propagates."""
         with patch("kubemq.transport.transport.Transport") as mock_transport_class:
             mock_transport = MagicMock()
@@ -736,7 +737,7 @@ class TestSyncPubSubClientPublishErrors:
             message = EventStoreMessage(channel="test-channel", body=b"test body")
 
             with pytest.raises(grpc.RpcError):
-                client.publish_event_store(message)
+                client.send_event_store(message)
 
     def test_publish_event_uses_new_verb(self):
         """Test publish_event() works without deprecation warning."""
@@ -762,8 +763,8 @@ class TestSyncPubSubClientPublishErrors:
 
             mock_sender.send.assert_called_once()
 
-    def test_publish_event_store_uses_new_verb(self):
-        """Test publish_event_store() works without deprecation warning."""
+    def test_send_event_store_uses_new_verb(self):
+        """Test send_event_store() works without deprecation warning."""
         with patch("kubemq.transport.transport.Transport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
@@ -783,7 +784,7 @@ class TestSyncPubSubClientPublishErrors:
 
             with warnings.catch_warnings(record=True) as w:
                 warnings.simplefilter("always")
-                result = client.publish_event_store(message)
+                result = client.send_event_store(message)
 
                 deprecation_warnings = [x for x in w if issubclass(x.category, DeprecationWarning)]
                 assert len(deprecation_warnings) == 0
@@ -1200,10 +1201,8 @@ from kubemq.core.exceptions import KubeMQValidationError  # noqa: E402
 class TestSyncPubSubClientPublishEventValidationError:
     """Tests for ValidationError path in _publish_event_impl (lines 233-245)."""
 
-    def test_publish_event_validation_error_wraps_pydantic(self):
-        """Test pydantic.ValidationError from encode is wrapped in KubeMQValidationError."""
-        from pydantic import ValidationError as PydanticValidationError
-
+    def test_publish_event_validation_error_wraps_value_error(self):
+        """Test ValueError from encode is wrapped in KubeMQValidationError."""
         with patch("kubemq.transport.transport.Transport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
@@ -1216,10 +1215,7 @@ class TestSyncPubSubClientPublishEventValidationError:
 
             message = EventMessage(channel="test-channel", body=b"test body")
 
-            validation_err = PydanticValidationError.from_exception_data(
-                title="EventMessage",
-                line_errors=[],
-            )
+            validation_err = ValueError("EventMessage validation failed")
             with patch.object(EventMessage, "encode", side_effect=validation_err):
                 with pytest.raises(KubeMQValidationError) as exc_info:
                     client.publish_event(message)
@@ -1227,12 +1223,10 @@ class TestSyncPubSubClientPublishEventValidationError:
 
 
 class TestSyncPubSubClientPublishEventStoreValidationError:
-    """Tests for ValidationError path in _publish_event_store_impl (lines 300-315)."""
+    """Tests for ValidationError path in _send_event_store_impl (lines 300-315)."""
 
-    def test_publish_event_store_validation_error_wraps_pydantic(self):
-        """Test pydantic.ValidationError from encode is wrapped in KubeMQValidationError."""
-        from pydantic import ValidationError as PydanticValidationError
-
+    def test_send_event_store_validation_error_wraps_value_error(self):
+        """Test ValueError from encode is wrapped in KubeMQValidationError."""
         with patch("kubemq.transport.transport.Transport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
@@ -1245,13 +1239,10 @@ class TestSyncPubSubClientPublishEventStoreValidationError:
 
             message = EventStoreMessage(channel="test-channel", body=b"test body")
 
-            validation_err = PydanticValidationError.from_exception_data(
-                title="EventStoreMessage",
-                line_errors=[],
-            )
+            validation_err = ValueError("EventStoreMessage validation failed")
             with patch.object(EventStoreMessage, "encode", side_effect=validation_err):
                 with pytest.raises(KubeMQValidationError) as exc_info:
-                    client.publish_event_store(message)
+                    client.send_event_store(message)
                 assert exc_info.value.__cause__ is validation_err
 
 
@@ -1524,6 +1515,7 @@ class TestSyncPubSubClientSubscribeTaskAsyncAdditional:
             subscription = EventsStoreSubscription(
                 channel="test-store",
                 on_receive_event_callback=on_event,
+                events_store_type=EventStoreStartPosition.StartFromNew,
                 on_error_callback=on_err,
             )
 
@@ -1569,6 +1561,7 @@ class TestSyncPubSubClientSubscribeTaskAsyncAdditional:
             subscription = EventsStoreSubscription(
                 channel="test-store",
                 on_receive_event_callback=lambda msg: None,
+                events_store_type=EventStoreStartPosition.StartFromNew,
             )
 
             with patch.object(client, "_subscribe_async", return_value=MagicMock()) as mock_sub:
@@ -1678,8 +1671,6 @@ class TestSyncPubSubClientSendEventUnary:
                 client.send_event(message)
 
     def test_send_event_unary_validation_error(self):
-        from pydantic import ValidationError as PydanticValidationError
-
         with patch("kubemq.transport.transport.Transport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
@@ -1688,9 +1679,7 @@ class TestSyncPubSubClientSendEventUnary:
             client = Client(address="localhost:50000")
             message = EventMessage(channel="ch", body=b"test")
 
-            validation_err = PydanticValidationError.from_exception_data(
-                title="EventMessage", line_errors=[]
-            )
+            validation_err = ValueError("EventMessage validation failed")
             with patch.object(EventMessage, "encode", side_effect=validation_err):
                 with pytest.raises(KubeMQValidationError) as exc_info:
                     client.send_event(message)
@@ -1742,7 +1731,7 @@ class TestSyncPubSubClientSpanRecording:
 
             assert mock_span.set_attribute.call_count == 2
 
-    def test_publish_event_store_span_attributes_set(self):
+    def test_send_event_store_span_attributes_set(self):
         with patch("kubemq.transport.transport.Transport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
@@ -1768,7 +1757,7 @@ class TestSyncPubSubClientSpanRecording:
             client._instrumentor = mock_instrumentor
 
             message = EventStoreMessage(channel="ch", body=b"hello")
-            result = client.publish_event_store(message)
+            result = client.send_event_store(message)
 
             assert mock_span.set_attribute.call_count == 2
             assert result.sent is True
@@ -1785,12 +1774,12 @@ class TestSyncPubSubClientEventsStoreSubscription:
 
             client = Client(address="localhost:50000")
 
-            from kubemq.pubsub.events_store_subscription import EventsStoreType
+            from kubemq.pubsub.events_store_subscription import EventStoreStartPosition
 
             subscription = EventsStoreSubscription(
                 channel="store-channel",
                 on_receive_event_callback=lambda msg: None,
-                events_store_type=EventsStoreType.StartNewOnly,
+                events_store_type=EventStoreStartPosition.StartFromNew,
             )
 
             with patch("kubemq.pubsub.client.threading.Thread") as mock_thread:
@@ -1914,6 +1903,7 @@ class TestSyncClientStoreClosureExecution:
             sub = EventsStoreSubscription(
                 channel="store-ch",
                 on_receive_event_callback=callback,
+                events_store_type=EventStoreStartPosition.StartFromNew,
             )
 
             with patch("kubemq.pubsub.client.threading.Thread") as mock_thread:
@@ -2032,6 +2022,7 @@ class TestSyncClientAsyncStoreClosureExecution:
         sub = EventsStoreSubscription(
             channel="store-ch",
             on_receive_event_callback=on_event,
+            events_store_type=EventStoreStartPosition.StartFromNew,
         )
 
         captured = await self._capture_async_closures(client, sub)
@@ -2057,6 +2048,7 @@ class TestSyncClientAsyncStoreClosureExecution:
         sub = EventsStoreSubscription(
             channel="store-ch",
             on_receive_event_callback=lambda msg: None,
+            events_store_type=EventStoreStartPosition.StartFromNew,
         )
 
         captured = await self._capture_async_closures(client, sub)

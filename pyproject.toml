@@ -26,15 +26,14 @@ keywords = ["kubemq", "messaging", "queue", "pubsub", "grpc"]
 # Dependency justification (per GS REQ-CQ-4):
 # - grpcio: Required — gRPC transport runtime
 # - protobuf: Required — message serialization
-# - pydantic: Justified — config/message model validation, used extensively
 # - PyJWT: Justified — JWT token decoding for auth_token verification
-# Total non-excluded: 4 ≤ 5 limit
-# Note: typing_extensions and tomli removed — stdlib equivalents
+# Total non-excluded: 3 ≤ 5 limit
+# Note: pydantic removed — replaced with stdlib dataclasses for performance.
+# typing_extensions and tomli removed — stdlib equivalents
 # available in Python 3.11+ (typing, tomllib).
 dependencies = [
     "grpcio>=1.51.0,<2.0.0",
     "protobuf>=4.21.0,<6.0.0",
-    "pydantic>=2.0.0,<3.0.0",
     "PyJWT>=2.6.0,<3.0.0",
 ]
 

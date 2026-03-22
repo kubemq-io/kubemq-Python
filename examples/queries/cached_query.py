@@ -6,25 +6,25 @@ import time
 
 from kubemq import (
     CancellationToken,
-    CQClient,
+    Client,
     QueriesSubscription,
     QueryMessage,
-    QueryMessageReceived,
-    QueryResponseMessage,
+    QueryReceived,
+    QueryResponse,
 )
 
 
 def main() -> None:
-    with CQClient(
+    with Client(
         address="localhost:50000",
         client_id="python-queries-cached-query-client",
     ) as client:
         cancel = CancellationToken()
 
-        def on_receive_query(request: QueryMessageReceived) -> None:
+        def on_receive_query(request: QueryReceived) -> None:
             print(f"Responder received query: {request.body.decode('utf-8')}")
             client.send_response_message(
-                QueryResponseMessage(
+                QueryResponse(
                     query_received=request,
                     is_executed=True,
                     body=b"cached response data",
@@ -45,25 +45,25 @@ def main() -> None:
         time.sleep(1)
 
         # First query — responder processes and response is cached
-        response1 = client.send_query_request(
+        response1 = client.send_query(
             QueryMessage(
                 channel="python-queries.cached-query",
                 body=b"fetch data",
                 timeout_in_seconds=10,
                 cache_key="my-cache-key",
-                cache_ttl_int_seconds=30,
+                cache_ttl_in_seconds=30,
             )
         )
         print(f"First query  — cache_hit: {response1.cache_hit}, body: {response1.body}")
 
         # Second query — served from cache, responder NOT called
-        response2 = client.send_query_request(
+        response2 = client.send_query(
             QueryMessage(
                 channel="python-queries.cached-query",
                 body=b"fetch data",
                 timeout_in_seconds=10,
                 cache_key="my-cache-key",
-                cache_ttl_int_seconds=30,
+                cache_ttl_in_seconds=30,
             )
         )
         print(f"Second query — cache_hit: {response2.cache_hit}, body: {response2.body}")
