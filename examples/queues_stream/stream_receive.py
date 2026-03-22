@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from kubemq import QueueMessage, QueuesClient
+from kubemq import Client, QueueMessage
 
 
 def main() -> None:
-    with QueuesClient(
+    with Client(
         address="localhost:50000",
         client_id="python-queues-stream-stream-receive-client",
     ) as client:
@@ -36,7 +36,7 @@ def main() -> None:
                 msg.ack()
                 print(f"  -> Acknowledged: {body}")
             elif "2" in body:
-                msg.reject()
+                msg.nack()
                 print(f"  -> Rejected: {body}")
             else:
                 msg.ack()

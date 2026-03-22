@@ -1,7 +1,7 @@
 # Queues
 
 Pull-based message queues with acknowledgment, reject, requeue, dead-letter
-queues, delayed delivery, and visibility timeout.
+queues, and delayed delivery.
 
 ## Overview
 
@@ -56,21 +56,10 @@ msg = QueueMessage(
 )
 ```
 
-## Visibility timeout
-
-```python
-response = client.receive_queue_messages(
-    channel="jobs",
-    max_messages=1,
-    wait_timeout_in_seconds=10,
-    visibility_seconds=120,
-)
-```
-
 ## Peek (waiting messages)
 
 ```python
-waiting = client.waiting(
+waiting = client.peek_queue_messages(
     channel="jobs",
     max_messages=10,
     wait_timeout_in_seconds=5,

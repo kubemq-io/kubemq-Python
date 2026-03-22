@@ -2,17 +2,17 @@
 
 from __future__ import annotations
 
-from kubemq import CommandMessage, CQClient
+from kubemq import Client, CommandMessage
 
 
 def main() -> None:
-    with CQClient(
+    with Client(
         address="localhost:50000",
         client_id="python-commands-command-timeout-client",
     ) as client:
         try:
             # Send a command with no responder — will time out
-            response = client.send_command_request(
+            response = client.send_command(
                 CommandMessage(
                     channel="python-commands.command-timeout",
                     body=b"this will time out",

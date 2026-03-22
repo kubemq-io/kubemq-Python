@@ -284,31 +284,26 @@ arrive.
 **Error message:**
 
 ```
-KubeMQTransactionError: Message ack failed: visibility timeout expired
+KubeMQTransactionError: Message ack failed: transaction expired
 ```
 
-**Cause:** The message visibility timeout expired before the consumer
-acknowledged the message. The message becomes visible to other consumers again.
+**Cause:** The message was not acknowledged in time. The message becomes
+available to other consumers again.
 
 **Solution:**
 
-1. Increase the visibility timeout when receiving messages:
+1. Acknowledge messages as soon as possible after processing:
    ```python
    response = client.receive_queue_messages(
        channel="my-queue",
        max_messages=1,
        wait_timeout_in_seconds=10,
-       visibility_seconds=120,  # 2 minutes to process
    )
-   ```
-2. Acknowledge messages as soon as possible after processing:
-   ```python
    for msg in response.messages:
        process(msg)
        msg.ack()  # ack immediately after processing
    ```
-3. If processing takes variable time, consider extending the visibility
-   timeout before it expires.
+2. Reduce batch size if processing takes longer than expected.
 
 ---
 

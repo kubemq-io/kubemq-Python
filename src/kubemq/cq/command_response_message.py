@@ -1,40 +1,32 @@
+from dataclasses import dataclass, field
 from datetime import datetime
 
-from pydantic import BaseModel, Field, field_validator
-
-from kubemq.cq.command_message_received import CommandMessageReceived
+from kubemq.cq.command_message_received import CommandReceived
 from kubemq.grpc import Response as pbResponse
 
 
-class CommandResponseMessage(BaseModel):
+@dataclass
+class CommandResponse:
     """Response message for a command request."""
 
-    command_received: CommandMessageReceived | None = None
-    client_id: str = Field(default="")
-    request_id: str = Field(default="")
-    is_executed: bool = Field(default=False)
-    timestamp: datetime = Field(default_factory=datetime.now)
-    error: str = Field(default="")
+    command_received: CommandReceived | None = None
+    client_id: str = ""
+    request_id: str = ""
+    is_executed: bool = False
+    timestamp: datetime = field(default_factory=datetime.now)
+    error: str = ""
     metadata: str | None = None
-    body: bytes = Field(default=b"")
-    tags: dict[str, str] = Field(default_factory=dict)
+    body: bytes = b""
+    tags: dict[str, str] = field(default_factory=dict)
 
-    model_config = {"arbitrary_types_allowed": True}
-
-    @field_validator("command_received")
-    def validate_command_received(
-        cls, v: CommandMessageReceived | None
-    ) -> CommandMessageReceived | None:
-        """Validate that the command request is present and has a reply channel."""
-        if v is None:
-            raise ValueError("Command response must have a command request.")
-        if v.reply_channel == "":
+    def __post_init__(self) -> None:
+        """Validate command response when command_received is provided."""
+        if self.command_received is not None and self.command_received.reply_channel == "":
             raise ValueError("Command response must have a reply channel.")
-        return v
 
     @classmethod
-    def decode(cls, pb_response: pbResponse) -> "CommandResponseMessage":
-        """Decode a protobuf Response into a CommandResponseMessage."""
+    def decode(cls, pb_response: pbResponse) -> "CommandResponse":
+        """Decode a protobuf Response into a CommandResponse."""
         return cls(
             client_id=pb_response.ClientID,
             request_id=pb_response.RequestID,
@@ -67,7 +59,7 @@ class CommandResponseMessage(BaseModel):
 
     def __repr__(self) -> str:
         return (
-            f"CommandResponseMessage: client_id={self.client_id}, "
+            f"CommandResponse: client_id={self.client_id}, "
             f"request_id={self.request_id}, is_executed={self.is_executed}, "
             f"error={self.error}, timestamp={self.timestamp}"
         )

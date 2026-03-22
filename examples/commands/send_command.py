@@ -6,11 +6,11 @@ import time
 
 from kubemq import (
     CancellationToken,
+    Client,
     CommandMessage,
-    CommandMessageReceived,
-    CommandResponseMessage,
+    CommandReceived,
+    CommandResponse,
     CommandsSubscription,
-    CQClient,
     KubeMQConnectionError,
     KubeMQError,
     KubeMQTimeoutError,
@@ -19,16 +19,16 @@ from kubemq import (
 
 def main() -> None:
     try:
-        with CQClient(
+        with Client(
             address="localhost:50000",
             client_id="python-commands-send-command-client",
         ) as client:
             cancel = CancellationToken()
 
-            def on_receive_command(request: CommandMessageReceived) -> None:
+            def on_receive_command(request: CommandReceived) -> None:
                 print(f"Responder received: {request.body.decode('utf-8')}")
                 client.send_response_message(
-                    CommandResponseMessage(
+                    CommandResponse(
                         command_received=request,
                         is_executed=True,
                     )
@@ -49,7 +49,7 @@ def main() -> None:
             time.sleep(1)
 
             # Send a command and get the response
-            response = client.send_command_request(
+            response = client.send_command(
                 CommandMessage(
                     channel="python-commands.send-command",
                     body=b"hello kubemq, please reply!",

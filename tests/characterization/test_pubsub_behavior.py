@@ -12,9 +12,9 @@ from kubemq.pubsub import (
     Client,
     EventMessage,
     EventsStoreSubscription,
-    EventsStoreType,
     EventsSubscription,
     EventStoreMessage,
+    EventStoreStartPosition,
 )
 
 
@@ -183,23 +183,23 @@ class TestEventsStoreSubscriptionBehavior:
                 on_receive_event_callback=callback,
             )
             # If it doesn't raise, default should be Undefined
-            assert sub.events_store_type == EventsStoreType.Undefined
+            assert sub.events_store_type == EventStoreStartPosition.Undefined
         except ValueError:
             # This is also acceptable - validation caught the Undefined type
             pass
 
     def test_store_subscription_accepts_start_new_only(self):
-        """Capture: EventsStoreSubscription accepts StartNewOnly type."""
+        """Capture: EventsStoreSubscription accepts StartFromNew type."""
 
         def callback(msg):
             return None
 
         sub = EventsStoreSubscription(
             channel="test-channel",
-            events_store_type=EventsStoreType.StartNewOnly,
+            events_store_type=EventStoreStartPosition.StartFromNew,
             on_receive_event_callback=callback,
         )
-        assert sub.events_store_type == EventsStoreType.StartNewOnly
+        assert sub.events_store_type == EventStoreStartPosition.StartFromNew
 
 
 @pytest.mark.characterization

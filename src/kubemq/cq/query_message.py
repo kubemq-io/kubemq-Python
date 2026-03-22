@@ -1,19 +1,20 @@
 from __future__ import annotations
 
-import uuid
+import dataclasses
+from dataclasses import dataclass, field
 from typing import Any, Self
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
-
 from kubemq.common.channel_validators import validate_channel_name
+from kubemq.common.helpers import fast_id
 from kubemq.grpc import Request as pbQuery
 
 
-class QueryMessage(BaseModel):
+@dataclass(frozen=True)
+class QueryMessage:
     """A query message for request-response patterns with optional caching.
 
     Instances are immutable after construction. Use ``with_updates()``
-    or ``model_copy(update={...})`` to create modified copies.
+    to create modified copies.
 
     Thread Safety:
         Instances are immutable (frozen) and safe to read from multiple
@@ -29,43 +30,45 @@ class QueryMessage(BaseModel):
         tags: The tags of the query message.
         timeout_in_seconds: The timeout of the query message in seconds.
         cache_key: The cache key of the query message.
-        cache_ttl_int_seconds: The cache TTL of the query message in seconds.
+        cache_ttl_in_seconds: The cache TTL of the query message in seconds.
+
+    Raises:
+        KubeMQValidationError: If channel is missing or empty, if all of
+            metadata, body, and tags are empty (at least one must be set),
+            or if cache_key is set but cache_ttl_in_seconds is not > 0.
+
+    See Also:
+        QueryReceived: The received counterpart when subscribing.
+        CQClient.send_query: Send queries to a channel.
     """
 
-    model_config = ConfigDict(arbitrary_types_allowed=True, frozen=True)
-
-    id: str | None = Field(default_factory=lambda: str(uuid.uuid4()))
     channel: str
+    timeout_in_seconds: int
+    id: str | None = field(default_factory=fast_id)
     metadata: str | None = None
-    body: bytes = Field(default=b"")
-    tags: dict[str, str] = Field(default_factory=dict)
-    timeout_in_seconds: int = Field(gt=0)
+    body: bytes = b""
+    tags: dict[str, str] = field(default_factory=dict)
     cache_key: str = ""
-    cache_ttl_int_seconds: int = 0
+    cache_ttl_in_seconds: int = 0
 
-    @field_validator("channel")
-    def channel_must_exist(cls, v: str) -> str:
-        """Validate that the channel is not empty."""
-        if not v:
+    def __post_init__(self) -> None:
+        """Validate query message fields."""
+        if not self.channel:
             raise ValueError("Query message must have a channel.")
-        validate_channel_name(v)
-        return v
-
-    @model_validator(mode="after")
-    def check_metadata_body_tags(self) -> QueryMessage:
-        """Validate at least one content field and cache consistency."""
+        validate_channel_name(self.channel)
+        if self.timeout_in_seconds <= 0:
+            raise ValueError("timeout_in_seconds must be greater than 0")
         if not self.metadata and not self.body and not self.tags:
             raise ValueError(
                 "Query message must have at least one of the following: metadata, body, or tags."
             )
-        if self.cache_key and self.cache_ttl_int_seconds <= 0:
-            raise ValueError("cache_ttl_int_seconds must be > 0 when cache_key is set.")
-        return self
+        if self.cache_key and self.cache_ttl_in_seconds <= 0:
+            raise ValueError("cache_ttl_in_seconds must be > 0 when cache_key is set.")
 
     def encode(self, client_id: str, *, span: bytes = b"") -> pbQuery:
         """Encode the query message to a protobuf Request."""
         pb_query = pbQuery()
-        pb_query.RequestID = self.id or str(uuid.uuid4())
+        pb_query.RequestID = self.id or fast_id()
         pb_query.ClientID = client_id
         pb_query.Channel = self.channel
         pb_query.Metadata = self.metadata or ""
@@ -75,21 +78,14 @@ class QueryMessage(BaseModel):
         for key, value in self.tags.items():
             pb_query.Tags[key] = value
         pb_query.CacheKey = self.cache_key
-        pb_query.CacheTTL = self.cache_ttl_int_seconds
+        pb_query.CacheTTL = self.cache_ttl_in_seconds
         if span:
             pb_query.Span = span
         return pb_query
 
     def with_updates(self, **kwargs: Any) -> Self:
-        """Create a new message with updated values.
-
-        Since message instances are immutable, this creates a copy
-        with the specified fields overridden.
-
-        Returns:
-            A new instance of the same type with updated fields.
-        """
-        return self.model_copy(update=kwargs)
+        """Create a new message with updated values."""
+        return dataclasses.replace(self, **kwargs)
 
     def __repr__(self) -> str:
         return (
@@ -97,7 +93,7 @@ class QueryMessage(BaseModel):
             f"metadata={self.metadata}, body={self.body!r}, tags={self.tags}, "
             f"timeout_in_seconds={self.timeout_in_seconds}, "
             f"cache_key={self.cache_key}, "
-            f"cache_ttl_int_seconds={self.cache_ttl_int_seconds}"
+            f"cache_ttl_in_seconds={self.cache_ttl_in_seconds}"
         )
 
     @classmethod
@@ -110,7 +106,7 @@ class QueryMessage(BaseModel):
         tags: dict[str, str] | None = None,
         timeout_in_seconds: int = 0,
         cache_key: str = "",
-        cache_ttl_int_seconds: int = 0,
+        cache_ttl_in_seconds: int = 0,
     ) -> QueryMessage:
         """Creates a new QueryMessage instance.
 
@@ -124,5 +120,5 @@ class QueryMessage(BaseModel):
             tags=tags or {},
             timeout_in_seconds=timeout_in_seconds,
             cache_key=cache_key,
-            cache_ttl_int_seconds=cache_ttl_int_seconds,
+            cache_ttl_in_seconds=cache_ttl_in_seconds,
         )

@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from kubemq import QueueMessage, QueuesClient
+from kubemq import Client, QueueMessage
 
 
 def main() -> None:
-    with QueuesClient(
+    with Client(
         address="localhost:50000",
         client_id="python-queues-stream-dead-letter-policy-client",
     ) as client:
@@ -18,8 +18,8 @@ def main() -> None:
                 metadata="policy-test",
                 expiration_in_seconds=60,
                 delay_in_seconds=0,
-                attempts_before_dead_letter_queue=3,
-                dead_letter_queue="python-queues-stream.dead-letter-policy-dlq",
+                max_receive_count=3,
+                max_receive_queue="python-queues-stream.dead-letter-policy-dlq",
             )
         )
         print(f"Sent with policies: {result}")
@@ -39,7 +39,7 @@ def main() -> None:
                 print(
                     f"  Attempt {attempt + 1}: receive_count={msg.receive_count}, rejecting..."
                 )
-                msg.reject()
+                msg.nack()
 
         # Check the DLQ
         dlq = client.receive_queue_messages(

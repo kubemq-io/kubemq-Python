@@ -11,11 +11,11 @@ from kubemq.core.config import ClientConfig
 from kubemq.core.exceptions import KubeMQConnectionError
 from kubemq.cq.async_client import AsyncClient, AsyncCQClient
 from kubemq.cq.command_message import CommandMessage
-from kubemq.cq.command_response_message import CommandResponseMessage
+from kubemq.cq.command_response_message import CommandResponse
 from kubemq.cq.commands_subscription import CommandsSubscription
 from kubemq.cq.queries_subscription import QueriesSubscription
 from kubemq.cq.query_message import QueryMessage
-from kubemq.cq.query_response_message import QueryResponseMessage
+from kubemq.cq.query_response_message import QueryResponse
 from kubemq.grpc import kubemq_pb2 as pb
 
 
@@ -89,7 +89,7 @@ class TestAsyncClientSendCommand:
 
     @pytest.mark.asyncio
     async def test_send_command_returns_response(self, mock_transport):
-        """Test send_command returns CommandResponseMessage."""
+        """Test send_command returns CommandResponse."""
         client = AsyncClient(address="localhost:50000")
         client._transport = mock_transport
         client._connected = True  # type: ignore[attr-defined]
@@ -108,7 +108,7 @@ class TestAsyncClientSendCommand:
 
         response = await client.send_command(message)
 
-        assert isinstance(response, CommandResponseMessage)
+        assert isinstance(response, CommandResponse)
         mock_transport.send_request.assert_called_once()
 
 
@@ -130,7 +130,7 @@ class TestAsyncClientSendQuery:
 
     @pytest.mark.asyncio
     async def test_send_query_returns_response(self, mock_transport):
-        """Test send_query returns QueryResponseMessage."""
+        """Test send_query returns QueryResponse."""
         client = AsyncClient(address="localhost:50000")
         client._transport = mock_transport
         client._connected = True  # type: ignore[attr-defined]
@@ -150,7 +150,7 @@ class TestAsyncClientSendQuery:
 
         response = await client.send_query(message)
 
-        assert isinstance(response, QueryResponseMessage)
+        assert isinstance(response, QueryResponse)
         mock_transport.send_request.assert_called_once()
 
 
@@ -163,14 +163,14 @@ class TestAsyncClientSendResponse:
         client = AsyncClient(address="localhost:50000")
 
         # Create a mock command received
-        from kubemq.cq.command_message_received import CommandMessageReceived
+        from kubemq.cq.command_message_received import CommandReceived
 
-        command_received = CommandMessageReceived(
+        command_received = CommandReceived(
             id="cmd-123",
             channel="test",
             reply_channel="reply",
         )
-        response = CommandResponseMessage(
+        response = CommandResponse(
             command_received=command_received,
             is_executed=True,
         )
@@ -180,20 +180,20 @@ class TestAsyncClientSendResponse:
 
     @pytest.mark.asyncio
     async def test_send_command_response(self, mock_transport):
-        """Test send_response with CommandResponseMessage."""
+        """Test send_response with CommandResponse."""
         client = AsyncClient(address="localhost:50000")
         client._transport = mock_transport
         client._connected = True  # type: ignore[attr-defined]
 
         # Create a mock command received
-        from kubemq.cq.command_message_received import CommandMessageReceived
+        from kubemq.cq.command_message_received import CommandReceived
 
-        command_received = CommandMessageReceived(
+        command_received = CommandReceived(
             id="cmd-123",
             channel="test",
             reply_channel="reply",
         )
-        response = CommandResponseMessage(
+        response = CommandResponse(
             command_received=command_received,
             is_executed=True,
             error="",
@@ -205,20 +205,20 @@ class TestAsyncClientSendResponse:
 
     @pytest.mark.asyncio
     async def test_send_query_response(self, mock_transport):
-        """Test send_response with QueryResponseMessage."""
+        """Test send_response with QueryResponse."""
         client = AsyncClient(address="localhost:50000")
         client._transport = mock_transport
         client._connected = True  # type: ignore[attr-defined]
 
         # Create a mock query received
-        from kubemq.cq.query_message_received import QueryMessageReceived
+        from kubemq.cq.query_message_received import QueryReceived
 
-        query_received = QueryMessageReceived(
+        query_received = QueryReceived(
             id="qry-123",
             channel="test",
             reply_channel="reply",
         )
-        response = QueryResponseMessage(
+        response = QueryResponse(
             query_received=query_received,
             is_executed=True,
             error="",
@@ -420,7 +420,7 @@ class TestAsyncClientSendQueriesBatch:
         results = await client.send_queries_batch(messages, max_concurrent=5)
 
         assert len(results) == 10
-        assert all(isinstance(r, QueryResponseMessage) for r in results)
+        assert all(isinstance(r, QueryResponse) for r in results)
 
     @pytest.mark.asyncio
     async def test_send_queries_batch_preserves_order(self, mock_transport):
@@ -949,18 +949,9 @@ class TestAsyncCQClientBatchErrorHandling:
 from kubemq.core.exceptions import KubeMQValidationError  # noqa: E402
 
 
-def _make_pydantic_validation_error():
-    """Create a real pydantic ValidationError for testing."""
-    from pydantic import BaseModel, ValidationError
-
-    class _Dummy(BaseModel):
-        val: int
-
-    try:
-        _Dummy(val="not-a-number")  # type: ignore[arg-type]
-    except ValidationError as e:
-        return e
-    raise AssertionError("Expected ValidationError")
+def _make_validation_error():
+    """Create a ValueError for testing validation error wrapping."""
+    return ValueError("validation failed")
 
 
 def _make_mock_pb_request(
@@ -987,7 +978,7 @@ class TestSendCommandValidationError:
         client = AsyncClient(address="localhost:50000")
         client._transport = mock_transport
 
-        ve = _make_pydantic_validation_error()
+        ve = _make_validation_error()
         message = CommandMessage(channel="test", body=b"data", timeout_in_seconds=10)
 
         with patch.object(CommandMessage, "encode", side_effect=ve):
@@ -1050,7 +1041,7 @@ class TestSendQueryValidationError:
         client = AsyncClient(address="localhost:50000")
         client._transport = mock_transport
 
-        ve = _make_pydantic_validation_error()
+        ve = _make_validation_error()
         message = QueryMessage(channel="test", body=b"data", timeout_in_seconds=10)
 
         with patch.object(QueryMessage, "encode", side_effect=ve):
@@ -1118,14 +1109,14 @@ class TestSendResponseException:
 
         mock_transport.send_response.side_effect = RuntimeError("response failed")
 
-        from kubemq.cq.command_message_received import CommandMessageReceived
+        from kubemq.cq.command_message_received import CommandReceived
 
-        command_received = CommandMessageReceived(
+        command_received = CommandReceived(
             id="cmd-123",
             channel="test",
             reply_channel="reply",
         )
-        response = CommandResponseMessage(
+        response = CommandResponse(
             command_received=command_received,
             is_executed=True,
             error="",

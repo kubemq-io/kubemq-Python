@@ -6,23 +6,23 @@ import time
 
 from kubemq import (
     CancellationToken,
+    Client,
     EventMessage,
-    EventMessageReceived,
+    EventReceived,
     EventsSubscription,
     KubeMQConnectionError,
     KubeMQError,
-    PubSubClient,
 )
 
 
 def main() -> None:
     try:
-        with PubSubClient(
+        with Client(
             address="localhost:50000",  # TODO: Replace with your KubeMQ server address
             client_id="python-events-basic-pubsub-client",
         ) as client:
 
-            def on_receive_event(event: EventMessageReceived) -> None:
+            def on_receive_event(event: EventReceived) -> None:
                 print(
                     f"Received — Id:{event.id}, Channel:{event.channel}, "
                     f"Body:{event.body.decode('utf-8')}"
@@ -42,7 +42,7 @@ def main() -> None:
             )
             time.sleep(1)
 
-            client.publish_event(
+            client.send_event(
                 EventMessage(
                     channel="python-events.basic-pubsub",
                     body=b"hello kubemq",

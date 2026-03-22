@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from kubemq import QueueMessage, QueuesClient
+from kubemq import Client, QueueMessage
 
 
 def main() -> None:
-    with QueuesClient(
+    with Client(
         address="localhost:50000",
         client_id="python-queues-dead-letter-queue-client",
     ) as client:
@@ -16,8 +16,8 @@ def main() -> None:
                 channel="python-queues.dead-letter-queue",
                 body=b"message with DLQ policy",
                 metadata="dlq-test",
-                attempts_before_dead_letter_queue=3,
-                dead_letter_queue="python-queues.dead-letter-queue-dlq",
+                max_receive_count=3,
+                max_receive_queue="python-queues.dead-letter-queue-dlq",
             )
         )
         print("Sent message with max 3 attempts before DLQ")
@@ -37,7 +37,7 @@ def main() -> None:
                     f"  Attempt {attempt + 1}: Received (receive_count={msg.receive_count}), "
                     f"rejecting..."
                 )
-                msg.reject()
+                msg.nack()
 
         # Check the DLQ for the message
         dlq_response = client.receive_queue_messages(

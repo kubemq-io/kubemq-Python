@@ -6,10 +6,10 @@ import time
 
 from kubemq import (
     CancellationToken,
+    Client,
     EventMessage,
-    EventMessageReceived,
+    EventReceived,
     EventsSubscription,
-    PubSubClient,
 )
 
 
@@ -17,7 +17,7 @@ def make_subscriber(name: str):  # type: ignore[no-untyped-def]
     """Create a named subscriber handler."""
     received: list[str] = []
 
-    def handler(event: EventMessageReceived) -> None:
+    def handler(event: EventReceived) -> None:
         body = event.body.decode("utf-8")
         received.append(body)
         print(f"  [{name}] Received: {body}")
@@ -30,7 +30,7 @@ def on_error(err: str) -> None:
 
 
 def main() -> None:
-    with PubSubClient(
+    with Client(
         address="localhost:50000",
         client_id="python-patterns-fan-out-client",
     ) as client:
@@ -55,7 +55,7 @@ def main() -> None:
 
         # Publish a single message — all 3 subscribers should receive it
         print("Publishing message to fan-out channel...")
-        client.publish_event(
+        client.send_event(
             EventMessage(
                 channel="python-patterns.fan-out",
                 body=b"Order #1001 placed",

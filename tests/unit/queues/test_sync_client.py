@@ -402,7 +402,7 @@ class TestQueuesClientReceiveMessages:
 class TestQueuesClientWaiting:
     """Tests for Queues Client waiting (peek) method."""
 
-    def test_waiting_returns_messages(self):
+    def test_peek_queue_messages_returns_messages(self):
         """Test waiting returns waiting messages."""
         with patch("kubemq.transport.transport.Transport") as mock_transport_class:
             mock_transport = MagicMock()
@@ -421,7 +421,7 @@ class TestQueuesClientWaiting:
 
             client = Client(address="localhost:50000")
 
-            result = client.waiting(
+            result = client.peek_queue_messages(
                 channel="test-queue",
                 max_messages=5,
                 wait_timeout_in_seconds=10,
@@ -430,7 +430,7 @@ class TestQueuesClientWaiting:
             assert isinstance(result, QueueMessagesWaiting)
             assert result.is_error is False
 
-    def test_waiting_raises_on_none_channel(self):
+    def test_peek_queue_messages_raises_on_none_channel(self):
         """Test waiting raises ValueError when channel is None."""
         with patch("kubemq.transport.transport.Transport") as mock_transport_class:
             mock_transport = MagicMock()
@@ -441,13 +441,13 @@ class TestQueuesClientWaiting:
             client = Client(address="localhost:50000")
 
             with pytest.raises(ValueError, match="channel cannot be None"):
-                client.waiting(
+                client.peek_queue_messages(
                     channel=None,
                     max_messages=5,
                     wait_timeout_in_seconds=10,
                 )
 
-    def test_waiting_raises_on_invalid_max_messages(self):
+    def test_peek_queue_messages_raises_on_invalid_max_messages(self):
         """Test waiting raises ValueError when max_messages < 1."""
         with patch("kubemq.transport.transport.Transport") as mock_transport_class:
             mock_transport = MagicMock()
@@ -458,13 +458,13 @@ class TestQueuesClientWaiting:
             client = Client(address="localhost:50000")
 
             with pytest.raises(ValueError, match="max_messages must be between 1 and 1024"):
-                client.waiting(
+                client.peek_queue_messages(
                     channel="test-queue",
                     max_messages=0,
                     wait_timeout_in_seconds=10,
                 )
 
-    def test_waiting_raises_on_invalid_timeout(self):
+    def test_peek_queue_messages_raises_on_invalid_timeout(self):
         """Test waiting raises ValueError when wait_timeout < 1."""
         with patch("kubemq.transport.transport.Transport") as mock_transport_class:
             mock_transport = MagicMock()
@@ -477,7 +477,7 @@ class TestQueuesClientWaiting:
             with pytest.raises(
                 ValueError, match="wait_timeout_in_seconds must be between 1 and 3600"
             ):
-                client.waiting(
+                client.peek_queue_messages(
                     channel="test-queue",
                     max_messages=5,
                     wait_timeout_in_seconds=0,
@@ -993,7 +993,7 @@ class TestQueuesClientPullAsync:
 class TestQueuesClientWaitingAdditional:
     """Additional tests for waiting covering lines 604, 649-653, 671."""
 
-    def test_waiting_returns_empty_messages(self):
+    def test_peek_queue_messages_returns_empty_messages(self):
         """Test waiting returns empty QueueMessagesWaiting when no messages."""
         with patch("kubemq.transport.transport.Transport") as mock_transport_class:
             mock_transport = MagicMock()
@@ -1011,7 +1011,7 @@ class TestQueuesClientWaitingAdditional:
 
             client = Client(address="localhost:50000")
 
-            result = client.waiting(
+            result = client.peek_queue_messages(
                 channel="test-queue",
                 max_messages=5,
                 wait_timeout_in_seconds=10,
@@ -1020,7 +1020,7 @@ class TestQueuesClientWaitingAdditional:
             assert isinstance(result, QueueMessagesWaiting)
             assert len(result.messages) == 0
 
-    def test_waiting_returns_messages_when_present(self):
+    def test_peek_queue_messages_returns_messages_when_present(self):
         """Test waiting returns decoded messages when response has messages."""
         with patch("kubemq.transport.transport.Transport") as mock_transport_class:
             mock_transport = MagicMock()
@@ -1054,7 +1054,7 @@ class TestQueuesClientWaitingAdditional:
 
             client = Client(address="localhost:50000")
 
-            result = client.waiting(
+            result = client.peek_queue_messages(
                 channel="test-queue",
                 max_messages=5,
                 wait_timeout_in_seconds=10,
@@ -1064,8 +1064,8 @@ class TestQueuesClientWaitingAdditional:
             assert len(result.messages) == 1
 
     @pytest.mark.asyncio
-    async def test_waiting_async_delegates_to_sync(self):
-        """Test waiting_async delegates to sync waiting (line 604)."""
+    async def test_peek_queue_messages_async_delegates_to_sync(self):
+        """Test peek_queue_messages_async delegates to sync waiting (line 604)."""
         with patch("kubemq.transport.transport.Transport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
@@ -1082,7 +1082,7 @@ class TestQueuesClientWaitingAdditional:
 
             client = Client(address="localhost:50000")
 
-            result = await client.waiting_async(
+            result = await client.peek_queue_messages_async(
                 channel="test-queue",
                 max_messages=5,
                 wait_timeout_in_seconds=10,
@@ -1204,9 +1204,7 @@ class TestQueuesClientDeprecatedMethods:
             assert "no response" in result.error.lower()
 
     def test_send_queue_message_validation_error(self):
-        """Test send_queue_message wraps ValidationError in KubeMQValidationError (lines 286-293)."""
-        from pydantic import ValidationError as PydanticValidationError
-
+        """Test send_queue_message wraps ValueError in KubeMQValidationError."""
         with patch("kubemq.transport.transport.Transport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
@@ -1220,10 +1218,7 @@ class TestQueuesClientDeprecatedMethods:
 
             message = QueueMessage(channel="test-queue", body=b"test")
 
-            validation_err = PydanticValidationError.from_exception_data(
-                title="QueueMessage",
-                line_errors=[],
-            )
+            validation_err = ValueError("QueueMessage validation failed")
             with patch.object(QueueMessage, "encode_message", side_effect=validation_err):
                 with pytest.raises(KubeMQValidationError) as exc_info:
                     client.send_queue_message(message)
@@ -1358,8 +1353,6 @@ class TestSendQueueMessageSimple:
             mock_grpc_client.SendQueueMessage.assert_called_once()
 
     def test_send_queue_message_simple_validation_error(self):
-        from pydantic import ValidationError as PydanticValidationError
-
         with patch("kubemq.transport.transport.Transport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
@@ -1369,9 +1362,7 @@ class TestSendQueueMessageSimple:
             client = Client(address="localhost:50000")
             message = QueueMessage(channel="test-queue", body=b"test")
 
-            validation_err = PydanticValidationError.from_exception_data(
-                title="QueueMessage", line_errors=[]
-            )
+            validation_err = ValueError("QueueMessage validation failed")
             with patch.object(QueueMessage, "encode_message", side_effect=validation_err):
                 with pytest.raises(KubeMQValidationError) as exc_info:
                     client.send_queue_message_simple(message)

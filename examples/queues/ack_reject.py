@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from kubemq import QueueMessage, QueuesClient
+from kubemq import Client, QueueMessage
 
 
 def main() -> None:
-    with QueuesClient(
+    with Client(
         address="localhost:50000",
         client_id="python-queues-ack-reject-client",
     ) as client:
@@ -33,7 +33,7 @@ def main() -> None:
                 msg.ack()
                 print(f"  Acked: {body} (seq={msg.sequence})")
             else:
-                msg.reject()
+                msg.nack()
                 print(f"  Rejected: {body} (seq={msg.sequence})")
 
 

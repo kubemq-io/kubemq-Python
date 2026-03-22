@@ -6,22 +6,22 @@ import time
 
 from kubemq import (
     CancellationToken,
+    Client,
     EventMessage,
-    EventMessageReceived,
+    EventReceived,
     EventsSubscription,
-    PubSubClient,
 )
 
 
 def main() -> None:
-    with PubSubClient(
+    with Client(
         address="localhost:50000",
         client_id="python-events-stream-send-client",
     ) as client:
         cancel = CancellationToken()
-        received: list[EventMessageReceived] = []
+        received: list[EventReceived] = []
 
-        def on_receive(event: EventMessageReceived) -> None:
+        def on_receive(event: EventReceived) -> None:
             received.append(event)
             print(f"Received: {event.body.decode('utf-8')}")
 
@@ -39,7 +39,7 @@ def main() -> None:
         time.sleep(1)
 
         for i in range(100):
-            client.publish_event(
+            client.send_event(
                 EventMessage(
                     channel="python-events.stream-send",
                     body=f"Event-{i + 1}".encode(),

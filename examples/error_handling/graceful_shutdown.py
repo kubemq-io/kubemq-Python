@@ -7,22 +7,22 @@ import time
 
 from kubemq import (
     CancellationToken,
+    Client,
     EventMessage,
-    EventMessageReceived,
+    EventReceived,
     EventsSubscription,
-    PubSubClient,
 )
 
 
 def main() -> None:
-    client = PubSubClient(
+    client = Client(
         address="localhost:50000",
         client_id="python-error-handling-graceful-shutdown-client",
     )
     cancel = CancellationToken()
     shutdown_requested = False
 
-    def on_receive(event: EventMessageReceived) -> None:
+    def on_receive(event: EventReceived) -> None:
         print(f"Received: {event.body.decode('utf-8')}")
 
     def on_error(err: str) -> None:
@@ -53,7 +53,7 @@ def main() -> None:
         for i in range(3):
             if shutdown_requested:
                 break
-            client.publish_event(
+            client.send_event(
                 EventMessage(
                     channel="python-error-handling.graceful-shutdown",
                     body=f"Message #{i + 1}".encode(),

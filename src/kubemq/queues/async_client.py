@@ -12,7 +12,6 @@ from typing import (
     Any,
 )
 
-from pydantic import ValidationError
 
 from kubemq._internal.retry import BackoffCalculator
 from kubemq._internal.telemetry import KubeMQTagsCarrier, error_code_to_error_type
@@ -21,6 +20,7 @@ from kubemq.core.client import NativeAsyncBaseClient
 from kubemq.core.config import ClientConfig
 from kubemq.core.exceptions import KubeMQHandlerError, KubeMQMessageError, KubeMQValidationError
 from kubemq.grpc import kubemq_pb2 as pb
+from kubemq.queues.async_downstream_receiver import AsyncDownstreamReceiver
 from kubemq.queues.async_upstream_sender import AsyncUpstreamSender
 from kubemq.queues.queues_message import QueueMessage
 from kubemq.queues.queues_message_received import QueueMessageReceived
@@ -53,7 +53,6 @@ class AsyncQueuesPollResponse:
         is_transaction_completed: bool,
         active_offsets: list[int],
         receiver_client_id: str,
-        visibility_seconds: int,
         is_auto_acked: bool,
         transport: AsyncTransport,
     ) -> None:
@@ -65,7 +64,6 @@ class AsyncQueuesPollResponse:
         self.is_transaction_completed = is_transaction_completed
         self.active_offsets = active_offsets
         self.receiver_client_id = receiver_client_id
-        self.visibility_seconds = visibility_seconds
         self.is_auto_acked = is_auto_acked
         self._transport = transport
 
@@ -137,7 +135,6 @@ class AsyncQueuesPollResponse:
         response: pb.QueuesDownstreamResponse,
         receiver_client_id: str,
         transport: AsyncTransport,
-        request_visibility_seconds: int = 0,
         request_auto_ack: bool = False,
     ) -> AsyncQueuesPollResponse:
         """Create an AsyncQueuesPollResponse from a protobuf response."""
@@ -158,7 +155,6 @@ class AsyncQueuesPollResponse:
                 response.TransactionComplete,
                 receiver_client_id,
                 None,
-                visibility_seconds=request_visibility_seconds,
                 is_auto_acked=request_auto_ack,
                 async_response_handler=_async_handler,
             )
@@ -174,7 +170,6 @@ class AsyncQueuesPollResponse:
             is_transaction_completed=response.TransactionComplete,
             active_offsets=list(response.ActiveOffsets),
             receiver_client_id=receiver_client_id,
-            visibility_seconds=request_visibility_seconds,
             is_auto_acked=request_auto_ack,
             transport=transport,
         )
@@ -235,21 +230,38 @@ class AsyncClient(NativeAsyncBaseClient):
             **kwargs,
         )
         self._upstream_sender: AsyncUpstreamSender | None = None
+        self._downstream_receiver: AsyncDownstreamReceiver | None = None
 
     async def _get_upstream_sender(self) -> AsyncUpstreamSender:
         """Lazily initialize the bidirectional upstream stream sender."""
         if self._upstream_sender is None:
             self._ensure_connected()
-            assert self._transport is not None
-            self._upstream_sender = AsyncUpstreamSender(self._transport)
+            self._upstream_sender = AsyncUpstreamSender(self._pick_pool_transport())
             await self._upstream_sender.start()
         return self._upstream_sender
 
+    async def _get_downstream_receiver(self) -> AsyncDownstreamReceiver:
+        """Lazily initialize the persistent downstream bidi stream."""
+        if self._downstream_receiver is None:
+            self._ensure_connected()
+            self._downstream_receiver = AsyncDownstreamReceiver(self._pick_pool_transport())
+            await self._downstream_receiver.start()
+        return self._downstream_receiver
+
     async def close(self) -> None:
-        """Close the client and its upstream sender."""
+        """Close the client and its senders/receivers.
+
+        Releases all bidirectional streams and transport resources.
+
+        See Also:
+            :meth:`QueuesClient.close`: Sync counterpart.
+        """
         if self._upstream_sender is not None:
             await self._upstream_sender.close()
             self._upstream_sender = None
+        if self._downstream_receiver is not None:
+            await self._downstream_receiver.close()
+            self._downstream_receiver = None
         await super().close()
 
     # =========================================================================
@@ -265,10 +277,28 @@ class AsyncClient(NativeAsyncBaseClient):
         Uses the unary ``SendQueueMessage`` RPC for single-shot delivery.
 
         Args:
-            message: The queue message to send
+            message: The queue message to send.
 
         Returns:
-            QueueSendResult with send confirmation
+            QueueSendResult: Contains ``is_error`` (bool), ``error``
+            (error description), ``message_id`` (server-assigned ID),
+            ``sent_at`` (timestamp), and ``expired_at`` (expiration time).
+
+        Raises:
+            KubeMQValidationError: If the message fails validation (e.g.,
+                empty channel, body exceeds ``max_send_size``).
+            KubeMQConnectionError: If the server is unreachable or the
+                connection is lost.
+            KubeMQAuthenticationError: If the auth token is invalid or
+                expired, or the client lacks permission for the channel.
+            KubeMQTimeoutError: If the operation exceeds the server deadline.
+            KubeMQClientClosedError: If the client has already been closed.
+
+        See Also:
+            :meth:`QueuesClient.send_queue_message_simple`: Sync counterpart.
+            :meth:`send_queue_message`: Streaming variant with higher
+                throughput.
+            :meth:`receive_queue_messages`: Consume messages from a queue.
         """
         self._validate_message_size(message.body)
         start = time.perf_counter()
@@ -292,7 +322,7 @@ class AsyncClient(NativeAsyncBaseClient):
                 result = await self._transport.send_queue_message(pb_message)
                 self._instrumentor._metrics.record_sent_message("send", message.channel)
                 return QueueSendResult.decode(result)
-            except ValidationError as e:
+            except (ValueError, TypeError) as e:
                 error_type_val = "validation"
                 self._instrumentor.record_error(span, e, error_type_val)
                 raise KubeMQValidationError(str(e), is_retryable=False) from e
@@ -315,10 +345,30 @@ class AsyncClient(NativeAsyncBaseClient):
         Uses ``QueuesUpstream`` bidi RPC for high-throughput delivery.
 
         Args:
-            message: The queue message to send
+            message: The queue message to send.
 
         Returns:
-            QueueSendResult with send confirmation
+            QueueSendResult: Contains ``is_error`` (bool), ``error``
+            (error description), ``message_id`` (server-assigned ID),
+            ``sent_at`` (timestamp), and ``expired_at`` (expiration time).
+
+        Raises:
+            KubeMQValidationError: If the message fails validation (e.g.,
+                empty channel, body exceeds ``max_send_size``).
+            KubeMQConnectionError: If the server is unreachable or the
+                connection is lost.
+            KubeMQAuthenticationError: If the auth token is invalid or
+                expired, or the client lacks permission for the channel.
+            KubeMQTimeoutError: If the operation exceeds the server deadline.
+            KubeMQClientClosedError: If the client has already been closed.
+
+        See Also:
+            :meth:`QueuesClient.send_queue_message`: Sync counterpart.
+            :class:`~kubemq.queues.queues_message.QueueMessage`:
+                Message type for queue operations.
+            :meth:`receive_queue_messages`: Consume messages from a queue.
+            :meth:`send_queue_messages_batch`: Send multiple messages
+                atomically.
         """
         self._validate_message_size(message.body)
         start = time.perf_counter()
@@ -341,7 +391,7 @@ class AsyncClient(NativeAsyncBaseClient):
                 result = await sender.send(pb_message)
                 self._instrumentor._metrics.record_sent_message("send", message.channel)
                 return result
-            except ValidationError as e:
+            except (ValueError, TypeError) as e:
                 error_type_val = "validation"
                 self._instrumentor.record_error(span, e, error_type_val)
                 raise KubeMQValidationError(str(e), is_retryable=False) from e
@@ -355,6 +405,76 @@ class AsyncClient(NativeAsyncBaseClient):
                     duration, "send", message.channel, error_type_val
                 )
 
+    async def send_queue_message_fast(self, message: QueueMessage) -> QueueSendResult:
+        """Send queue message — fast path, no instrumentation."""
+        sender = await self._get_upstream_sender()
+        pb_message = message.encode_message(self._config.client_id or "")
+        return await sender.send(pb_message)
+
+    async def receive_queue_messages_fast(
+        self,
+        channel: str,
+        max_messages: int = 1,
+        wait_timeout_seconds: int = 60,
+        auto_ack: bool = False,
+    ) -> AsyncQueuesPollResponse:
+        """Receive queue messages — fast path, no instrumentation."""
+        receiver = await self._get_downstream_receiver()
+        client_id = self._config.client_id or ""
+
+        request = pb.QueuesDownstreamRequest()
+        request.RequestID = str(uuid.uuid4())
+        request.ClientID = client_id
+        request.Channel = channel
+        request.MaxItems = max_messages
+        request.WaitTimeout = wait_timeout_seconds * 1000
+        request.AutoAck = auto_ack
+        request.RequestTypeData = pb.QueuesDownstreamRequestType.Get
+
+        kubemq_response = await receiver.send(request)
+        if kubemq_response is None or kubemq_response.IsError:
+            return AsyncQueuesPollResponse(
+                ref_request_id=request.RequestID,
+                transaction_id=kubemq_response.TransactionId if kubemq_response else "",
+                messages=[],
+                error=kubemq_response.Error if kubemq_response else "Timeout",
+                is_error=True,
+                is_transaction_completed=True,
+                active_offsets=[],
+                receiver_client_id=client_id,
+                is_auto_acked=auto_ack,
+                transport=self._transport,
+            )
+
+        async def _async_handler(req: pb.QueuesDownstreamRequest) -> None:
+            await receiver.send_without_response(req)
+
+        messages = [
+            QueueMessageReceived.decode(
+                message,
+                kubemq_response.TransactionId,
+                kubemq_response.TransactionComplete,
+                client_id,
+                None,
+                is_auto_acked=auto_ack,
+                async_response_handler=_async_handler,
+            )
+            for message in kubemq_response.Messages
+        ]
+
+        return AsyncQueuesPollResponse(
+            ref_request_id=kubemq_response.RefRequestId,
+            transaction_id=kubemq_response.TransactionId,
+            messages=messages,
+            error=kubemq_response.Error,
+            is_error=kubemq_response.IsError,
+            is_transaction_completed=kubemq_response.TransactionComplete,
+            active_offsets=list(kubemq_response.ActiveOffsets),
+            receiver_client_id=client_id,
+            is_auto_acked=auto_ack,
+            transport=self._transport,
+        )
+
     async def send_queue_messages_batch(
         self,
         messages: list[QueueMessage],
@@ -365,10 +485,28 @@ class AsyncClient(NativeAsyncBaseClient):
         with ``BatchID`` correlation and aggregate ``HaveErrors`` flag.
 
         Args:
-            messages: List of messages to send.
+            messages: List of messages to send. Each message must have a
+                valid ``channel`` and ``body``.
 
         Returns:
-            QueueBatchSendResult with batch_id, have_errors, and per-message results.
+            QueueBatchSendResult: Contains ``batch_id`` (correlation ID for
+            the batch), ``have_errors`` (bool indicating if any message
+            failed), and ``results`` (list of per-message
+            :class:`QueueSendResult` objects).
+
+        Raises:
+            KubeMQValidationError: If any message fails validation (e.g.,
+                empty channel, body exceeds ``max_send_size``).
+            KubeMQConnectionError: If the server is unreachable or the
+                connection is lost.
+            KubeMQAuthenticationError: If the auth token is invalid or
+                expired, or the client lacks permission for the channel.
+            KubeMQTimeoutError: If the operation exceeds the server deadline.
+            KubeMQClientClosedError: If the client has already been closed.
+
+        See Also:
+            :meth:`QueuesClient.send_queue_messages_batch`: Sync counterpart.
+            :meth:`send_queue_message`: Send a single queue message.
         """
         self._ensure_connected()
         assert self._transport is not None
@@ -408,23 +546,47 @@ class AsyncClient(NativeAsyncBaseClient):
         max_messages: int = 1,
         wait_timeout_seconds: int = 60,
         auto_ack: bool = False,
-        visibility_seconds: int = 0,
     ) -> AsyncQueuesPollResponse:
         """Receive messages from queue (polling).
 
+        Long-polls the server for up to ``wait_timeout_seconds``. If
+        ``auto_ack`` is ``False``, each message must be explicitly
+        acknowledged, rejected, or re-queued.
+
         Args:
-            channel: Queue channel to receive from
-            max_messages: Maximum messages to receive
-            wait_timeout_seconds: How long to wait for messages
-            auto_ack: If True, messages are auto-acknowledged after receive
-            visibility_seconds: Visibility timeout for messages
+            channel: Queue channel to receive from.
+            max_messages: Maximum number of messages to receive (1–1024).
+            wait_timeout_seconds: Timeout in seconds to wait for messages
+                (0–3600).
+            auto_ack: If True, messages are auto-acknowledged after receive.
 
         Returns:
-            AsyncQueuesPollResponse with received messages
+            AsyncQueuesPollResponse: Contains ``messages`` (list of received
+            queue messages, each supporting ``.ack()``, ``.nack()``,
+            and ``.requeue()``), ``is_error`` (bool), ``error`` (error
+            description), and async methods ``ack_all()``, ``reject_all()``,
+            ``re_queue_all()``.
+
+        Raises:
+            ValueError: If ``max_messages`` is not between 1 and 1024 or
+                ``wait_timeout_seconds`` is not between 0 and 3600.
+            KubeMQConnectionError: If the server is unreachable or the
+                connection is lost.
+            KubeMQAuthenticationError: If the auth token is invalid or
+                expired, or the client lacks permission for the channel.
+            KubeMQTimeoutError: If the operation exceeds the server deadline.
+            KubeMQClientClosedError: If the client has already been closed.
 
         Note:
             The simple receive RPC doesn't support auto_ack at the protocol level.
             If auto_ack is True, messages are acknowledged after being received.
+
+        See Also:
+            :meth:`QueuesClient.receive_queue_messages`: Sync counterpart.
+            :meth:`send_queue_message`: Send messages to a queue.
+            :meth:`peek_queue_messages`: Peek at waiting messages without
+                consuming.
+            :meth:`subscribe_to_queue`: Stream messages continuously.
         """
         if not self._config.client_id:
             raise ValueError("ClientID required for downstream operations")
@@ -436,46 +598,79 @@ class AsyncClient(NativeAsyncBaseClient):
         error_type_val = None
         with self._instrumentor.start_span("receive", channel) as span:
             try:
-                self._ensure_connected()
-                assert self._transport is not None
+                receiver = await self._get_downstream_receiver()
                 client_id = self._config.client_id or ""
 
-                request = pb.ReceiveQueueMessagesRequest()
+                # Use QueuesDownstreamRequest (bidi stream) instead of unary RPC.
+                # This gives us a TransactionId from the server for ack/nack.
+                request = pb.QueuesDownstreamRequest()
                 request.RequestID = str(uuid.uuid4())
                 request.ClientID = client_id
                 request.Channel = channel
-                request.MaxNumberOfMessages = max_messages
-                request.WaitTimeSeconds = wait_timeout_seconds
-                request.IsPeak = False
+                request.MaxItems = max_messages
+                request.WaitTimeout = wait_timeout_seconds * 1000
+                request.AutoAck = auto_ack
+                request.RequestTypeData = pb.QueuesDownstreamRequestType.Get
 
-                response = await self._transport.receive_queue_messages(request)
+                kubemq_response = await receiver.send(request)
+                if kubemq_response is None:
+                    return AsyncQueuesPollResponse(
+                        ref_request_id=request.RequestID,
+                        transaction_id="",
+                        messages=[],
+                        error="Timeout waiting for response",
+                        is_error=True,
+                        is_transaction_completed=True,
+                        active_offsets=[],
+                        receiver_client_id=client_id,
+                        is_auto_acked=auto_ack,
+                        transport=self._transport,
+                    )
+
+                if kubemq_response.IsError:
+                    return AsyncQueuesPollResponse(
+                        ref_request_id=kubemq_response.RefRequestId,
+                        transaction_id=kubemq_response.TransactionId,
+                        messages=[],
+                        error=kubemq_response.Error,
+                        is_error=True,
+                        is_transaction_completed=True,
+                        active_offsets=[],
+                        receiver_client_id=client_id,
+                        is_auto_acked=auto_ack,
+                        transport=self._transport,
+                    )
+
+                # Build per-message async handler that sends ack/nack on the
+                # SAME persistent downstream stream (preserves TransactionId)
+                async def _async_handler(req: pb.QueuesDownstreamRequest) -> None:
+                    await receiver.send_without_response(req)
 
                 messages = [
                     QueueMessageReceived.decode(
-                        msg,
-                        "",
-                        True,
+                        message,
+                        kubemq_response.TransactionId,
+                        kubemq_response.TransactionComplete,
                         client_id,
                         None,
-                        visibility_seconds=visibility_seconds,
                         is_auto_acked=auto_ack,
+                        async_response_handler=_async_handler,
                     )
-                    for msg in response.Messages
+                    for message in kubemq_response.Messages
                 ]
 
                 for _ in messages:
                     self._instrumentor._metrics.record_consumed_message("receive", channel)
 
                 poll_response = AsyncQueuesPollResponse(
-                    ref_request_id=response.RequestID,
-                    transaction_id="",
+                    ref_request_id=kubemq_response.RefRequestId,
+                    transaction_id=kubemq_response.TransactionId,
                     messages=messages,
-                    error=response.Error,
-                    is_error=response.IsError,
-                    is_transaction_completed=auto_ack,
-                    active_offsets=[],
+                    error=kubemq_response.Error,
+                    is_error=kubemq_response.IsError,
+                    is_transaction_completed=kubemq_response.TransactionComplete,
+                    active_offsets=list(kubemq_response.ActiveOffsets),
                     receiver_client_id=client_id,
-                    visibility_seconds=visibility_seconds,
                     is_auto_acked=auto_ack,
                     transport=self._transport,
                 )
@@ -499,13 +694,34 @@ class AsyncClient(NativeAsyncBaseClient):
     ) -> AsyncQueuesPollResponse:
         """Peek at messages without removing them from the queue.
 
+        Retrieves messages that are currently waiting in the queue without
+        consuming them. Messages remain available for other consumers.
+
         Args:
-            channel: Queue channel to peek from
-            max_messages: Maximum messages to peek
-            wait_timeout_seconds: How long to wait for messages
+            channel: The name of the queue channel.
+            max_messages: Maximum number of messages to retrieve (1–1024).
+            wait_timeout_seconds: Maximum time to wait for messages in
+                seconds (0–3600).
 
         Returns:
-            AsyncQueuesPollResponse with peeked messages
+            AsyncQueuesPollResponse: Contains ``messages`` (list of peeked
+            messages), ``is_error`` (bool), ``error`` (error description).
+            Messages are auto-acknowledged (peek-only, no consume).
+
+        Raises:
+            ValueError: If ``max_messages`` is not between 1 and 1024 or
+                ``wait_timeout_seconds`` is not between 0 and 3600.
+            KubeMQConnectionError: If the server is unreachable or the
+                connection is lost.
+            KubeMQAuthenticationError: If the auth token is invalid or the
+                client lacks permission for the channel.
+            KubeMQTimeoutError: If the operation exceeds the server deadline.
+            KubeMQClientClosedError: If the client has already been closed.
+
+        See Also:
+            :meth:`QueuesClient.waiting`: Sync counterpart.
+            :meth:`receive_queue_messages`: Consume messages with
+                acknowledgment support.
         """
         if max_messages < 1 or max_messages > 1024:
             raise ValueError("max_messages must be between 1 and 1024")
@@ -532,7 +748,6 @@ class AsyncClient(NativeAsyncBaseClient):
                 True,
                 client_id,
                 None,
-                visibility_seconds=0,
                 is_auto_acked=True,
             )
             for msg in response.Messages
@@ -547,7 +762,6 @@ class AsyncClient(NativeAsyncBaseClient):
             is_transaction_completed=True,
             active_offsets=[],
             receiver_client_id=client_id,
-            visibility_seconds=0,
             is_auto_acked=True,
             transport=self._transport,
         )
@@ -562,7 +776,6 @@ class AsyncClient(NativeAsyncBaseClient):
         max_messages: int = 1,
         wait_timeout_seconds: int = 60,
         auto_ack: bool = False,
-        visibility_seconds: int = 0,
         cancellation_token: AsyncCancellationToken | None = None,
     ) -> AsyncIterator[AsyncQueuesPollResponse]:
         """Subscribe to queue messages with exponential backoff on errors.
@@ -572,15 +785,27 @@ class AsyncClient(NativeAsyncBaseClient):
         reset the backoff counter.
 
         Args:
-            channel: Queue channel to subscribe to
-            max_messages: Maximum messages per poll
-            wait_timeout_seconds: Wait timeout per poll
-            auto_ack: If True, messages are auto-acknowledged
-            visibility_seconds: Visibility timeout for messages
-            cancellation_token: Optional token to cancel subscription
+            channel: Queue channel to subscribe to.
+            max_messages: Maximum messages per poll (1–1024).
+            wait_timeout_seconds: Wait timeout per poll (0–3600).
+            auto_ack: If True, messages are auto-acknowledged.
+            cancellation_token: Optional token to cancel subscription.
 
         Yields:
-            AsyncQueuesPollResponse for each poll batch
+            AsyncQueuesPollResponse: Response for each poll batch containing
+            received messages.
+
+        Raises:
+            KubeMQConnectionError: If the server is unreachable or the
+                connection is lost.
+            KubeMQAuthenticationError: If the auth token is invalid or the
+                client lacks permission for the channel.
+            KubeMQTimeoutError: If the operation exceeds the server deadline.
+            KubeMQClientClosedError: If the client has already been closed.
+
+        See Also:
+            :meth:`receive_queue_messages`: Single poll for messages.
+            :meth:`process_queue_messages`: Process messages with a callback.
         """
         self._ensure_connected()
 
@@ -598,7 +823,6 @@ class AsyncClient(NativeAsyncBaseClient):
                         max_messages=max_messages,
                         wait_timeout_seconds=wait_timeout_seconds,
                         auto_ack=auto_ack,
-                        visibility_seconds=visibility_seconds,
                     )
 
                     attempt = 0
@@ -632,13 +856,28 @@ class AsyncClient(NativeAsyncBaseClient):
         without terminating the processing loop.
 
         Args:
-            channel: Queue channel to process from
-            callback: Async callback for each message
-            error_callback: Optional async callback for errors
-            max_messages: Maximum messages per poll
-            wait_timeout_seconds: Wait timeout per poll
-            auto_ack: If True, messages are auto-acknowledged
-            cancellation_token: Optional token to cancel processing
+            channel: Queue channel to process from.
+            callback: Async callback for each message.
+            error_callback: Optional async callback for errors.
+            max_messages: Maximum messages per poll (1–1024).
+            wait_timeout_seconds: Wait timeout per poll (0–3600).
+            auto_ack: If True, messages are auto-acknowledged.
+            cancellation_token: Optional token to cancel processing.
+
+        Returns:
+            None. Runs until cancelled via ``cancellation_token``.
+
+        Raises:
+            KubeMQConnectionError: If the server is unreachable or the
+                connection is lost.
+            KubeMQAuthenticationError: If the auth token is invalid or the
+                client lacks permission for the channel.
+            KubeMQTimeoutError: If the operation exceeds the server deadline.
+            KubeMQClientClosedError: If the client has already been closed.
+
+        See Also:
+            :meth:`subscribe_to_queue`: Low-level streaming subscription.
+            :meth:`receive_queue_messages`: Single poll for messages.
         """
         token = cancellation_token or AsyncCancellationToken()
 
@@ -698,11 +937,25 @@ class AsyncClient(NativeAsyncBaseClient):
         """Acknowledge all messages in a queue.
 
         Args:
-            channel: Queue channel to ack all messages
-            wait_time_seconds: How long the server should wait for messages to ack
+            channel: Queue channel to ack all messages.
+            wait_time_seconds: How long the server should wait for messages
+                to ack (in seconds).
 
         Returns:
-            Number of messages acknowledged
+            int: The number of messages that were acknowledged.
+
+        Raises:
+            KubeMQMessageError: If the server returns an error response
+                (e.g., no messages to acknowledge).
+            KubeMQConnectionError: If the server is unreachable or the
+                connection is lost.
+            KubeMQAuthenticationError: If the auth token is invalid or the
+                client lacks permission for the channel.
+            KubeMQTimeoutError: If the operation exceeds the server deadline.
+            KubeMQClientClosedError: If the client has already been closed.
+
+        See Also:
+            :meth:`QueuesClient.ack_all_queue_messages`: Sync counterpart.
         """
         self._ensure_connected()
         assert self._transport is not None

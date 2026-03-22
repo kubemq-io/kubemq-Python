@@ -15,21 +15,15 @@ from kubemq.transport.tls_config import TlsConfig
 class TestConnectionValidation:
     """Tests for Connection validation."""
 
-    def test_requires_address(self):
-        """Test that address is required."""
-        with pytest.raises(ValueError, match="must have an address"):
-            Connection(
-                address="",
-                client_id="test-client",
-            )
+    def test_allows_empty_address(self):
+        """Test that empty address is allowed (validated at ClientConfig level)."""
+        conn = Connection(address="", client_id="test-client")
+        assert conn.address == ""
 
-    def test_requires_client_id(self):
-        """Test that client_id is required."""
-        with pytest.raises(ValueError, match="must have a client_id"):
-            Connection(
-                address="localhost:50000",
-                client_id="",
-            )
+    def test_allows_empty_client_id(self):
+        """Test that empty client_id is allowed (validated at ClientConfig level)."""
+        conn = Connection(address="localhost:50000", client_id="")
+        assert conn.client_id == ""
 
     def test_valid_connection(self):
         """Test valid connection creation."""

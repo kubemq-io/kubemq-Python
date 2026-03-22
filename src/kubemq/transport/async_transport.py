@@ -701,19 +701,23 @@ class AsyncTransport:
         call: grpc.aio.UnaryStreamCall = stub.SubscribeToEvents(request)
         await self._register_stream(call)
 
+        # Background watchdog: when the cancellation token fires, cancel the
+        # gRPC call directly. This interrupts the `async for` immediately
+        # without per-message polling overhead.
+        cancel_watchdog: asyncio.Task | None = None
+        if cancellation_token:
+            async def _watch_cancel() -> None:
+                await cancellation_token.wait()
+                self._logger.debug("Subscription cancelled by token")
+                call.cancel()
+
+            cancel_watchdog = asyncio.create_task(_watch_cancel())
+
         try:
             async for event in call:
-                # Check cancellation
-                if cancellation_token and cancellation_token.is_cancelled:
-                    self._logger.debug("Subscription cancelled by token")
-                    call.cancel()
-                    break
-
-                # Check if transport is closing
                 if self._closing:
                     self._logger.debug("Subscription cancelled due to transport closing")
                     break
-
                 yield event
 
         except grpc.aio.AioRpcError as e:
@@ -721,6 +725,12 @@ class AsyncTransport:
             if e.code() != grpc.StatusCode.CANCELLED:
                 raise from_grpc_error(e) from e
         finally:
+            if cancel_watchdog and not cancel_watchdog.done():
+                cancel_watchdog.cancel()
+                try:
+                    await cancel_watchdog
+                except asyncio.CancelledError:
+                    pass
             await self._unregister_stream(call)
 
     async def subscribe_to_requests(
@@ -745,18 +755,31 @@ class AsyncTransport:
         call = stub.SubscribeToRequests(request)
         await self._register_stream(call)
 
+        # Background watchdog for cancellation (same pattern as subscribe_to_events)
+        cancel_watchdog: asyncio.Task | None = None
+        if cancellation_token:
+            async def _watch_cancel() -> None:
+                await cancellation_token.wait()
+                call.cancel()
+
+            cancel_watchdog = asyncio.create_task(_watch_cancel())
+
         try:
             async for req in call:
-                if cancellation_token and cancellation_token.is_cancelled:
-                    call.cancel()
-                    break
                 if self._closing:
                     break
                 yield req
+
         except grpc.aio.AioRpcError as e:
             if e.code() != grpc.StatusCode.CANCELLED:
                 raise from_grpc_error(e) from e
         finally:
+            if cancel_watchdog and not cancel_watchdog.done():
+                cancel_watchdog.cancel()
+                try:
+                    await cancel_watchdog
+                except asyncio.CancelledError:
+                    pass
             await self._unregister_stream(call)
 
     # =========================================================================

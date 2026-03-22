@@ -1,7 +1,8 @@
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from dataclasses import dataclass
 
 
-class ServerInfo(BaseModel):
+@dataclass(frozen=True)
+class ServerInfo:
     """Represents information about a server.
 
     Attributes:
@@ -11,19 +12,17 @@ class ServerInfo(BaseModel):
         server_up_time_seconds (int): The uptime of the server (in seconds).
     """
 
-    host: str = Field(..., description="The host of the server")
-    version: str = Field(..., description="The version of the server")
-    server_start_time: int = Field(..., description="The start time of the server (in seconds)")
-    server_up_time_seconds: int = Field(..., description="The uptime of the server (in seconds)")
+    host: str
+    version: str
+    server_start_time: int
+    server_up_time_seconds: int
 
-    @field_validator("server_start_time", "server_up_time_seconds")
-    def validate_positive_time(cls, v: int) -> int:
+    def __post_init__(self) -> None:
         """Validate that time values are non-negative."""
-        if v < 0:
+        if self.server_start_time < 0:
             raise ValueError("Time values must be non-negative")
-        return v
-
-    model_config = ConfigDict(frozen=True)
+        if self.server_up_time_seconds < 0:
+            raise ValueError("Time values must be non-negative")
 
     def __str__(self) -> str:
         return (

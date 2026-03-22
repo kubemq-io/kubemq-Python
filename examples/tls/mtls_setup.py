@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from kubemq import EventMessage, PubSubClient, TLSConfig
+from kubemq import Client, EventMessage, TLSConfig
 
 
 def main() -> None:
@@ -14,7 +14,7 @@ def main() -> None:
         ca_file="/path/to/ca.pem",
     )
 
-    with PubSubClient(
+    with Client(
         address="kubemq-server:50000",
         client_id="python-tls-mtls-setup-client",
         tls=tls_config,
@@ -22,7 +22,7 @@ def main() -> None:
         info = client.ping()
         print(f"Connected via mTLS to {info.host}")
 
-        client.publish_event(
+        client.send_event(
             EventMessage(
                 channel="python-tls.mtls-setup",
                 body=b"mTLS secured message",

@@ -1,13 +1,26 @@
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
-
-from pydantic import BaseModel, ConfigDict, Field
 
 from kubemq.grpc import EventReceive as pbEventReceive
 
 
-class EventMessageReceived(BaseModel):
+@dataclass(frozen=True)
+class EventReceived:
     """Received event message from a subscription.
+
+    Attributes:
+        id: Unique event identifier.
+        channel: Channel name the event was published to.
+        metadata: Optional metadata string.
+        body: Raw message payload as bytes.
+        from_client_id: Client ID of the publisher (from tags).
+        timestamp: Receipt timestamp.
+        tags: Key-value tags associated with the event.
+
+    See Also:
+        EventMessage: The outgoing message type for publishing.
+        PubSubClient.subscribe_to_events: Subscribe to events on a channel.
 
     Thread Safety:
         Instances are safe to read from multiple threads or asyncio
@@ -16,15 +29,15 @@ class EventMessageReceived(BaseModel):
 
     id: str = ""
     from_client_id: str = ""
-    timestamp: datetime = Field(default_factory=datetime.now)
+    timestamp: datetime = field(default_factory=datetime.now)
     channel: str = ""
     metadata: str = ""
     body: bytes = b""
-    tags: dict[str, str] = Field(default_factory=dict)
+    tags: dict[str, str] = field(default_factory=dict)
 
     @classmethod
-    def decode(cls, event_receive: pbEventReceive) -> "EventMessageReceived":
-        """Decode a protobuf EventReceive into an EventMessageReceived."""
+    def decode(cls, event_receive: pbEventReceive) -> "EventReceived":
+        """Decode a protobuf EventReceive into an EventReceived."""
         from_client_id = (
             event_receive.Tags.get("x-kubemq-client-id", "") if event_receive.Tags else ""
         )
@@ -39,10 +52,14 @@ class EventMessageReceived(BaseModel):
             tags=tags,
         )
 
-    model_config = ConfigDict(arbitrary_types_allowed=True, frozen=True)
-
-    def model_dump(self, **kwargs: Any) -> dict[str, Any]:
+    def to_dict(self, **kwargs: Any) -> dict[str, Any]:
         """Serialize the model to a dictionary with formatted timestamps."""
-        dump = super().model_dump(**kwargs)
-        dump["timestamp"] = self.timestamp.isoformat()
-        return dump
+        return {
+            "id": self.id,
+            "from_client_id": self.from_client_id,
+            "timestamp": self.timestamp.isoformat(),
+            "channel": self.channel,
+            "metadata": self.metadata,
+            "body": self.body,
+            "tags": self.tags,
+        }

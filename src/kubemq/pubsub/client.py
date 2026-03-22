@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 import grpc
-from pydantic import ValidationError
+import dataclasses
 
 from kubemq._internal.deprecation import deprecated, deprecated_async
 from kubemq._internal.retry import BackoffCalculator
@@ -36,12 +36,12 @@ from kubemq.core.exceptions import (
     from_grpc_error as convert_grpc_error,
 )
 from kubemq.pubsub.event_message import EventMessage
-from kubemq.pubsub.event_message_received import EventMessageReceived
-from kubemq.pubsub.event_send_result import EventSendResult
+from kubemq.pubsub.event_message_received import EventReceived
+from kubemq.pubsub.event_send_result import EventStoreResult
 from kubemq.pubsub.event_sender import EventSender
 from kubemq.pubsub.event_store_message import EventStoreMessage
-from kubemq.pubsub.event_store_message_received import EventStoreMessageReceived
-from kubemq.pubsub.events_store_subscription import EventsStoreSubscription, EventsStoreType
+from kubemq.pubsub.event_store_message_received import EventStoreReceived
+from kubemq.pubsub.events_store_subscription import EventsStoreSubscription, EventStoreStartPosition
 from kubemq.pubsub.events_subscription import EventsSubscription
 from kubemq.transport.server_info import ServerInfo
 
@@ -287,7 +287,7 @@ class Client(BaseClient):
                     from kubemq.core.exceptions import KubeMQError
 
                     raise KubeMQError(result.Error)
-            except ValidationError as e:
+            except (ValueError, TypeError) as e:
                 error_type_val = "validation"
                 self._instrumentor.record_error(span, e, error_type_val)
                 raise KubeMQValidationError(str(e), is_retryable=False) from e
@@ -323,7 +323,7 @@ class Client(BaseClient):
                 sender = self._get_event_sender()
                 sender.send(pb_event)
                 self._instrumentor._metrics.record_sent_message("publish", message.channel)
-            except ValidationError as e:
+            except (ValueError, TypeError) as e:
                 error_type_val = "validation"
                 self._instrumentor.record_error(span, e, error_type_val)
                 raise KubeMQValidationError(str(e), is_retryable=False) from e
@@ -405,7 +405,7 @@ class Client(BaseClient):
         """
         await run_in_thread(self._publish_event_impl, message)
 
-    def _publish_event_store_impl(self, message: EventStoreMessage) -> EventSendResult:
+    def _send_event_store_impl(self, message: EventStoreMessage) -> EventStoreResult:
         """Internal implementation for event store publishing."""
         self._validate_message_size(message.body)
         start = time.perf_counter()
@@ -428,9 +428,9 @@ class Client(BaseClient):
                 result = sender.send(pb_event)
                 self._instrumentor._metrics.record_sent_message("publish", message.channel)
                 if result is not None:
-                    return EventSendResult().decode(result)
-                return EventSendResult()
-            except ValidationError as e:
+                    return EventStoreResult().decode(result)
+                return EventStoreResult()
+            except (ValueError, TypeError) as e:
                 error_type_val = "validation"
                 self._instrumentor.record_error(span, e, error_type_val)
                 raise KubeMQValidationError(str(e), is_retryable=False) from e
@@ -444,14 +444,14 @@ class Client(BaseClient):
                     duration, "publish", message.channel, error_type_val
                 )
 
-    def publish_event_store(self, message: EventStoreMessage) -> EventSendResult:
+    def send_event_store(self, message: EventStoreMessage) -> EventStoreResult:
         """Publish a persistent event store message.
 
         Args:
             message: The event store message to publish.
 
         Returns:
-            EventSendResult: Contains ``sent`` (bool indicating delivery
+            EventStoreResult: Contains ``sent`` (bool indicating delivery
             success), ``id`` (the server-assigned message ID), and
             ``error`` (error description if the send failed).
 
@@ -474,27 +474,27 @@ class Client(BaseClient):
             >>> from kubemq.pubsub import Client
             >>> from kubemq.pubsub.event_store_message import EventStoreMessage
             >>> with Client(address="localhost:50000") as client:
-            ...     result = client.publish_event_store(EventStoreMessage(
+            ...     result = client.send_event_store(EventStoreMessage(
             ...         channel="events_store.audit",
             ...         body=b'{"action": "user.login", "user": "admin"}',
             ...         metadata="audit-trail",
             ...     ))
             ...     print(f"Sent: {result.sent}")
         """
-        return self._publish_event_store_impl(message)
+        return self._send_event_store_impl(message)
 
-    @deprecated(replacement="publish_event_store()", since="4.0.0", removal="5.0.0")
-    def send_events_store_message(self, message: EventStoreMessage) -> EventSendResult:
+    @deprecated(replacement="send_event_store()", since="4.0.0", removal="5.0.0")
+    def send_events_store_message(self, message: EventStoreMessage) -> EventStoreResult:
         """Send an event store message.
 
         Deprecated:
-            Use ``publish_event_store()`` instead. Will be removed in v5.0.
+            Use ``send_event_store()`` instead. Will be removed in v5.0.
 
         Args:
             message: The event store message to send
 
         Returns:
-            EventSendResult: Contains ``sent``, ``id``, and ``error`` fields.
+            EventStoreResult: Contains ``sent``, ``id``, and ``error`` fields.
 
         Raises:
             KubeMQValidationError: If the message fails validation.
@@ -503,22 +503,22 @@ class Client(BaseClient):
                 fails.
             KubeMQClientClosedError: If the client has already been closed.
         """
-        return self._publish_event_store_impl(message)
+        return self._send_event_store_impl(message)
 
     @deprecated_async(
-        replacement="AsyncPubSubClient.publish_event_store()", since="4.0.0", removal="5.0.0"
+        replacement="AsyncPubSubClient.send_event_store()", since="4.0.0", removal="5.0.0"
     )
-    async def send_events_store_message_async(self, message: EventStoreMessage) -> EventSendResult:
+    async def send_events_store_message_async(self, message: EventStoreMessage) -> EventStoreResult:
         """Send an event store message asynchronously.
 
         Deprecated:
-            Use ``AsyncPubSubClient.publish_event_store()`` for native async support.
+            Use ``AsyncPubSubClient.send_event_store()`` for native async support.
 
         Args:
             message: The event store message to send
 
         Returns:
-            EventSendResult: Contains ``sent``, ``id``, and ``error`` fields.
+            EventStoreResult: Contains ``sent``, ``id``, and ``error`` fields.
 
         Raises:
             KubeMQValidationError: If the message fails validation.
@@ -527,7 +527,7 @@ class Client(BaseClient):
                 fails.
             KubeMQClientClosedError: If the client has already been closed.
         """
-        return await run_in_thread(self._publish_event_store_impl, message)
+        return await run_in_thread(self._send_event_store_impl, message)
 
     # Channel management methods
     def create_events_channel(self, channel: str) -> bool | None:
@@ -870,7 +870,7 @@ class Client(BaseClient):
         See Also:
             :class:`~kubemq.pubsub.events_store_subscription.EventsStoreSubscription`:
                 Subscription configuration for persistent events.
-            :meth:`publish_event_store`: Publish persistent events.
+            :meth:`send_event_store`: Publish persistent events.
         """
         self._subscribe(subscription, cancel)
 
@@ -895,16 +895,15 @@ class Client(BaseClient):
             def make_store_stream() -> Any:
                 sub = subscription
                 if last_seq[0] > 0:
-                    sub = subscription.model_copy(
-                        update={
-                            "events_store_type": EventsStoreType.StartAtSequence,
-                            "events_store_sequence_value": last_seq[0] + 1,
-                        }
+                    sub = dataclasses.replace(
+                        subscription,
+                        events_store_type=EventStoreStartPosition.StartAtSequence,
+                        events_store_sequence_value=last_seq[0] + 1,
                     )
                 return transport.kubemq_client().SubscribeToEvents(sub.encode(client_id))
 
             def decode_and_track(message: Any) -> None:
-                received = EventStoreMessageReceived().decode(message)
+                received = EventStoreReceived().decode(message)
                 if received.sequence > 0:
                     last_seq[0] = received.sequence
                 subscription.raise_on_receive_message(received)
@@ -920,7 +919,7 @@ class Client(BaseClient):
             args = (
                 lambda: transport.kubemq_client().SubscribeToEvents(subscription.encode(client_id)),
                 lambda message: subscription.raise_on_receive_message(
-                    EventMessageReceived().decode(message)
+                    EventReceived().decode(message)
                 ),
                 lambda error: subscription.raise_on_error(error),
                 cancel_token_event,
@@ -1092,16 +1091,15 @@ class Client(BaseClient):
             def make_store_stream_async() -> Any:
                 sub = subscription
                 if last_seq[0] > 0:
-                    sub = subscription.model_copy(
-                        update={
-                            "events_store_type": EventsStoreType.StartAtSequence,
-                            "events_store_sequence_value": last_seq[0] + 1,
-                        }
+                    sub = dataclasses.replace(
+                        subscription,
+                        events_store_type=EventStoreStartPosition.StartAtSequence,
+                        events_store_sequence_value=last_seq[0] + 1,
                     )
                 return transport.kubemq_client().SubscribeToEvents(sub.encode(client_id))
 
             async def decode_and_track_async(message: Any) -> None:
-                received = EventStoreMessageReceived().decode(message)
+                received = EventStoreReceived().decode(message)
                 if received.sequence > 0:
                     last_seq[0] = received.sequence
                 await subscription.raise_on_receive_message_async(received)
@@ -1117,7 +1115,7 @@ class Client(BaseClient):
             args = (
                 lambda: transport.kubemq_client().SubscribeToEvents(subscription.encode(client_id)),
                 lambda message: subscription.raise_on_receive_message_async(
-                    EventMessageReceived().decode(message)
+                    EventReceived().decode(message)
                 ),
                 lambda error: subscription.raise_on_error_async(error),
                 cancel_token_event,

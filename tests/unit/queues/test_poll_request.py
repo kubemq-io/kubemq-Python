@@ -30,7 +30,6 @@ class TestQueuesPollRequestValidation:
         assert request.poll_max_messages == 1
         assert request.poll_wait_timeout_in_seconds == 60
         assert request.auto_ack_messages is False
-        assert request.visibility_seconds == 0
 
     def test_custom_values(self):
         """Test custom values are set correctly."""
@@ -39,14 +38,12 @@ class TestQueuesPollRequestValidation:
             poll_max_messages=10,
             poll_wait_timeout_in_seconds=30,
             auto_ack_messages=True,
-            visibility_seconds=120,
         )
 
         assert request.channel == "test-queue"
         assert request.poll_max_messages == 10
         assert request.poll_wait_timeout_in_seconds == 30
         assert request.auto_ack_messages is True
-        assert request.visibility_seconds == 120
 
     def test_poll_max_messages_must_be_positive(self):
         """Test poll_max_messages must be >= 1."""
@@ -57,11 +54,6 @@ class TestQueuesPollRequestValidation:
         """Test poll_wait_timeout_in_seconds must be >= 1."""
         with pytest.raises(ValueError):
             QueuesPollRequest(channel="test-queue", poll_wait_timeout_in_seconds=0)  # type: ignore[arg-type]
-
-    def test_visibility_seconds_cannot_be_negative(self):
-        """Test visibility_seconds cannot be negative."""
-        with pytest.raises(ValueError):
-            QueuesPollRequest(channel="test-queue", visibility_seconds=-1)  # type: ignore[arg-type]
 
 
 class TestQueuesPollRequestEncode:
@@ -104,19 +96,6 @@ class TestQueuesPollRequestEncode:
         pb_request = request.encode("client-1")
 
         assert pb_request.AutoAck is False
-
-    def test_encode_with_visibility(self):
-        """Test encoding request with visibility timeout."""
-        request = QueuesPollRequest(
-            channel="test-queue",
-            visibility_seconds=60,
-        )
-
-        # visibility_seconds is not directly encoded in QueuesDownstreamRequest
-        # It's used at a higher level, so we just verify the request encodes
-        pb_request = request.encode("client-1")
-
-        assert pb_request.Channel == "test-queue"
 
 
 class TestQueuesPollRequestUtility:
@@ -166,12 +145,8 @@ class TestQueuesPollRequestStr:
         assert "repr-queue" in repr_str
 
 
-class TestQueuesPollRequestEncodeVisibility:
-    """Test encode with visibility_seconds validation (line 114)."""
-
-    def test_visibility_seconds_zero_is_valid(self):
-        request = QueuesPollRequest(channel="q", visibility_seconds=0)
-        assert request.visibility_seconds == 0
+class TestQueuesPollRequestFrozenModel:
+    """Test frozen model behavior."""
 
     def test_frozen_model_prevents_mutation(self):
         request = QueuesPollRequest(channel="q")

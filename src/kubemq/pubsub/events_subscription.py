@@ -1,37 +1,35 @@
 import asyncio
 from collections.abc import Callable
+from dataclasses import dataclass
 from typing import Any
-
-from pydantic import BaseModel, ConfigDict, field_validator
 
 from kubemq.common.channel_validators import validate_channel_name
 from kubemq.common.subscribe_type import SubscribeType
 from kubemq.grpc import Subscribe
-from kubemq.pubsub.event_message_received import EventMessageReceived
+from kubemq.pubsub.event_message_received import EventReceived
 
 
-class EventsSubscription(BaseModel):
+@dataclass
+class EventsSubscription:
     """Subscription configuration for events."""
 
     channel: str
+    on_receive_event_callback: Callable[[EventReceived], None]
     group: str | None = None
-    on_receive_event_callback: Callable[[EventMessageReceived], None]
     on_error_callback: Callable[[str], None] | None = None
 
-    @field_validator("channel")
-    def channel_must_exist(cls, v: str) -> str:
-        """Validate that the channel is not empty."""
-        if not v:
+    def __post_init__(self) -> None:
+        """Validate subscription fields."""
+        if not self.channel:
             raise ValueError("Event subscription must have a channel.")
-        validate_channel_name(v, allow_wildcards=True)
-        return v
+        validate_channel_name(self.channel, allow_wildcards=True)
 
-    def raise_on_receive_message(self, received_event: EventMessageReceived) -> None:
+    def raise_on_receive_message(self, received_event: EventReceived) -> None:
         """Dispatch the received event to the callback."""
         if self.on_receive_event_callback:  # type: ignore[truthy-function]
             self.on_receive_event_callback(received_event)
 
-    async def raise_on_receive_message_async(self, received_event: EventMessageReceived) -> None:
+    async def raise_on_receive_message_async(self, received_event: EventReceived) -> None:
         """Async-aware version that supports both sync and async callbacks."""
         if self.on_receive_event_callback:  # type: ignore[truthy-function]
             if asyncio.iscoroutinefunction(self.on_receive_event_callback):
@@ -52,8 +50,6 @@ class EventsSubscription(BaseModel):
             else:
                 self.on_error_callback(msg)
 
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
     def encode(self, client_id: str = "") -> Subscribe:
         """Encode the subscription to a protobuf Subscribe message."""
         request = Subscribe()
@@ -63,10 +59,9 @@ class EventsSubscription(BaseModel):
         request.SubscribeTypeData = SubscribeType.Events.value  # type: ignore[assignment]
         return request
 
-    def model_dump(self, **kwargs: Any) -> dict[str, Any]:
+    def to_dict(self, **kwargs: Any) -> dict[str, Any]:
         """Serialize the model to a dictionary excluding callbacks."""
-        dump = super().model_dump(**kwargs)
-        # Remove callback functions from the dump
-        dump.pop("on_receive_event_callback", None)
-        dump.pop("on_error_callback", None)
-        return dump
+        return {
+            "channel": self.channel,
+            "group": self.group,
+        }

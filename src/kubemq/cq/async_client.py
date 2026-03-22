@@ -11,7 +11,6 @@ from typing import (
     Any,
 )
 
-from pydantic import ValidationError
 
 from kubemq._internal.telemetry import (
     KubeMQTagsCarrier,
@@ -24,20 +23,20 @@ from kubemq.core.client import NativeAsyncBaseClient
 from kubemq.core.config import ClientConfig
 from kubemq.core.exceptions import KubeMQValidationError
 from kubemq.cq.command_message import CommandMessage
-from kubemq.cq.command_message_received import CommandMessageReceived
-from kubemq.cq.command_response_message import CommandResponseMessage
+from kubemq.cq.command_message_received import CommandReceived
+from kubemq.cq.command_response_message import CommandResponse
 from kubemq.cq.commands_subscription import CommandsSubscription
 from kubemq.cq.queries_subscription import QueriesSubscription
 from kubemq.cq.query_message import QueryMessage
-from kubemq.cq.query_message_received import QueryMessageReceived
-from kubemq.cq.query_response_message import QueryResponseMessage
+from kubemq.cq.query_message_received import QueryReceived
+from kubemq.cq.query_response_message import QueryResponse
 
 if TYPE_CHECKING:
     pass
 
 # Type aliases for callbacks
-AsyncCommandCallback = Callable[[CommandMessageReceived], Awaitable[None]]
-AsyncQueryCallback = Callable[[QueryMessageReceived], Awaitable[None]]
+AsyncCommandCallback = Callable[[CommandReceived], Awaitable[None]]
+AsyncQueryCallback = Callable[[QueryReceived], Awaitable[None]]
 AsyncErrorCallback = Callable[[Exception], Awaitable[None]]
 
 
@@ -74,7 +73,7 @@ class AsyncClient(NativeAsyncBaseClient):
             ):
                 # Process command
                 await client.send_response(
-                    CommandResponseMessage(
+                    CommandResponse(
                         command_received=command,
                         is_executed=True,
                     )
@@ -119,14 +118,41 @@ class AsyncClient(NativeAsyncBaseClient):
     async def send_command(
         self,
         message: CommandMessage,
-    ) -> CommandResponseMessage:
+    ) -> CommandResponse:
         """Send a command request and wait for response.
 
+        Sends a command to a subscriber and awaits until a response is
+        received or the command's ``timeout_in_seconds`` expires.
+
         Args:
-            message: The command message to send
+            message: The command message to send.
 
         Returns:
-            CommandResponseMessage with the response
+            CommandResponse: Contains ``command_received`` (bool
+            indicating a subscriber processed the command),
+            ``is_executed`` (bool indicating execution success),
+            ``error`` (error description from the responder),
+            ``timestamp`` (when the response was generated), and
+            ``tags`` (key-value metadata from the responder).
+
+        Raises:
+            KubeMQValidationError: If the message fails validation (e.g.,
+                empty channel, body exceeds ``max_send_size``).
+            KubeMQConnectionError: If the server is unreachable or the
+                connection is lost.
+            KubeMQAuthenticationError: If the auth token is invalid or
+                expired, or the client lacks permission for the channel.
+            KubeMQTimeoutError: If no subscriber responds before the
+                command's timeout expires.
+            KubeMQClientClosedError: If the client has already been closed.
+
+        See Also:
+            :class:`~kubemq.cq.command_message.CommandMessage`:
+                Message type for commands.
+            :meth:`CQClient.send_command`: Sync counterpart.
+            :meth:`send_query`: Send a query expecting data in the
+                response.
+            :meth:`subscribe_to_commands`: Subscribe to receive commands.
         """
         self._validate_message_size(message.body)
         start = time.perf_counter()
@@ -150,14 +176,14 @@ class AsyncClient(NativeAsyncBaseClient):
                     span.set_attribute(MESSAGING_MESSAGE_BODY_SIZE, len(message.body))
                 response = await self._retry_executor.execute(
                     "SendCommand",
-                    self._transport.send_request,
+                    self._pick_pool_transport().send_request,
                     pb_request,
                     timeout_seconds=message.timeout_in_seconds,
                     channel=message.channel,
                 )
                 self._instrumentor._metrics.record_sent_message("send", message.channel)
-                return CommandResponseMessage.decode(response)
-            except ValidationError as e:
+                return CommandResponse.decode(response)
+            except (ValueError, TypeError) as e:
                 error_type_val = "validation"
                 self._instrumentor.record_error(span, e, error_type_val)
                 raise KubeMQValidationError(str(e), is_retryable=False) from e
@@ -175,23 +201,36 @@ class AsyncClient(NativeAsyncBaseClient):
         self,
         messages: list[CommandMessage],
         max_concurrent: int = 100,
-    ) -> list[CommandResponseMessage]:
+    ) -> list[CommandResponse]:
         """Send multiple commands concurrently with backpressure control.
 
         Args:
-            messages: List of command messages to send
-            max_concurrent: Maximum concurrent sends (default 100)
+            messages: List of command messages to send.
+            max_concurrent: Maximum concurrent sends (default 100).
 
         Returns:
-            List of responses for each command
+            list[CommandResponse]: List of responses for each
+            command, in the same order as the input messages. Failed
+            sends produce responses with ``is_executed=False`` and
+            ``error`` set.
+
+        Raises:
+            KubeMQValidationError: If any message fails validation.
+            KubeMQConnectionError: If the server is unreachable or the
+                connection is lost.
+            KubeMQAuthenticationError: If the auth token is invalid or
+                expired.
+            KubeMQClientClosedError: If the client has already been closed.
+
+        See Also:
+            :meth:`send_command`: Send a single command.
+            :meth:`send_queries_batch`: Send multiple queries concurrently.
         """
         self._ensure_connected()
 
         semaphore = asyncio.Semaphore(max_concurrent)
 
-        async def bounded_send(
-            msg: CommandMessage, index: int
-        ) -> tuple[int, CommandResponseMessage]:
+        async def bounded_send(msg: CommandMessage, index: int) -> tuple[int, CommandResponse]:
             async with semaphore:
                 try:
                     response = await self.send_command(msg)
@@ -199,8 +238,8 @@ class AsyncClient(NativeAsyncBaseClient):
                 except Exception as e:
                     return (
                         index,
-                        CommandResponseMessage(
-                            command_received=CommandMessageReceived(
+                        CommandResponse(
+                            command_received=CommandReceived(
                                 id=msg.id or "",
                                 channel=msg.channel,
                             ),
@@ -222,14 +261,42 @@ class AsyncClient(NativeAsyncBaseClient):
     async def send_query(
         self,
         message: QueryMessage,
-    ) -> QueryResponseMessage:
+    ) -> QueryResponse:
         """Send a query request and wait for response.
 
+        Sends a query to a subscriber and awaits until a response
+        containing data is received or the query's
+        ``timeout_in_seconds`` expires.
+
         Args:
-            message: The query message to send
+            message: The query message to send.
 
         Returns:
-            QueryResponseMessage with the response
+            QueryResponse: Contains ``body`` (response payload as
+            bytes), ``metadata`` (response metadata string),
+            ``is_executed`` (bool indicating execution success),
+            ``error`` (error description from the responder),
+            ``timestamp``, ``cache_hit`` (bool), and ``tags``
+            (key-value metadata from the responder).
+
+        Raises:
+            KubeMQValidationError: If the message fails validation (e.g.,
+                empty channel, body exceeds ``max_send_size``).
+            KubeMQConnectionError: If the server is unreachable or the
+                connection is lost.
+            KubeMQAuthenticationError: If the auth token is invalid or
+                expired, or the client lacks permission for the channel.
+            KubeMQTimeoutError: If no subscriber responds before the
+                query's timeout expires.
+            KubeMQClientClosedError: If the client has already been closed.
+
+        See Also:
+            :class:`~kubemq.cq.query_message.QueryMessage`:
+                Message type for queries.
+            :meth:`CQClient.send_query`: Sync counterpart.
+            :meth:`send_command`: Send a command expecting only
+                success/failure.
+            :meth:`subscribe_to_queries`: Subscribe to receive queries.
         """
         self._validate_message_size(message.body)
         start = time.perf_counter()
@@ -253,14 +320,14 @@ class AsyncClient(NativeAsyncBaseClient):
                     span.set_attribute(MESSAGING_MESSAGE_BODY_SIZE, len(message.body))
                 response = await self._retry_executor.execute(
                     "SendQuery",
-                    self._transport.send_request,
+                    self._pick_pool_transport().send_request,
                     pb_request,
                     timeout_seconds=message.timeout_in_seconds,
                     channel=message.channel,
                 )
                 self._instrumentor._metrics.record_sent_message("send", message.channel)
-                return QueryResponseMessage.decode(response)
-            except ValidationError as e:
+                return QueryResponse.decode(response)
+            except (ValueError, TypeError) as e:
                 error_type_val = "validation"
                 self._instrumentor.record_error(span, e, error_type_val)
                 raise KubeMQValidationError(str(e), is_retryable=False) from e
@@ -278,21 +345,36 @@ class AsyncClient(NativeAsyncBaseClient):
         self,
         messages: list[QueryMessage],
         max_concurrent: int = 100,
-    ) -> list[QueryResponseMessage]:
+    ) -> list[QueryResponse]:
         """Send multiple queries concurrently with backpressure control.
 
         Args:
-            messages: List of query messages to send
-            max_concurrent: Maximum concurrent sends (default 100)
+            messages: List of query messages to send.
+            max_concurrent: Maximum concurrent sends (default 100).
 
         Returns:
-            List of responses for each query
+            list[QueryResponse]: List of responses for each
+            query, in the same order as the input messages. Failed
+            sends produce responses with ``is_executed=False`` and
+            ``error`` set.
+
+        Raises:
+            KubeMQValidationError: If any message fails validation.
+            KubeMQConnectionError: If the server is unreachable or the
+                connection is lost.
+            KubeMQAuthenticationError: If the auth token is invalid or
+                expired.
+            KubeMQClientClosedError: If the client has already been closed.
+
+        See Also:
+            :meth:`send_query`: Send a single query.
+            :meth:`send_commands_batch`: Send multiple commands concurrently.
         """
         self._ensure_connected()
 
         semaphore = asyncio.Semaphore(max_concurrent)
 
-        async def bounded_send(msg: QueryMessage, index: int) -> tuple[int, QueryResponseMessage]:
+        async def bounded_send(msg: QueryMessage, index: int) -> tuple[int, QueryResponse]:
             async with semaphore:
                 try:
                     response = await self.send_query(msg)
@@ -300,8 +382,8 @@ class AsyncClient(NativeAsyncBaseClient):
                 except Exception as e:
                     return (
                         index,
-                        QueryResponseMessage(
-                            query_received=QueryMessageReceived(
+                        QueryResponse(
+                            query_received=QueryReceived(
                                 id=msg.id or "",
                                 channel=msg.channel,
                             ),
@@ -322,12 +404,30 @@ class AsyncClient(NativeAsyncBaseClient):
 
     async def send_response(
         self,
-        response: CommandResponseMessage | QueryResponseMessage,
+        response: CommandResponse | QueryResponse,
     ) -> None:
         """Send a response to a command or query request.
 
+        Called from within a command or query subscription callback to
+        deliver the response to the original requester.
+
         Args:
-            response: The response message to send
+            response: The response message to send. Use
+                :class:`CommandResponse` for commands or
+                :class:`QueryResponse` for queries.
+
+        Raises:
+            KubeMQConnectionError: If the server is unreachable or the
+                connection is lost.
+            KubeMQAuthenticationError: If the auth token is invalid or
+                expired, or the client lacks permission.
+            KubeMQTimeoutError: If the operation exceeds the server deadline.
+            KubeMQClientClosedError: If the client has already been closed.
+
+        See Also:
+            :meth:`CQClient.send_response_message`: Sync counterpart.
+            :meth:`subscribe_to_commands`: Subscribe to receive commands.
+            :meth:`subscribe_to_queries`: Subscribe to receive queries.
         """
         self._ensure_connected()
         assert self._transport is not None
@@ -358,35 +458,133 @@ class AsyncClient(NativeAsyncBaseClient):
                 )
 
     # =========================================================================
+    async def send_command_fast(self, message: CommandMessage) -> CommandResponse:
+        """Send command — fast path, no instrumentation.
+
+        Uses pipeline semaphore and connection pool when enabled for
+        higher concurrent throughput.
+        """
+        self._ensure_connected()
+        pb_request = message.encode(self._config.client_id or "")
+        transport = self._pick_pool_transport()
+
+        if self._pipeline_sem is not None:
+            async with self._pipeline_sem:
+                response = await self._retry_executor.execute(
+                    "SendCommand", transport.send_request, pb_request,
+                    timeout_seconds=message.timeout_in_seconds, channel=message.channel,
+                )
+        else:
+            response = await self._retry_executor.execute(
+                "SendCommand", transport.send_request, pb_request,
+                timeout_seconds=message.timeout_in_seconds, channel=message.channel,
+            )
+        return CommandResponse.decode(response)
+
+    async def send_query_fast(self, message: QueryMessage) -> QueryResponse:
+        """Send query — fast path, no instrumentation.
+
+        Uses pipeline semaphore and connection pool when enabled for
+        higher concurrent throughput.
+        """
+        self._ensure_connected()
+        pb_request = message.encode(self._config.client_id or "")
+        transport = self._pick_pool_transport()
+
+        if self._pipeline_sem is not None:
+            async with self._pipeline_sem:
+                response = await self._retry_executor.execute(
+                    "SendQuery", transport.send_request, pb_request,
+                    timeout_seconds=message.timeout_in_seconds, channel=message.channel,
+                )
+        else:
+            response = await self._retry_executor.execute(
+                "SendQuery", transport.send_request, pb_request,
+                timeout_seconds=message.timeout_in_seconds, channel=message.channel,
+            )
+        return QueryResponse.decode(response)
+
+    async def send_response_fast(self, response: CommandResponse | QueryResponse) -> None:
+        """Send response — fast path, no instrumentation."""
+        self._ensure_connected()
+        assert self._transport is not None
+        pb_response = response.encode(self._config.client_id or "")
+        await self._transport.send_response(pb_response)
+
     # Subscription Operations
     # =========================================================================
+
+    async def subscribe_to_commands_fast(
+        self,
+        subscription: CommandsSubscription,
+        cancellation_token: AsyncCancellationToken | None = None,
+    ) -> AsyncIterator[CommandReceived]:
+        """Subscribe to commands — fast path, no instrumentation per message."""
+        self._ensure_connected()
+        assert self._transport is not None
+        token = cancellation_token or AsyncCancellationToken()
+        request = subscription.encode(self._config.client_id or "")
+        async for pb_request in self._transport.subscribe_to_requests(request, token):
+            yield CommandReceived.decode(pb_request)
+
+    async def subscribe_to_queries_fast(
+        self,
+        subscription: QueriesSubscription,
+        cancellation_token: AsyncCancellationToken | None = None,
+    ) -> AsyncIterator[QueryReceived]:
+        """Subscribe to queries — fast path, no instrumentation per message."""
+        self._ensure_connected()
+        assert self._transport is not None
+        token = cancellation_token or AsyncCancellationToken()
+        request = subscription.encode(self._config.client_id or "")
+        async for pb_request in self._transport.subscribe_to_requests(request, token):
+            yield QueryReceived.decode(pb_request)
 
     async def subscribe_to_commands(
         self,
         subscription: CommandsSubscription,
         cancellation_token: AsyncCancellationToken | None = None,
-    ) -> AsyncIterator[CommandMessageReceived]:
+    ) -> AsyncIterator[CommandReceived]:
         """Subscribe to commands.
 
-        Can be used as async iterator.
+        Can be used as async iterator. Streams command requests from the
+        server; for each received command, call :meth:`send_response` to
+        deliver a response back to the sender.
 
         Args:
-            subscription: Subscription configuration
-            cancellation_token: Optional token to cancel subscription
+            subscription: Subscription configuration including channel,
+                optional group, and callback functions.
+            cancellation_token: Optional token to cancel subscription.
 
         Yields:
-            CommandMessageReceived for each command
+            CommandReceived: For each command received.
+
+        Raises:
+            KubeMQValidationError: If the subscription configuration is
+                invalid (e.g., empty channel or missing callbacks).
+            KubeMQConnectionError: If the server is unreachable or the
+                initial connection fails.
+            KubeMQAuthenticationError: If the auth token is invalid or the
+                client lacks permission for the target channel.
+            KubeMQClientClosedError: If the client has already been closed.
 
         Cancellation:
             Pass an ``AsyncCancellationToken`` to cancel the subscription.
             When cancelled, the async iterator terminates.
+
+        See Also:
+            :class:`~kubemq.cq.commands_subscription.CommandsSubscription`:
+                Subscription configuration for commands.
+            :meth:`CQClient.subscribe_to_commands`: Sync counterpart.
+            :meth:`send_command`: Send a command to subscribers.
+            :meth:`send_response`: Send a response to a command.
 
         Example:
             token = AsyncCancellationToken()
             async for command in client.subscribe_to_commands(sub, token):
                 # Process command and send response
                 await client.send_response(
-                    CommandResponseMessage(
+                    CommandResponse(
                         command_received=command,
                         is_executed=True,
                     )
@@ -417,7 +615,7 @@ class AsyncClient(NativeAsyncBaseClient):
                     "process", subscription.channel, links=links or None
                 ) as span:
                     try:
-                        command = CommandMessageReceived.decode(pb_request)
+                        command = CommandReceived.decode(pb_request)
 
                         if subscription.on_receive_command_callback is not None:
                             if asyncio.iscoroutinefunction(
@@ -457,28 +655,47 @@ class AsyncClient(NativeAsyncBaseClient):
         self,
         subscription: QueriesSubscription,
         cancellation_token: AsyncCancellationToken | None = None,
-    ) -> AsyncIterator[QueryMessageReceived]:
+    ) -> AsyncIterator[QueryReceived]:
         """Subscribe to queries.
 
-        Can be used as async iterator.
+        Can be used as async iterator. Streams query requests from the
+        server; for each received query, call :meth:`send_response` to
+        deliver a data response back to the sender.
 
         Args:
-            subscription: Subscription configuration
-            cancellation_token: Optional token to cancel subscription
+            subscription: Subscription configuration including channel,
+                optional group, and callback functions.
+            cancellation_token: Optional token to cancel subscription.
 
         Yields:
-            QueryMessageReceived for each query
+            QueryReceived: For each query received.
+
+        Raises:
+            KubeMQValidationError: If the subscription configuration is
+                invalid (e.g., empty channel or missing callbacks).
+            KubeMQConnectionError: If the server is unreachable or the
+                initial connection fails.
+            KubeMQAuthenticationError: If the auth token is invalid or the
+                client lacks permission for the target channel.
+            KubeMQClientClosedError: If the client has already been closed.
 
         Cancellation:
             Pass an ``AsyncCancellationToken`` to cancel the subscription.
             When cancelled, the async iterator terminates.
+
+        See Also:
+            :class:`~kubemq.cq.queries_subscription.QueriesSubscription`:
+                Subscription configuration for queries.
+            :meth:`CQClient.subscribe_to_queries`: Sync counterpart.
+            :meth:`send_query`: Send a query to subscribers.
+            :meth:`send_response`: Send a response to a query.
 
         Example:
             token = AsyncCancellationToken()
             async for query in client.subscribe_to_queries(sub, token):
                 # Process query and send response
                 await client.send_response(
-                    QueryResponseMessage(
+                    QueryResponse(
                         query_received=query,
                         is_executed=True,
                         body=b"result data",
@@ -508,7 +725,7 @@ class AsyncClient(NativeAsyncBaseClient):
                     "process", subscription.channel, links=links or None
                 ) as span:
                     try:
-                        query = QueryMessageReceived.decode(pb_request)
+                        query = QueryReceived.decode(pb_request)
 
                         if subscription.on_receive_query_callback is not None:
                             if asyncio.iscoroutinefunction(subscription.on_receive_query_callback):
@@ -558,20 +775,33 @@ class AsyncClient(NativeAsyncBaseClient):
         ``max_concurrent_callbacks`` to allow concurrent processing.
 
         Args:
-            subscription: Subscription configuration
-            callback: Async callback for each command
-            error_callback: Optional async callback for errors
-            cancellation_token: Optional token to cancel subscription
+            subscription: Subscription configuration including channel,
+                optional group, and callback functions.
+            callback: Async callback for each command.
+            error_callback: Optional async callback for errors.
+            cancellation_token: Optional token to cancel subscription.
             max_concurrent_callbacks: Maximum number of callbacks that may
                 execute concurrently. Default ``1`` (sequential). Must be
                 >= 1 and <= 1000.
 
         Raises:
             ValueError: If ``max_concurrent_callbacks`` < 1 or > 1000.
+            KubeMQValidationError: If the subscription configuration is
+                invalid.
+            KubeMQConnectionError: If the server is unreachable or the
+                initial connection fails.
+            KubeMQAuthenticationError: If the auth token is invalid or the
+                client lacks permission for the target channel.
+            KubeMQClientClosedError: If the client has already been closed.
 
         Cancellation:
             Pass an ``AsyncCancellationToken`` to cancel the subscription.
             When cancelled, in-flight callbacks are awaited before return.
+
+        See Also:
+            :meth:`subscribe_to_commands`: Iterator-based subscription.
+            :meth:`subscribe_queries_with_callback`: Subscribe to queries
+                with a callback.
         """
         if max_concurrent_callbacks < 1:
             raise ValueError("max_concurrent_callbacks must be >= 1")
@@ -610,7 +840,7 @@ class AsyncClient(NativeAsyncBaseClient):
                         "process", subscription.channel, links=links or None
                     ) as span:
                         try:
-                            command = CommandMessageReceived.decode(pb_request)
+                            command = CommandReceived.decode(pb_request)
                             await callback(command)
                             self._instrumentor._metrics.record_consumed_message(
                                 "process", subscription.channel
@@ -629,7 +859,7 @@ class AsyncClient(NativeAsyncBaseClient):
             else:
                 sem = asyncio.Semaphore(max_concurrent_callbacks)
 
-                async def _run_cmd_callback(cmd: CommandMessageReceived) -> None:
+                async def _run_cmd_callback(cmd: CommandReceived) -> None:
                     try:
                         await callback(cmd)
                     except Exception as cb_err:
@@ -646,7 +876,7 @@ class AsyncClient(NativeAsyncBaseClient):
                         sem.release()
 
                 async for pb_request in self._transport.subscribe_to_requests(request, token):
-                    command = CommandMessageReceived.decode(pb_request)
+                    command = CommandReceived.decode(pb_request)
                     self._instrumentor._metrics.record_consumed_message(
                         "process", subscription.channel
                     )
@@ -681,20 +911,33 @@ class AsyncClient(NativeAsyncBaseClient):
         ``max_concurrent_callbacks`` to allow concurrent processing.
 
         Args:
-            subscription: Subscription configuration
-            callback: Async callback for each query
-            error_callback: Optional async callback for errors
-            cancellation_token: Optional token to cancel subscription
+            subscription: Subscription configuration including channel,
+                optional group, and callback functions.
+            callback: Async callback for each query.
+            error_callback: Optional async callback for errors.
+            cancellation_token: Optional token to cancel subscription.
             max_concurrent_callbacks: Maximum number of callbacks that may
                 execute concurrently. Default ``1`` (sequential). Must be
                 >= 1 and <= 1000.
 
         Raises:
             ValueError: If ``max_concurrent_callbacks`` < 1 or > 1000.
+            KubeMQValidationError: If the subscription configuration is
+                invalid.
+            KubeMQConnectionError: If the server is unreachable or the
+                initial connection fails.
+            KubeMQAuthenticationError: If the auth token is invalid or the
+                client lacks permission for the target channel.
+            KubeMQClientClosedError: If the client has already been closed.
 
         Cancellation:
             Pass an ``AsyncCancellationToken`` to cancel the subscription.
             When cancelled, in-flight callbacks are awaited before return.
+
+        See Also:
+            :meth:`subscribe_to_queries`: Iterator-based subscription.
+            :meth:`subscribe_commands_with_callback`: Subscribe to commands
+                with a callback.
         """
         if max_concurrent_callbacks < 1:
             raise ValueError("max_concurrent_callbacks must be >= 1")
@@ -733,7 +976,7 @@ class AsyncClient(NativeAsyncBaseClient):
                         "process", subscription.channel, links=links or None
                     ) as span:
                         try:
-                            query = QueryMessageReceived.decode(pb_request)
+                            query = QueryReceived.decode(pb_request)
                             await callback(query)
                             self._instrumentor._metrics.record_consumed_message(
                                 "process", subscription.channel
@@ -752,7 +995,7 @@ class AsyncClient(NativeAsyncBaseClient):
             else:
                 sem = asyncio.Semaphore(max_concurrent_callbacks)
 
-                async def _run_query_callback(qry: QueryMessageReceived) -> None:
+                async def _run_query_callback(qry: QueryReceived) -> None:
                     try:
                         await callback(qry)
                     except Exception as cb_err:
@@ -769,7 +1012,7 @@ class AsyncClient(NativeAsyncBaseClient):
                         sem.release()
 
                 async for pb_request in self._transport.subscribe_to_requests(request, token):
-                    query = QueryMessageReceived.decode(pb_request)
+                    query = QueryReceived.decode(pb_request)
                     self._instrumentor._metrics.record_consumed_message(
                         "process", subscription.channel
                     )

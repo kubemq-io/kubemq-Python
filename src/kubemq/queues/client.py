@@ -7,7 +7,6 @@ import time
 import uuid
 from pathlib import Path
 
-from pydantic import ValidationError
 
 from kubemq._internal.deprecation import deprecated, deprecated_async
 from kubemq._internal.telemetry import (
@@ -289,7 +288,7 @@ class Client(BaseClient):
                 if result is None:
                     return QueueSendResult(is_error=True, error="Send failed - no response")
                 return result
-            except ValidationError as e:
+            except (ValueError, TypeError) as e:
                 error_type_val = "validation"
                 self._instrumentor.record_error(span, e, error_type_val)
                 raise KubeMQValidationError(str(e), is_retryable=False) from e
@@ -353,7 +352,7 @@ class Client(BaseClient):
                 result = self._transport.kubemq_client().SendQueueMessage(pb_message)
                 self._instrumentor._metrics.record_sent_message("send", message.channel)
                 return QueueSendResult.decode(result)
-            except ValidationError as e:
+            except (ValueError, TypeError) as e:
                 error_type_val = "validation"
                 self._instrumentor.record_error(span, e, error_type_val)
                 raise KubeMQValidationError(str(e), is_retryable=False) from e
@@ -636,7 +635,6 @@ class Client(BaseClient):
         max_messages: int = 1,
         wait_timeout_in_seconds: int = 60,
         auto_ack: bool = False,
-        visibility_seconds: int = 0,
         metadata: dict[str, str] | None = None,
     ) -> QueuesPollResponse:
         """Internal implementation for receiving queue messages."""
@@ -672,7 +670,6 @@ class Client(BaseClient):
                     response=kubemq_response,
                     receiver_client_id=client_id,
                     response_handler=receiver.send_without_response,  # type: ignore[arg-type]
-                    request_visibility_seconds=visibility_seconds,
                 )
                 if response.messages:
                     for _ in response.messages:
@@ -694,15 +691,13 @@ class Client(BaseClient):
         max_messages: int = 1,
         wait_timeout_in_seconds: int = 60,
         auto_ack: bool = False,
-        visibility_seconds: int = 0,
         metadata: dict[str, str] | None = None,
     ) -> QueuesPollResponse:
         """Receive messages from a queue channel.
 
         Long-polls the server for up to ``wait_timeout_in_seconds``. If
         ``auto_ack`` is ``False``, each message must be explicitly
-        acknowledged, rejected, or re-queued before the visibility
-        timeout expires.
+        acknowledged, rejected, or re-queued.
 
         Args:
             channel: The name of the channel to receive messages from.
@@ -711,15 +706,12 @@ class Client(BaseClient):
                 (0–3600).
             auto_ack: Whether to automatically acknowledge messages on
                 receipt.
-            visibility_seconds: Visibility timeout in seconds for received
-                messages. While visible, messages are hidden from other
-                consumers.
             metadata: Optional key-value metadata to attach to the
                 downstream request.
 
         Returns:
             QueuesPollResponse: Contains ``messages`` (list of received
-            queue messages, each supporting ``.ack()``, ``.reject()``,
+            queue messages, each supporting ``.ack()``, ``.nack()``,
             and ``.requeue()``), ``is_error`` (bool), ``error`` (error
             description), and ``messages_received`` / ``messages_expired``
             counts.
@@ -753,7 +745,7 @@ class Client(BaseClient):
             ...         msg.ack()
         """
         return self._receive_queue_messages_impl(
-            channel, max_messages, wait_timeout_in_seconds, auto_ack, visibility_seconds, metadata
+            channel, max_messages, wait_timeout_in_seconds, auto_ack, metadata
         )
 
     @deprecated(replacement="receive_queue_messages()", since="4.0.0", removal="5.0.0")
@@ -763,7 +755,6 @@ class Client(BaseClient):
         max_messages: int = 1,
         wait_timeout_in_seconds: int = 60,
         auto_ack: bool = False,
-        visibility_seconds: int = 0,
     ) -> QueuesPollResponse:
         """Receive messages from a queues channel.
 
@@ -775,7 +766,6 @@ class Client(BaseClient):
             max_messages: Maximum number of messages to receive (1–1024)
             wait_timeout_in_seconds: Timeout in seconds to wait for messages
             auto_ack: Whether to automatically acknowledge messages
-            visibility_seconds: Visibility timeout in seconds for received messages
 
         Returns:
             QueuesPollResponse: Contains ``messages``, ``is_error``,
@@ -790,7 +780,7 @@ class Client(BaseClient):
             KubeMQClientClosedError: If the client has already been closed.
         """
         return self._receive_queue_messages_impl(
-            channel, max_messages, wait_timeout_in_seconds, auto_ack, visibility_seconds
+            channel, max_messages, wait_timeout_in_seconds, auto_ack
         )
 
     async def receive_queues_messages_async(
@@ -799,7 +789,6 @@ class Client(BaseClient):
         max_messages: int = 1,
         wait_timeout_in_seconds: int = 60,
         auto_ack: bool = False,
-        visibility_seconds: int = 0,
     ) -> QueuesPollResponse:
         """Receive messages from a queues channel asynchronously.
 
@@ -811,7 +800,6 @@ class Client(BaseClient):
             max_messages: Maximum number of messages to receive (1–1024)
             wait_timeout_in_seconds: Timeout in seconds to wait for messages
             auto_ack: Whether to automatically acknowledge messages
-            visibility_seconds: Visibility timeout in seconds for received messages
 
         Returns:
             QueuesPollResponse: Contains ``messages``, ``is_error``,
@@ -831,10 +819,9 @@ class Client(BaseClient):
             max_messages,
             wait_timeout_in_seconds,
             auto_ack,
-            visibility_seconds,
         )
 
-    def waiting(
+    def peek_queue_messages(
         self, channel: str, max_messages: int, wait_timeout_in_seconds: int
     ) -> QueueMessagesWaiting:
         """Get waiting messages from a queue (peek without removing).
@@ -909,7 +896,7 @@ class Client(BaseClient):
 
         return waiting_messages
 
-    async def waiting_async(
+    async def peek_queue_messages_async(
         self, channel: str, max_messages: int, wait_timeout_in_seconds: int
     ) -> QueueMessagesWaiting:
         """Get waiting messages from a queue asynchronously (peek without removing).
@@ -933,7 +920,7 @@ class Client(BaseClient):
             KubeMQTimeoutError: If the operation exceeds the server deadline.
             KubeMQClientClosedError: If the client has already been closed.
         """
-        return await run_in_thread(self.waiting, channel, max_messages, wait_timeout_in_seconds)
+        return await run_in_thread(self.peek_queue_messages, channel, max_messages, wait_timeout_in_seconds)
 
     def ack_all_queue_messages(self, channel: str, wait_time_seconds: int = 60) -> int:
         """Acknowledge all messages in a queue.

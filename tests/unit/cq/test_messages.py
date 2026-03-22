@@ -1,7 +1,7 @@
 """Unit tests for kubemq.cq message classes.
 
-Tests for CommandMessage, QueryMessage, CommandMessageReceived, QueryMessageReceived,
-CommandResponseMessage, and QueryResponseMessage classes.
+Tests for CommandMessage, QueryMessage, CommandReceived, QueryReceived,
+CommandResponse, and QueryResponse classes.
 """
 
 from __future__ import annotations
@@ -12,11 +12,11 @@ from unittest.mock import MagicMock
 import pytest
 
 from kubemq.cq.command_message import CommandMessage
-from kubemq.cq.command_message_received import CommandMessageReceived
-from kubemq.cq.command_response_message import CommandResponseMessage
+from kubemq.cq.command_message_received import CommandReceived
+from kubemq.cq.command_response_message import CommandResponse
 from kubemq.cq.query_message import QueryMessage
-from kubemq.cq.query_message_received import QueryMessageReceived
-from kubemq.cq.query_response_message import QueryResponseMessage
+from kubemq.cq.query_message_received import QueryReceived
+from kubemq.cq.query_response_message import QueryResponse
 
 
 class TestCommandMessageValidation:
@@ -185,13 +185,13 @@ class TestQueryMessageValidation:
             tags={"key": "value"},
             timeout_in_seconds=30,
             cache_key="cache-key",
-            cache_ttl_int_seconds=60,
+            cache_ttl_in_seconds=60,
         )
 
         assert query.id == "qry-123"
         assert query.channel == "test-channel"
         assert query.cache_key == "cache-key"
-        assert query.cache_ttl_int_seconds == 60
+        assert query.cache_ttl_in_seconds == 60
 
 
 class TestQueryMessageEncode:
@@ -220,7 +220,7 @@ class TestQueryMessageEncode:
             body=b"test",
             timeout_in_seconds=10,
             cache_key="my-cache-key",
-            cache_ttl_int_seconds=120,
+            cache_ttl_in_seconds=120,
         )
 
         pb_query = query.encode("client-1")
@@ -264,12 +264,12 @@ class TestQueryMessageStr:
         assert "repr-channel" in repr_str
 
 
-class TestCommandMessageReceivedCreation:
-    """Tests for CommandMessageReceived creation."""
+class TestCommandReceivedCreation:
+    """Tests for CommandReceived creation."""
 
     def test_default_values(self):
         """Test default values are set correctly."""
-        msg = CommandMessageReceived()
+        msg = CommandReceived()
 
         assert msg.id == ""
         assert msg.from_client_id == ""
@@ -282,7 +282,7 @@ class TestCommandMessageReceivedCreation:
 
     def test_custom_values(self):
         """Test custom values are set correctly."""
-        msg = CommandMessageReceived(
+        msg = CommandReceived(
             id="rcv-123",
             from_client_id="sender-client",
             channel="rcv-channel",
@@ -298,8 +298,8 @@ class TestCommandMessageReceivedCreation:
         assert msg.reply_channel == "reply-channel"
 
 
-class TestCommandMessageReceivedDecode:
-    """Tests for CommandMessageReceived decoding."""
+class TestCommandReceivedDecode:
+    """Tests for CommandReceived decoding."""
 
     def test_decode_from_protobuf(self):
         """Test decoding from protobuf."""
@@ -312,7 +312,7 @@ class TestCommandMessageReceivedDecode:
         pb_request.ReplyChannel = "decoded-reply"
         pb_request.Tags = {"decoded": "tag"}
 
-        msg = CommandMessageReceived.decode(pb_request)
+        msg = CommandReceived.decode(pb_request)
 
         assert msg.id == "decoded-cmd"
         assert msg.from_client_id == "decoded-client"
@@ -321,28 +321,28 @@ class TestCommandMessageReceivedDecode:
         assert msg.reply_channel == "decoded-reply"
 
 
-class TestCommandMessageReceivedStr:
-    """Tests for CommandMessageReceived string representations."""
+class TestCommandReceivedStr:
+    """Tests for CommandReceived string representations."""
 
     def test_repr_representation(self):
         """Test repr representation."""
-        msg = CommandMessageReceived(
+        msg = CommandReceived(
             id="rcv-repr",
             channel="repr-channel",
         )
 
         repr_str = repr(msg)
 
-        assert "CommandMessageReceived" in repr_str
+        assert "CommandReceived" in repr_str
         assert "rcv-repr" in repr_str
 
 
-class TestQueryMessageReceivedCreation:
-    """Tests for QueryMessageReceived creation."""
+class TestQueryReceivedCreation:
+    """Tests for QueryReceived creation."""
 
     def test_default_values(self):
         """Test default values are set correctly."""
-        msg = QueryMessageReceived()
+        msg = QueryReceived()
 
         assert msg.id == ""
         assert msg.from_client_id == ""
@@ -353,8 +353,8 @@ class TestQueryMessageReceivedCreation:
         assert msg.tags == {}
 
 
-class TestQueryMessageReceivedDecode:
-    """Tests for QueryMessageReceived decoding."""
+class TestQueryReceivedDecode:
+    """Tests for QueryReceived decoding."""
 
     def test_decode_from_protobuf(self):
         """Test decoding from protobuf."""
@@ -367,63 +367,64 @@ class TestQueryMessageReceivedDecode:
         pb_request.ReplyChannel = "decoded-reply"
         pb_request.Tags = {"decoded": "tag"}
 
-        msg = QueryMessageReceived.decode(pb_request)
+        msg = QueryReceived.decode(pb_request)
 
         assert msg.id == "decoded-qry"
         assert msg.from_client_id == "decoded-client"
         assert msg.channel == "decoded-channel"
 
 
-class TestQueryMessageReceivedStr:
-    """Tests for QueryMessageReceived string representations."""
+class TestQueryReceivedStr:
+    """Tests for QueryReceived string representations."""
 
     def test_repr_representation(self):
         """Test repr representation."""
-        msg = QueryMessageReceived(
+        msg = QueryReceived(
             id="qry-rcv-repr",
             channel="repr-channel",
         )
 
         repr_str = repr(msg)
 
-        assert "QueryMessageReceived" in repr_str
+        assert "QueryReceived" in repr_str
         assert "qry-rcv-repr" in repr_str
 
 
-class TestCommandResponseMessageValidation:
-    """Tests for CommandResponseMessage validation."""
+class TestCommandResponseValidation:
+    """Tests for CommandResponse validation."""
 
-    def test_requires_command_received(self):
-        """Test that command_received is required."""
-        with pytest.raises(ValueError, match="must have a command request"):
-            CommandResponseMessage(
-                command_received=None,
-                is_executed=True,
-            )
+    def test_requires_command_received_for_encode(self):
+        """Test that command_received is required for encoding."""
+        resp = CommandResponse(
+            command_received=None,
+            is_executed=True,
+        )
+        with pytest.raises(ValueError, match="Command received is required"):
+            resp.encode("client-1")
 
     def test_requires_reply_channel(self):
         """Test that command_received must have reply_channel."""
-        cmd_rcv = CommandMessageReceived(
+        cmd_rcv = CommandReceived(
             id="cmd-1",
             channel="test",
             reply_channel="",  # Empty reply channel
         )
 
         with pytest.raises(ValueError, match="must have a reply channel"):
-            CommandResponseMessage(
+            CommandResponse(
                 command_received=cmd_rcv,
                 is_executed=True,
             )
 
     def test_valid_response(self):
         """Test valid command response creation."""
-        cmd_rcv = CommandMessageReceived(
+        cmd_rcv = CommandReceived(
             id="cmd-1",
             channel="test",
             reply_channel="reply-channel",
         )
 
-        response = CommandResponseMessage(
+        response = CommandResponse(
             command_received=cmd_rcv,
             is_executed=True,
         )
@@ -431,18 +432,18 @@ class TestCommandResponseMessageValidation:
         assert response.is_executed is True
 
 
-class TestCommandResponseMessageEncode:
-    """Tests for CommandResponseMessage encoding."""
+class TestCommandResponseEncode:
+    """Tests for CommandResponse encoding."""
 
     def test_encode(self):
         """Test encoding to protobuf."""
-        cmd_rcv = CommandMessageReceived(
+        cmd_rcv = CommandReceived(
             id="cmd-encode",
             channel="test",
             reply_channel="reply-channel",
         )
 
-        response = CommandResponseMessage(
+        response = CommandResponse(
             command_received=cmd_rcv,
             is_executed=True,
             error="",
@@ -458,7 +459,7 @@ class TestCommandResponseMessageEncode:
     def test_encode_raises_without_command_received(self):
         """Test encode raises error without command_received."""
         # Create response directly without validation
-        response = CommandResponseMessage.__new__(CommandResponseMessage)
+        response = CommandResponse.__new__(CommandResponse)
         object.__setattr__(response, "command_received", None)
         object.__setattr__(response, "is_executed", True)
         object.__setattr__(response, "error", "")
@@ -468,8 +469,8 @@ class TestCommandResponseMessageEncode:
             response.encode("client")
 
 
-class TestCommandResponseMessageDecode:
-    """Tests for CommandResponseMessage decoding."""
+class TestCommandResponseDecode:
+    """Tests for CommandResponse decoding."""
 
     def test_decode_from_protobuf(self):
         """Test decoding from protobuf."""
@@ -483,7 +484,7 @@ class TestCommandResponseMessageDecode:
         pb_response.Body = b""
         pb_response.Tags = {}
 
-        response = CommandResponseMessage.decode(pb_response)
+        response = CommandResponse.decode(pb_response)
 
         assert response.client_id == "decoded-client"
         assert response.request_id == "decoded-req"
@@ -501,23 +502,23 @@ class TestCommandResponseMessageDecode:
         pb_response.Body = b"response-body"
         pb_response.Tags = {"k": "v"}
 
-        response = CommandResponseMessage.decode(pb_response)
+        response = CommandResponse.decode(pb_response)
 
         assert response.metadata == "response-meta"
         assert response.body == b"response-body"
         assert response.tags == {"k": "v"}
 
 
-class TestCommandResponseMessageEncodeWithFields:
-    """GAP-H4: Tests for CommandResponseMessage encode with Metadata/Body/Tags."""
+class TestCommandResponseEncodeWithFields:
+    """GAP-H4: Tests for CommandResponse encode with Metadata/Body/Tags."""
 
     def test_encode_with_metadata_body_tags(self):
-        cmd_rcv = CommandMessageReceived(
+        cmd_rcv = CommandReceived(
             id="cmd-1",
             channel="test",
             reply_channel="reply",
         )
-        response = CommandResponseMessage(
+        response = CommandResponse(
             command_received=cmd_rcv,
             is_executed=True,
             metadata="meta",
@@ -530,12 +531,12 @@ class TestCommandResponseMessageEncodeWithFields:
         assert pb.Tags["k"] == "v"
 
     def test_encode_without_optional_fields(self):
-        cmd_rcv = CommandMessageReceived(
+        cmd_rcv = CommandReceived(
             id="cmd-2",
             channel="test",
             reply_channel="reply",
         )
-        response = CommandResponseMessage(
+        response = CommandResponse(
             command_received=cmd_rcv,
             is_executed=True,
         )
@@ -544,60 +545,61 @@ class TestCommandResponseMessageEncodeWithFields:
         assert pb.Body == b""
 
 
-class TestCommandResponseMessageStr:
-    """Tests for CommandResponseMessage string representations."""
+class TestCommandResponseStr:
+    """Tests for CommandResponse string representations."""
 
     def test_repr_representation(self):
         """Test repr representation."""
-        cmd_rcv = CommandMessageReceived(
+        cmd_rcv = CommandReceived(
             id="cmd-repr",
             reply_channel="reply",
         )
 
-        response = CommandResponseMessage(
+        response = CommandResponse(
             command_received=cmd_rcv,
             is_executed=True,
         )
 
         repr_str = repr(response)
 
-        assert "CommandResponseMessage" in repr_str
+        assert "CommandResponse" in repr_str
 
 
-class TestQueryResponseMessageValidation:
-    """Tests for QueryResponseMessage validation."""
+class TestQueryResponseValidation:
+    """Tests for QueryResponse validation."""
 
-    def test_requires_query_received(self):
-        """Test that query_received is required."""
-        with pytest.raises(ValueError, match="must have a query request"):
-            QueryResponseMessage(
-                query_received=None,
-                is_executed=True,
-            )
+    def test_requires_query_received_for_encode(self):
+        """Test that query_received is required for encoding."""
+        resp = QueryResponse(
+            query_received=None,
+            is_executed=True,
+        )
+        with pytest.raises(ValueError, match="Query received is required"):
+            resp.encode("client-1")
 
     def test_requires_reply_channel(self):
         """Test that query_received must have reply_channel."""
-        qry_rcv = QueryMessageReceived(
+        qry_rcv = QueryReceived(
             id="qry-1",
             channel="test",
             reply_channel="",  # Empty reply channel
         )
 
         with pytest.raises(ValueError, match="must have a reply channel"):
-            QueryResponseMessage(
+            QueryResponse(
                 query_received=qry_rcv,
                 is_executed=True,
             )
 
     def test_valid_response(self):
         """Test valid query response creation."""
-        qry_rcv = QueryMessageReceived(
+        qry_rcv = QueryReceived(
             id="qry-1",
             channel="test",
             reply_channel="reply-channel",
         )
 
-        response = QueryResponseMessage(
+        response = QueryResponse(
             query_received=qry_rcv,
             is_executed=True,
             metadata="response metadata",
@@ -609,18 +611,18 @@ class TestQueryResponseMessageValidation:
         assert response.body == b"response body"
 
 
-class TestQueryResponseMessageEncode:
-    """Tests for QueryResponseMessage encoding."""
+class TestQueryResponseEncode:
+    """Tests for QueryResponse encoding."""
 
     def test_encode(self):
         """Test encoding to protobuf."""
-        qry_rcv = QueryMessageReceived(
+        qry_rcv = QueryReceived(
             id="qry-encode",
             channel="test",
             reply_channel="reply-channel",
         )
 
-        response = QueryResponseMessage(
+        response = QueryResponse(
             query_received=qry_rcv,
             is_executed=True,
             metadata="encoded metadata",
@@ -637,8 +639,8 @@ class TestQueryResponseMessageEncode:
         assert pb_response.Tags["tag1"] == "value1"
 
 
-class TestQueryResponseMessageDecode:
-    """Tests for QueryResponseMessage decoding."""
+class TestQueryResponseDecode:
+    """Tests for QueryResponse decoding."""
 
     def test_decode_from_protobuf(self):
         """Test decoding from protobuf."""
@@ -652,24 +654,24 @@ class TestQueryResponseMessageDecode:
         pb_response.Body = b"decoded body"
         pb_response.Tags = {"decoded": "tag"}
 
-        response = QueryResponseMessage.decode(pb_response)
+        response = QueryResponse.decode(pb_response)
 
         assert response.client_id == "decoded-client"
         assert response.metadata == "decoded metadata"
         assert response.body == b"decoded body"
 
 
-class TestQueryResponseMessageFactory:
-    """Tests for QueryResponseMessage factory method."""
+class TestQueryResponseFactory:
+    """Tests for QueryResponse factory method."""
 
     def test_create_valid(self):
         """Test create factory method creates valid response."""
-        qry_rcv = QueryMessageReceived(
+        qry_rcv = QueryReceived(
             id="qry-factory",
             reply_channel="reply",
         )
 
-        response = QueryResponseMessage.create(
+        response = QueryResponse.create(
             query_received=qry_rcv,
             metadata="factory metadata",
             body=b"factory body",
@@ -681,24 +683,24 @@ class TestQueryResponseMessageFactory:
         assert response.is_executed is True
 
 
-class TestQueryResponseMessageStr:
-    """Tests for QueryResponseMessage string representations."""
+class TestQueryResponseStr:
+    """Tests for QueryResponse string representations."""
 
     def test_repr_representation(self):
         """Test repr representation."""
-        qry_rcv = QueryMessageReceived(
+        qry_rcv = QueryReceived(
             id="qry-repr",
             reply_channel="reply",
         )
 
-        response = QueryResponseMessage(
+        response = QueryResponse(
             query_received=qry_rcv,
             is_executed=True,
         )
 
         repr_str = repr(response)
 
-        assert "QueryResponseMessage" in repr_str
+        assert "QueryResponse" in repr_str
 
 
 class TestCommandMessageWithUpdates:
@@ -739,7 +741,7 @@ class TestQueryMessageEncodeExtended:
             body=b"data",
             timeout_in_seconds=5,
             cache_key="my-key",
-            cache_ttl_int_seconds=30,
+            cache_ttl_in_seconds=30,
         )
         pb = query.encode("client")
         assert pb.CacheKey == "my-key"
@@ -779,16 +781,16 @@ class TestQueryMessageChannelEmpty:
             )
 
 
-class TestQueryResponseMessageEncodeEdge:
-    """Test QueryResponseMessage encode with metadata/body handling (line 67)."""
+class TestQueryResponseEncodeEdge:
+    """Test QueryResponse encode with metadata/body handling (line 67)."""
 
     def test_encode_with_none_metadata_and_body(self):
-        qry_rcv = QueryMessageReceived(
+        qry_rcv = QueryReceived(
             id="qry-1",
             channel="test",
             reply_channel="reply-ch",
         )
-        response = QueryResponseMessage(
+        response = QueryResponse(
             query_received=qry_rcv,
             is_executed=True,
             metadata=None,
@@ -801,7 +803,7 @@ class TestQueryResponseMessageEncodeEdge:
         assert pb.Tags["t"] == "v"
 
     def test_encode_raises_without_query_received(self):
-        response = QueryResponseMessage.__new__(QueryResponseMessage)
+        response = QueryResponse.__new__(QueryResponse)
         object.__setattr__(response, "query_received", None)
         object.__setattr__(response, "is_executed", True)
         object.__setattr__(response, "error", "")
@@ -814,7 +816,7 @@ class TestQueryResponseMessageEncodeEdge:
 
 
 class TestQueryResponseCacheHit:
-    """GAP-C2: Tests for CacheHit field on QueryResponseMessage."""
+    """GAP-C2: Tests for CacheHit field on QueryResponse."""
 
     def test_decode_cache_hit_true(self):
         pb_response = MagicMock()
@@ -828,7 +830,7 @@ class TestQueryResponseCacheHit:
         pb_response.Tags = {}
         pb_response.CacheHit = True
 
-        response = QueryResponseMessage.decode(pb_response)
+        response = QueryResponse.decode(pb_response)
         assert response.cache_hit is True
 
     def test_decode_cache_hit_false_default(self):
@@ -843,7 +845,7 @@ class TestQueryResponseCacheHit:
         pb_response.Tags = {}
         pb_response.CacheHit = False
 
-        response = QueryResponseMessage.decode(pb_response)
+        response = QueryResponse.decode(pb_response)
         assert response.cache_hit is False
 
 
@@ -851,13 +853,13 @@ class TestQueryCacheKeyTtlCrossValidation:
     """GAP-C4: Tests for CacheKey/CacheTTL cross-validation."""
 
     def test_cache_key_without_ttl_raises(self):
-        with pytest.raises(ValueError, match="cache_ttl_int_seconds must be > 0"):
+        with pytest.raises(ValueError, match="cache_ttl_in_seconds must be > 0"):
             QueryMessage(
                 channel="ch",
                 body=b"data",
                 timeout_in_seconds=5,
                 cache_key="my-key",
-                cache_ttl_int_seconds=0,
+                cache_ttl_in_seconds=0,
             )
 
     def test_cache_key_with_valid_ttl_passes(self):
@@ -866,10 +868,10 @@ class TestQueryCacheKeyTtlCrossValidation:
             body=b"data",
             timeout_in_seconds=5,
             cache_key="my-key",
-            cache_ttl_int_seconds=30,
+            cache_ttl_in_seconds=30,
         )
         assert query.cache_key == "my-key"
-        assert query.cache_ttl_int_seconds == 30
+        assert query.cache_ttl_in_seconds == 30
 
     def test_no_cache_key_zero_ttl_passes(self):
         query = QueryMessage(
@@ -877,10 +879,10 @@ class TestQueryCacheKeyTtlCrossValidation:
             body=b"data",
             timeout_in_seconds=5,
             cache_key="",
-            cache_ttl_int_seconds=0,
+            cache_ttl_in_seconds=0,
         )
         assert query.cache_key == ""
-        assert query.cache_ttl_int_seconds == 0
+        assert query.cache_ttl_in_seconds == 0
 
 
 class TestCommandMessageChannelValidation:

@@ -1,19 +1,28 @@
 from __future__ import annotations
 
+import dataclasses
+from dataclasses import dataclass, field
 from typing import Self
-from uuid import uuid4
-
-from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
 from kubemq.common.channel_validators import validate_channel_name
+from kubemq.common.helpers import fast_id
 from kubemq.grpc import Event as pbEvent
 
 
-class EventStoreMessage(BaseModel):
+@dataclass(frozen=True)
+class EventStoreMessage:
     """A persistent event store message.
 
     Instances are immutable after construction. Use ``with_updates()``
-    or ``model_copy(update={...})`` to create modified copies.
+    to create modified copies.
+
+    Raises:
+        KubeMQValidationError: If channel is missing or empty, or if all of
+            metadata, body, and tags are empty (at least one must be set).
+
+    See Also:
+        EventStoreReceived: The received counterpart when subscribing.
+        PubSubClient.send_event_store: Publish persistent events to a channel.
 
     Thread Safety:
         Instances are immutable (frozen) and safe to read from multiple
@@ -22,39 +31,26 @@ class EventStoreMessage(BaseModel):
         to ensure unique message IDs.
     """
 
-    model_config = ConfigDict(arbitrary_types_allowed=True, frozen=True)
-
-    id: str = Field(default_factory=lambda: str(uuid4()))
     channel: str
+    id: str = field(default_factory=fast_id)
     metadata: str | None = None
-    body: bytes = Field(default=b"")
-    tags: dict[str, str] = Field(default_factory=dict)
+    body: bytes = b""
+    tags: dict[str, str] = field(default_factory=dict)
 
-    @field_validator("channel")
-    def channel_must_exist(cls, v: str) -> str:
-        """Validate that the channel is not empty."""
-        if not v:
+    def __post_init__(self) -> None:
+        """Validate event store message fields."""
+        if not self.channel:
             raise ValueError("Event Store message must have a channel.")
-        validate_channel_name(v)
-        return v
-
-    @field_validator("metadata", "body", "tags")
-    def at_least_one_must_exist(cls, v: object, info: ValidationInfo) -> object:
-        """Validate at least one content field is set."""
-        if (
-            info.data.get("metadata") is None
-            and info.data.get("body") == b""
-            and not info.data.get("tags")
-        ):
+        validate_channel_name(self.channel)
+        if not self.metadata and not self.body and not self.tags:
             raise ValueError(
                 "Event Store message must have at least one of the following: metadata, body, or tags."
             )
-        return v
 
     def encode(self, client_id: str) -> pbEvent:
         """Encode the event store message to a protobuf Event."""
         pb_event = pbEvent()
-        pb_event.EventID = self.id or str(uuid4())
+        pb_event.EventID = self.id or fast_id()
         pb_event.ClientID = client_id
         pb_event.Channel = self.channel
         pb_event.Metadata = self.metadata or ""
@@ -64,12 +60,5 @@ class EventStoreMessage(BaseModel):
         return pb_event
 
     def with_updates(self, **kwargs: object) -> Self:
-        """Create a new message with updated values.
-
-        Since message instances are immutable, this creates a copy
-        with the specified fields overridden.
-
-        Returns:
-            A new instance of the same type with updated fields.
-        """
-        return self.model_copy(update=kwargs)
+        """Create a new message with updated values."""
+        return dataclasses.replace(self, **kwargs)

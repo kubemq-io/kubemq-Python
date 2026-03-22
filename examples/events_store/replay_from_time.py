@@ -7,22 +7,22 @@ from datetime import datetime
 
 from kubemq import (
     CancellationToken,
+    Client,
     EventStoreMessage,
-    EventStoreMessageReceived,
+    EventStoreReceived,
     EventsStoreSubscription,
-    PubSubClient,
 )
-from kubemq.pubsub.events_store_subscription import EventsStoreType
+from kubemq.pubsub.events_store_subscription import EventStoreStartPosition
 
 
 def main() -> None:
-    with PubSubClient(
+    with Client(
         address="localhost:50000",
         client_id="python-events-store-replay-from-time-client",
     ) as client:
         # Pre-populate with some messages
         for i in range(5):
-            client.send_events_store_message(
+            client.send_event_store(
                 EventStoreMessage(
                     channel="python-events-store.replay-from-time",
                     body=f"Message-{i + 1}".encode(),
@@ -33,7 +33,7 @@ def main() -> None:
 
         cancel = CancellationToken()
 
-        def on_receive(event: EventStoreMessageReceived) -> None:
+        def on_receive(event: EventStoreReceived) -> None:
             print(f"[StartAtTime] Seq:{event.sequence}, Body:{event.body.decode('utf-8')}")
 
         def on_error(err: str) -> None:
@@ -46,7 +46,7 @@ def main() -> None:
                 channel="python-events-store.replay-from-time",
                 on_receive_event_callback=on_receive,
                 on_error_callback=on_error,
-                events_store_type=EventsStoreType.StartAtTime,
+                events_store_type=EventStoreStartPosition.StartAtTime,
                 events_store_start_time=start_time,
             ),
             cancel=cancel,
@@ -54,7 +54,7 @@ def main() -> None:
 
         time.sleep(1)
         # Send a new message after the start time
-        client.send_events_store_message(
+        client.send_event_store(
             EventStoreMessage(
                 channel="python-events-store.replay-from-time",
                 body=b"Message after start time",
