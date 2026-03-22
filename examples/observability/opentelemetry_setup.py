@@ -7,7 +7,7 @@ Requires the optional 'otel' dependency:
 
 from __future__ import annotations
 
-from kubemq import ClientConfig, EventMessage, PubSubClient
+from kubemq import Client, ClientConfig, EventMessage
 
 # OpenTelemetry imports — require optional otel dependency
 try:
@@ -65,12 +65,12 @@ def main() -> None:
         channel_allowlist=["python-observability.*"],
     )
 
-    with PubSubClient(config=config) as client:
+    with Client(config=config) as client:
         info = client.ping()
         print(f"Connected to {info.host} with OTel instrumentation")
 
         # Operations will emit traces and metrics
-        client.publish_event(
+        client.send_event(
             EventMessage(
                 channel="python-observability.opentelemetry-setup",
                 body=b"Traced and metered message",

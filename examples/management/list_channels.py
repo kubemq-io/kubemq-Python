@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from kubemq import CQClient, PubSubClient, QueuesClient
+from kubemq import Client
 
 
 def main() -> None:
     # List events and events store channels
-    with PubSubClient(
+    with Client(
         address="localhost:50000",
         client_id="python-management-list-channels-client",
     ) as client:
@@ -24,7 +24,7 @@ def main() -> None:
             print(f"Error listing events store channels: {e}")
 
     # List queues channels
-    with QueuesClient(
+    with Client(
         address="localhost:50000",
         client_id="python-management-list-channels-client",
     ) as client:
@@ -35,7 +35,7 @@ def main() -> None:
             print(f"Error listing queues channels: {e}")
 
     # List CQ channels
-    with CQClient(
+    with Client(
         address="localhost:50000",
         client_id="python-management-list-channels-client",
     ) as client:

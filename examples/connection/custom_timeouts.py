@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from kubemq import ClientConfig, CQClient, CommandMessage, KeepAliveConfig
+from kubemq import Client, ClientConfig, CommandMessage, KeepAliveConfig
 
 
 def main() -> None:
@@ -18,13 +18,13 @@ def main() -> None:
         ),
     )
 
-    with CQClient(config=config) as client:
+    with Client(config=config) as client:
         info = client.ping()
         print(f"Connected to {info.host} with custom timeouts")
 
         # Commands have per-message timeout via timeout_in_seconds
         try:
-            response = client.send_command_request(
+            response = client.send_command(
                 CommandMessage(
                     channel="python-connection.custom-timeouts",
                     body=b"test operation",

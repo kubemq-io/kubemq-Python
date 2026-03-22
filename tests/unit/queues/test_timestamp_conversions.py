@@ -16,16 +16,14 @@ import time
 from datetime import datetime, timedelta
 from unittest.mock import MagicMock
 
-import pytest
-
 from kubemq.queues.queues_message_received import QueueMessageReceived
 from kubemq.queues.queues_messages_waiting_pulled import QueueMessageWaitingPulled
 from kubemq.queues.queues_send_result import QueueSendResult
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _now_ns() -> int:
     """Return current time as integer nanoseconds since epoch."""

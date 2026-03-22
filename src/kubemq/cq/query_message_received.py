@@ -1,11 +1,11 @@
+from dataclasses import dataclass, field
 from datetime import datetime
-
-from pydantic import BaseModel, Field
 
 from kubemq.grpc import Request as pbRequest
 
 
-class QueryMessageReceived(BaseModel):
+@dataclass(frozen=True)
+class QueryReceived:
     """Received query message from a subscription.
 
     Attributes:
@@ -18,25 +18,27 @@ class QueryMessageReceived(BaseModel):
         reply_channel (str): The channel through which the reply for the query message should be sent.
         tags (Dict[str, str]): A dictionary containing tags associated with the query message.
 
+    See Also:
+        QueryMessage: The outgoing counterpart for sending queries.
+        CQClient.subscribe_to_queries: Subscribe to receive queries.
+
     Thread Safety:
         Instances are safe to read from multiple threads or asyncio
         tasks after receipt. Do not modify fields after receiving.
     """
 
-    id: str = Field(default="")
-    from_client_id: str = Field(default="")
-    timestamp: datetime = Field(default_factory=datetime.now)
-    channel: str = Field(default="")
-    metadata: str = Field(default="")
-    body: bytes = Field(default=b"")
-    reply_channel: str = Field(default="")
-    tags: dict[str, str] = Field(default_factory=dict)
-
-    model_config = {"arbitrary_types_allowed": True, "frozen": True}
+    id: str = ""
+    from_client_id: str = ""
+    timestamp: datetime = field(default_factory=datetime.now)
+    channel: str = ""
+    metadata: str = ""
+    body: bytes = b""
+    reply_channel: str = ""
+    tags: dict[str, str] = field(default_factory=dict)
 
     @classmethod
-    def decode(cls, query_receive: pbRequest) -> "QueryMessageReceived":
-        """Decodes a protobuf request object and returns a QueryMessageReceived instance."""
+    def decode(cls, query_receive: pbRequest) -> "QueryReceived":
+        """Decodes a protobuf request object and returns a QueryReceived instance."""
         return cls(
             id=query_receive.RequestID,
             from_client_id=query_receive.ClientID,
@@ -49,9 +51,9 @@ class QueryMessageReceived(BaseModel):
         )
 
     def __repr__(self) -> str:
-        """Returns a string representation of the QueryMessageReceived object."""
+        """Returns a string representation of the QueryReceived object."""
         return (
-            f"QueryMessageReceived: id={self.id}, channel={self.channel}, "
+            f"QueryReceived: id={self.id}, channel={self.channel}, "
             f"metadata={self.metadata}, body={self.body!r}, "
             f"from_client_id={self.from_client_id}, timestamp={self.timestamp}, "
             f"reply_channel={self.reply_channel}, tags={self.tags}"

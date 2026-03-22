@@ -18,11 +18,11 @@ from kubemq.common.async_cancellation_token import AsyncCancellationToken
 from kubemq.cq import (
     AsyncClient as AsyncCQClient,
     CommandMessage,
-    CommandResponseMessage,
+    CommandResponse,
     CommandsSubscription,
     QueriesSubscription,
     QueryMessage,
-    QueryResponseMessage,
+    QueryResponse,
 )
 
 # Mark all tests in this module as integration tests
@@ -109,7 +109,7 @@ class TestAsyncCQClientCommands:
                         command_received = command
                         # Send response
                         await responder.send_response(
-                            CommandResponseMessage(
+                            CommandResponse(
                                 command_received=command,
                                 is_executed=True,
                             )
@@ -194,7 +194,7 @@ class TestAsyncCQClientQueries:
                         query_received = query
                         # Send response with data
                         await responder.send_response(
-                            QueryResponseMessage(
+                            QueryResponse(
                                 query_received=query,
                                 is_executed=True,
                                 body=b"query result data",
@@ -279,7 +279,7 @@ class TestAsyncCQClientBatch:
                     ):
                         commands_received.append(command)
                         await responder.send_response(
-                            CommandResponseMessage(
+                            CommandResponse(
                                 command_received=command,
                                 is_executed=True,
                             )
@@ -348,7 +348,7 @@ class TestAsyncCQClientSubscription:
                         received_commands.append(command)
                         # Respond
                         await subscriber.send_response(
-                            CommandResponseMessage(
+                            CommandResponse(
                                 command_received=command,
                                 is_executed=True,
                             )
@@ -420,7 +420,7 @@ class TestAsyncCQClientSubscription:
                         received_queries.append(query)
                         # Respond
                         await subscriber.send_response(
-                            QueryResponseMessage(
+                            QueryResponse(
                                 query_received=query,
                                 is_executed=True,
                                 body=b"response",

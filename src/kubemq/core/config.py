@@ -389,6 +389,11 @@ class ClientConfig:
     )
     credential_timeout: float = 5.0
 
+    # gRPC connection pool size (number of parallel HTTP/2 connections).
+    # Default 5 distributes send operations across multiple TCP connections.
+    # Set to 1 to disable pooling (single connection, legacy behavior).
+    connection_pool_size: int = 5
+
     # Internal send queue depth (bounded queue for backpressure)
     max_send_queue_size: int = 10_000
 
@@ -416,7 +421,7 @@ class ClientConfig:
         # Set defaults for mutable fields
         if not self.client_id:
             hostname = socket.gethostname()
-            self.client_id = re.sub(r'[^a-zA-Z0-9_-]', '_', hostname)
+            self.client_id = re.sub(r"[^a-zA-Z0-9_-]", "_", hostname)
         if self.max_send_size <= 0:
             self.max_send_size = self.DEFAULT_MAX_MESSAGE_SIZE
         if self.max_receive_size <= 0:

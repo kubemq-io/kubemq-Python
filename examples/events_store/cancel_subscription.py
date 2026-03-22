@@ -6,22 +6,22 @@ import time
 
 from kubemq import (
     CancellationToken,
+    Client,
     EventStoreMessage,
-    EventStoreMessageReceived,
+    EventStoreReceived,
     EventsStoreSubscription,
-    PubSubClient,
 )
-from kubemq.pubsub.events_store_subscription import EventsStoreType
+from kubemq.pubsub.events_store_subscription import EventStoreStartPosition
 
 
 def main() -> None:
-    with PubSubClient(
+    with Client(
         address="localhost:50000",
         client_id="python-events-store-cancel-subscription-client",
     ) as client:
         cancel = CancellationToken()
 
-        def on_receive(event: EventStoreMessageReceived) -> None:
+        def on_receive(event: EventStoreReceived) -> None:
             print(f"Received: Seq={event.sequence}, Body:{event.body.decode('utf-8')}")
 
         def on_error(err: str) -> None:
@@ -32,13 +32,13 @@ def main() -> None:
                 channel="python-events-store.cancel-subscription",
                 on_receive_event_callback=on_receive,
                 on_error_callback=on_error,
-                events_store_type=EventsStoreType.StartNewOnly,
+                events_store_type=EventStoreStartPosition.StartFromNew,
             ),
             cancel=cancel,
         )
         time.sleep(1)
 
-        client.send_events_store_message(
+        client.send_event_store(
             EventStoreMessage(
                 channel="python-events-store.cancel-subscription",
                 body=b"before cancel",
@@ -49,7 +49,7 @@ def main() -> None:
         cancel.cancel()
         print("Events store subscription cancelled")
 
-        client.send_events_store_message(
+        client.send_event_store(
             EventStoreMessage(
                 channel="python-events-store.cancel-subscription",
                 body=b"after cancel",

@@ -6,20 +6,20 @@ import time
 
 from kubemq import (
     CancellationToken,
+    Client,
     CommandMessage,
-    CommandResponseMessage,
+    CommandResponse,
     CommandsSubscription,
-    CQClient,
 )
 
 
 def main() -> None:
-    client = CQClient(address="localhost:50000", client_id="python-rpc-quickstart-client")
+    client = Client(address="localhost:50000", client_id="python-rpc-quickstart-client")
 
     # Subscribe to commands as a handler
     def on_command(cmd) -> None:  # type: ignore[no-untyped-def]
         print(f"Received command: {cmd.body.decode('utf-8')}")
-        client.send_response_message(CommandResponseMessage(command_received=cmd, is_executed=True))
+        client.send_response_message(CommandResponse(command_received=cmd, is_executed=True))
 
     client.subscribe_to_commands(
         subscription=CommandsSubscription(

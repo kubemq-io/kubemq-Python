@@ -21,7 +21,7 @@ from kubemq.pubsub import (
     EventsSubscription,
     EventStoreMessage,
 )
-from kubemq.pubsub.events_store_subscription import EventsStoreType
+from kubemq.pubsub.events_store_subscription import EventStoreStartPosition
 
 # Mark all tests in this module as integration tests
 pytestmark = pytest.mark.integration
@@ -252,7 +252,7 @@ class TestAsyncPubSubClientSubscription:
                     channel=unique_channel,
                     group="test-group",
                     on_receive_event_callback=lambda e: received_events.append(e),
-                    events_store_type=EventsStoreType.StartFromFirst,
+                    events_store_type=EventStoreStartPosition.StartFromFirst,
                 )
                 try:
                     async for event in subscriber.subscribe_to_events_store(

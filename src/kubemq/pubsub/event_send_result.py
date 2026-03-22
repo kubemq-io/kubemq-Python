@@ -1,11 +1,11 @@
-from typing import Any
-
-from pydantic import BaseModel, ConfigDict
+import json
+from dataclasses import dataclass
 
 from kubemq.grpc import Result
 
 
-class EventSendResult(BaseModel):
+@dataclass
+class EventStoreResult:
     """Result of sending an event message."""
 
     id: str | None = None
@@ -13,12 +13,10 @@ class EventSendResult(BaseModel):
     error: str | None = None
 
     @classmethod
-    def decode(cls, result: Result) -> "EventSendResult":
-        """Decode a protobuf Result into an EventSendResult."""
+    def decode(cls, result: Result) -> "EventStoreResult":
+        """Decode a protobuf Result into an EventStoreResult."""
         return cls(id=result.EventID, sent=result.Sent, error=result.Error)
 
-    model_config = ConfigDict(validate_assignment=True)
-
-    def model_dump_json(self, **kwargs: Any) -> str:
+    def to_json(self) -> str:
         """Serialize the model to JSON, excluding None values."""
-        return super().model_dump_json(exclude_none=True, **kwargs)
+        return json.dumps({k: v for k, v in self.__dict__.items() if v is not None})

@@ -6,15 +6,15 @@ import time
 
 from kubemq import (
     CancellationToken,
+    Client,
     EventMessage,
-    EventMessageReceived,
+    EventReceived,
     EventsSubscription,
-    PubSubClient,
 )
 
 
 def make_handler(name: str):  # type: ignore[no-untyped-def]
-    def handler(event: EventMessageReceived) -> None:
+    def handler(event: EventReceived) -> None:
         print(f"[{name}] Received: {event.body.decode('utf-8')}")
 
     return handler
@@ -25,7 +25,7 @@ def on_error(err: str) -> None:
 
 
 def main() -> None:
-    with PubSubClient(
+    with Client(
         address="localhost:50000",
         client_id="python-events-consumer-group-client",
     ) as client:
@@ -52,7 +52,7 @@ def main() -> None:
 
         time.sleep(1)
         for i in range(6):
-            client.publish_event(
+            client.send_event(
                 EventMessage(
                     channel="python-events.consumer-group",
                     body=f"Task #{i + 1}".encode(),

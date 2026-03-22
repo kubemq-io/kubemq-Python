@@ -1,7 +1,7 @@
 import logging
 import time
 
-from kubemq.pubsub import Client
+from kubemq import Client
 
 
 def main():
@@ -13,7 +13,7 @@ def main():
         )
         # client._run_events_upstream_sender(CancellationToken())
 
-        # def on_receive_event(event: EventMessageReceived):
+        # def on_receive_event(event: EventReceived):
         #     print(
         #         f"Id:{event.id}, Timestamp:{event.timestamp} From: {event.from_client_id},  Body:{event.body.decode('utf-8')}")
         #

@@ -1,53 +1,42 @@
 import asyncio
 from collections.abc import Callable
-
-from pydantic import BaseModel, field_validator
+from dataclasses import dataclass
 
 from kubemq.common.channel_validators import validate_channel_name
 from kubemq.common.subscribe_type import SubscribeType
-from kubemq.cq.query_message_received import QueryMessageReceived
+from kubemq.cq.query_message_received import QueryReceived
 from kubemq.grpc import Subscribe
 
 
-class QueriesSubscription(BaseModel):
+@dataclass
+class QueriesSubscription:
     """QueriesSubscription class represents a subscription to receive query messages from a channel.
 
     Attributes:
         channel (str): The name of the channel to subscribe to.
         group (Optional[str]): The optional name of the group to subscribe to.
-        on_receive_query_callback (Callable[[QueryMessageReceived], None]): The callback function to be called when a query message is received.
+        on_receive_query_callback (Callable[[QueryReceived], None]): The callback function to be called when a query message is received.
         on_error_callback (Optional[Callable[[str], None]]): The callback function to be called when an error occurs.
     """
 
     channel: str
+    on_receive_query_callback: Callable[[QueryReceived], None]
     group: str | None = None
-    on_receive_query_callback: Callable[[QueryMessageReceived], None]
     on_error_callback: Callable[[str], None] | None = None
 
-    model_config = {"arbitrary_types_allowed": True}
-
-    @field_validator("channel")
-    def channel_must_exist(cls, v: str) -> str:
-        """Validate that the channel is not empty."""
-        if not v:
+    def __post_init__(self) -> None:
+        """Validate subscription fields."""
+        if not self.channel:
             raise ValueError("query subscription must have a channel.")
-        validate_channel_name(v)
-        return v
-
-    @field_validator("on_receive_query_callback")
-    def callback_must_exist(
-        cls, v: Callable[[QueryMessageReceived], None]
-    ) -> Callable[[QueryMessageReceived], None]:
-        """Validate that the callback is callable."""
-        if not callable(v):
+        validate_channel_name(self.channel)
+        if not callable(self.on_receive_query_callback):
             raise ValueError("query subscription must have a on_receive_query_callback function.")
-        return v
 
-    def raise_on_receive_message(self, received_query: QueryMessageReceived) -> None:
+    def raise_on_receive_message(self, received_query: QueryReceived) -> None:
         """Raises the on_receive_query_callback with the received query message."""
         self.on_receive_query_callback(received_query)
 
-    async def raise_on_receive_message_async(self, received_query: QueryMessageReceived) -> None:
+    async def raise_on_receive_message_async(self, received_query: QueryReceived) -> None:
         """Async-aware version that supports both sync and async callbacks."""
         if asyncio.iscoroutinefunction(self.on_receive_query_callback):
             await self.on_receive_query_callback(received_query)
@@ -85,13 +74,10 @@ class QueriesSubscription(BaseModel):
         cls,
         channel: str,
         group: str | None = None,
-        on_receive_query_callback: Callable[[QueryMessageReceived], None] | None = None,
+        on_receive_query_callback: Callable[[QueryReceived], None] | None = None,
         on_error_callback: Callable[[str], None] | None = None,
     ) -> "QueriesSubscription":
-        """Creates a new QueriesSubscription instance.
-
-        This method provides backwards compatibility with the original constructor.
-        """
+        """Creates a new QueriesSubscription instance."""
         if on_receive_query_callback is None:
             raise ValueError("on_receive_query_callback is required")
         return cls(

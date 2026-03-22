@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import time
 
-from kubemq import CancellationToken, EventMessage, EventsSubscription, PubSubClient
+from kubemq import CancellationToken, Client, EventMessage, EventsSubscription
 
 
 def make_handler(name: str):  # type: ignore[no-untyped-def]
@@ -24,7 +24,7 @@ def on_error(error: str) -> None:
 def main() -> None:
     cancel = CancellationToken()
 
-    with PubSubClient(
+    with Client(
         address="localhost:50000",
         client_id="python-events-multiple-subscribers-client",
     ) as client:
@@ -69,7 +69,7 @@ def main() -> None:
         time.sleep(1)
 
         # Broadcast: both Subscriber-A and Subscriber-B receive this
-        client.publish_event(
+        client.send_event(
             EventMessage(
                 channel="python-events.multiple-subscribers",
                 body=b"System update available",
@@ -78,7 +78,7 @@ def main() -> None:
 
         # Group: only one of Worker-1 or Worker-2 receives each task
         for i in range(4):
-            client.publish_event(
+            client.send_event(
                 EventMessage(
                     channel="python-events.multiple-subscribers-tasks",
                     body=f"Task #{i + 1}".encode(),

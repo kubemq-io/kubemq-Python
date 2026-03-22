@@ -26,7 +26,7 @@ class TestAsyncEventSenderInit:
         sender = AsyncEventSender(transport)
         assert sender._closed is False
         assert sender._allow_new_messages is True
-        assert sender._stream_task is None
+        assert sender._loop_task is None
         assert sender._reconnect_interval == 1.0
 
     def test_custom_params(self):
@@ -41,19 +41,19 @@ class TestAsyncEventSenderStart:
         sender, _ = _make_sender()
         sender._closed = True
         await sender.start()
-        assert sender._stream_task is not None
-        sender._stream_task.cancel()
+        assert sender._loop_task is not None
+        sender._loop_task.cancel()
         with pytest.raises(asyncio.CancelledError):
-            await sender._stream_task
+            await sender._loop_task
 
     @pytest.mark.asyncio
     async def test_start_idempotent(self):
         sender, _ = _make_sender()
         sender._closed = True
         await sender.start()
-        first_task = sender._stream_task
+        first_task = sender._loop_task
         await sender.start()
-        assert sender._stream_task is first_task
+        assert sender._loop_task is first_task
         first_task.cancel()
         with pytest.raises(asyncio.CancelledError):
             await first_task
@@ -63,16 +63,16 @@ class TestAsyncEventSenderStart:
         sender, _ = _make_sender()
         sender._closed = True
         await sender.start()
-        first_task = sender._stream_task
+        first_task = sender._loop_task
         first_task.cancel()
         with pytest.raises(asyncio.CancelledError):
             await first_task
         sender._closed = True
         await sender.start()
-        assert sender._stream_task is not first_task
-        sender._stream_task.cancel()
+        assert sender._loop_task is not first_task
+        sender._loop_task.cancel()
         with pytest.raises(asyncio.CancelledError):
-            await sender._stream_task
+            await sender._loop_task
 
 
 class TestAsyncEventSenderSend:
@@ -93,10 +93,9 @@ class TestAsyncEventSenderSend:
 
         async def resolve():
             await asyncio.sleep(0.01)
-            async with sender._lock:
-                future = sender._response_tracking.get("e-store")
-                if future and not future.done():
-                    future.set_result(expected)
+            future = sender._response_tracking.get("e-store")
+            if future and not future.done():
+                future.set_result(expected)
 
         task = asyncio.create_task(resolve())
         result = await sender.send(event)
@@ -128,65 +127,36 @@ class TestAsyncEventSenderSend:
 
 class TestAsyncEventSenderStreamLoop:
     @pytest.mark.asyncio
-    async def test_stream_loop_processes_responses(self):
-        sender, transport = _make_sender()
-        response = Result(EventID="e1", Sent=True, Error="")
+    async def test_stream_loop_exits_when_closed(self):
+        sender, _ = _make_sender()
+        sender._closed = True
+        await sender._stream_loop()
 
-        async def fake_stream(gen):
-            yield response
+    @pytest.mark.asyncio
+    async def test_stream_loop_breaks_on_closed_during_run(self):
+        sender, _ = _make_sender()
+
+        async def mock_run():
             sender._closed = True
 
-        transport.send_events_stream = fake_stream
-
-        loop = asyncio.get_running_loop()
-        future = loop.create_future()
-        async with sender._lock:
-            sender._response_tracking["e1"] = future
-
+        sender._run_bidi_stream = mock_run
         await sender._stream_loop()
-        assert future.done()
-        assert future.result() is response
 
     @pytest.mark.asyncio
     async def test_stream_loop_reconnects_on_error(self):
-        sender, transport = _make_sender(reconnect_interval=0.01)
+        sender, _ = _make_sender(reconnect_interval=0.01)
         call_count = 0
 
-        async def failing_then_ok_stream(gen):
+        async def mock_run():
             nonlocal call_count
             call_count += 1
             if call_count == 1:
                 raise RuntimeError("stream broken")
             sender._closed = True
-            return
-            yield  # noqa: makes this an async generator
 
-        transport.send_events_stream = failing_then_ok_stream
+        sender._run_bidi_stream = mock_run
         await sender._stream_loop()
         assert call_count >= 2
-
-    @pytest.mark.asyncio
-    async def test_stream_loop_breaks_on_closed_during_error(self):
-        sender, transport = _make_sender()
-
-        async def failing_stream(gen):
-            sender._closed = True
-            raise RuntimeError("stream broken")
-            yield  # noqa: makes this an async generator
-
-        transport.send_events_stream = failing_stream
-        await sender._stream_loop()
-
-    @pytest.mark.asyncio
-    async def test_stream_loop_breaks_on_closed_during_iteration(self):
-        sender, transport = _make_sender()
-
-        async def closing_stream(gen):
-            sender._closed = True
-            yield Result(EventID="e1", Sent=True)
-
-        transport.send_events_stream = closing_stream
-        await sender._stream_loop()
 
 
 class TestAsyncEventSenderRequestGenerator:
@@ -227,73 +197,46 @@ class TestAsyncEventSenderRequestGenerator:
         assert results == []
 
 
-class TestAsyncEventSenderProcessResponse:
-    @pytest.mark.asyncio
-    async def test_resolves_tracked_future(self):
-        sender, _ = _make_sender()
-        loop = asyncio.get_running_loop()
-        future = loop.create_future()
-        sender._response_tracking["e1"] = future
-
-        response = Result(EventID="e1", Sent=True)
-        await sender._process_response(response)
-        assert future.done()
-        assert future.result() is response
-
-    @pytest.mark.asyncio
-    async def test_ignores_unknown_event_id(self):
-        sender, _ = _make_sender()
-        await sender._process_response(Result(EventID="unknown", Sent=True))
-
-    @pytest.mark.asyncio
-    async def test_ignores_already_done_future(self):
-        sender, _ = _make_sender()
-        loop = asyncio.get_running_loop()
-        future = loop.create_future()
-        future.set_result(Result(EventID="e1", Sent=False))
-        sender._response_tracking["e1"] = future
-
-        await sender._process_response(Result(EventID="e1", Sent=True))
-        assert future.result().Sent is False
-
-
 class TestAsyncEventSenderHandleDisconnection:
-    @pytest.mark.asyncio
-    async def test_errors_all_pending_futures(self):
+    def test_errors_all_pending_futures(self):
         sender, _ = _make_sender()
-        loop = asyncio.get_running_loop()
-        f1 = loop.create_future()
-        f2 = loop.create_future()
-        sender._response_tracking["e1"] = f1
-        sender._response_tracking["e2"] = f2
+        loop = asyncio.new_event_loop()
+        try:
+            f1 = loop.create_future()
+            f2 = loop.create_future()
+            sender._response_tracking["e1"] = f1
+            sender._response_tracking["e2"] = f2
 
-        await sender._handle_disconnection()
+            sender._handle_disconnection()
 
-        assert f1.done()
-        assert f2.done()
-        assert f1.result().Sent is False
-        assert "Disconnected" in f1.result().Error
-        assert sender._response_tracking == {}
-        assert sender._allow_new_messages is False
+            assert f1.done()
+            assert f2.done()
+            assert f1.result().Sent is False
+            assert "Disconnected" in f1.result().Error
+            assert sender._response_tracking == {}
+            assert sender._allow_new_messages is False
+        finally:
+            loop.close()
 
-    @pytest.mark.asyncio
-    async def test_drains_queue(self):
+    def test_drains_queue(self):
         sender, _ = _make_sender()
         for i in range(5):
             sender._send_queue.put_nowait(Event(EventID=f"e{i}"))
-        await sender._handle_disconnection()
+        sender._handle_disconnection()
         assert sender._send_queue.empty()
 
-    @pytest.mark.asyncio
-    async def test_skips_done_futures(self):
+    def test_skips_done_futures(self):
         sender, _ = _make_sender()
-        loop = asyncio.get_running_loop()
-        future = loop.create_future()
-        future.set_result(Result(EventID="e1", Sent=True))
-        sender._response_tracking["e1"] = future
+        loop = asyncio.new_event_loop()
+        try:
+            future = loop.create_future()
+            future.set_result(Result(EventID="e1", Sent=True))
+            sender._response_tracking["e1"] = future
 
-        await sender._handle_disconnection()
-        assert future.result().Sent is True
+            sender._handle_disconnection()
+            assert future.result().Sent is True
+        finally:
+            loop.close()
 
 
 class TestAsyncEventSenderClose:
@@ -312,11 +255,11 @@ class TestAsyncEventSenderClose:
         assert sender._closed is True
 
     @pytest.mark.asyncio
-    async def test_close_cancels_stream_task(self):
+    async def test_close_cancels_loop_task(self):
         sender, _ = _make_sender()
         sender._closed = True
         await sender.start()
-        task = sender._stream_task
+        task = sender._loop_task
         sender._closed = False
         await sender.close()
         assert task.done()

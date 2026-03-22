@@ -6,22 +6,22 @@ import time
 
 from kubemq import (
     CancellationToken,
+    Client,
     CommandMessage,
-    CommandMessageReceived,
-    CommandResponseMessage,
+    CommandReceived,
+    CommandResponse,
     CommandsSubscription,
-    CQClient,
 )
 
 
 def main() -> None:
-    with CQClient(
+    with Client(
         address="localhost:50000",
         client_id="python-commands-handle-command-client",
     ) as client:
         cancel = CancellationToken()
 
-        def on_receive_command(request: CommandMessageReceived) -> None:
+        def on_receive_command(request: CommandReceived) -> None:
             """Handle incoming command and send response."""
             try:
                 body = request.body.decode("utf-8")
@@ -32,7 +32,7 @@ def main() -> None:
 
                 # Send response back
                 client.send_response_message(
-                    CommandResponseMessage(
+                    CommandResponse(
                         command_received=request,
                         is_executed=success,
                     )
@@ -57,7 +57,7 @@ def main() -> None:
         time.sleep(1)
 
         # Send a test command
-        response = client.send_command_request(
+        response = client.send_command(
             CommandMessage(
                 channel="python-commands.handle-command",
                 body=b"process this task",

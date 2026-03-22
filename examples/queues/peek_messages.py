@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from kubemq import QueueMessage, QueuesClient
+from kubemq import Client, QueueMessage
 
 
 def main() -> None:
-    with QueuesClient(
+    with Client(
         address="localhost:50000",
         client_id="python-queues-peek-messages-client",
     ) as client:
@@ -20,7 +20,7 @@ def main() -> None:
         )
 
         # Peek at messages (they remain in the queue)
-        waiting_result = client.waiting("python-queues.peek-messages", 5, 10)
+        waiting_result = client.peek_queue_messages("python-queues.peek-messages", 5, 10)
         if waiting_result.is_error:
             print(f"Error: {waiting_result.error}")
             return

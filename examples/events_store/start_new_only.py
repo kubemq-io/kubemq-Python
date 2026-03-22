@@ -1,4 +1,4 @@
-"""Example: StartNewOnly — subscribe only to new events published after subscription."""
+"""Example: StartFromNew — subscribe only to new events published after subscription."""
 
 from __future__ import annotations
 
@@ -6,22 +6,22 @@ import time
 
 from kubemq import (
     CancellationToken,
+    Client,
     EventStoreMessage,
-    EventStoreMessageReceived,
+    EventStoreReceived,
     EventsStoreSubscription,
-    PubSubClient,
 )
-from kubemq.pubsub.events_store_subscription import EventsStoreType
+from kubemq.pubsub.events_store_subscription import EventStoreStartPosition
 
 
 def main() -> None:
-    with PubSubClient(
+    with Client(
         address="localhost:50000",
         client_id="python-events-store-start-new-only-client",
     ) as client:
         # Send messages BEFORE subscribing — these will NOT be received
         for i in range(3):
-            client.send_events_store_message(
+            client.send_event_store(
                 EventStoreMessage(
                     channel="python-events-store.start-new-only",
                     body=f"Old-Message-{i + 1}".encode(),
@@ -31,7 +31,7 @@ def main() -> None:
 
         cancel = CancellationToken()
 
-        def on_receive(event: EventStoreMessageReceived) -> None:
+        def on_receive(event: EventStoreReceived) -> None:
             print(f"Received — Seq:{event.sequence}, Body:{event.body.decode('utf-8')}")
 
         def on_error(err: str) -> None:
@@ -42,14 +42,14 @@ def main() -> None:
                 channel="python-events-store.start-new-only",
                 on_receive_event_callback=on_receive,
                 on_error_callback=on_error,
-                events_store_type=EventsStoreType.StartNewOnly,
+                events_store_type=EventStoreStartPosition.StartFromNew,
             ),
             cancel=cancel,
         )
         time.sleep(1)
 
         # Send messages AFTER subscribing — only these will be received
-        client.send_events_store_message(
+        client.send_event_store(
             EventStoreMessage(
                 channel="python-events-store.start-new-only",
                 body=b"New message after subscription",

@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from kubemq import KubeMQConnectionError, KubeMQError, QueueMessage, QueuesClient
+from kubemq import Client, KubeMQConnectionError, KubeMQError, QueueMessage
 
 
 def main() -> None:
     try:
-        with QueuesClient(
+        with Client(
             address="localhost:50000",  # TODO: Replace with your KubeMQ server address
             client_id="python-queues-send-receive-client",
         ) as client:

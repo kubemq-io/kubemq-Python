@@ -6,19 +6,19 @@ import time
 
 from kubemq import (
     CancellationToken,
+    Client,
     CommandMessage,
-    CommandMessageReceived,
-    CommandResponseMessage,
+    CommandReceived,
+    CommandResponse,
     CommandsSubscription,
-    CQClient,
 )
 
 
-def make_handler(name: str, client: CQClient):  # type: ignore[no-untyped-def]
-    def handler(request: CommandMessageReceived) -> None:
+def make_handler(name: str, client: Client):  # type: ignore[no-untyped-def]
+    def handler(request: CommandReceived) -> None:
         print(f"[{name}] Received command: {request.body.decode('utf-8')}")
         client.send_response_message(
-            CommandResponseMessage(command_received=request, is_executed=True)
+            CommandResponse(command_received=request, is_executed=True)
         )
 
     return handler
@@ -29,7 +29,7 @@ def on_error(err: str) -> None:
 
 
 def main() -> None:
-    with CQClient(
+    with Client(
         address="localhost:50000",
         client_id="python-commands-consumer-group-client",
     ) as client:
@@ -56,7 +56,7 @@ def main() -> None:
 
         time.sleep(1)
         for i in range(4):
-            response = client.send_command_request(
+            response = client.send_command(
                 CommandMessage(
                     channel="python-commands.consumer-group",
                     body=f"Command #{i + 1}".encode(),

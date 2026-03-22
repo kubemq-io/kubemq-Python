@@ -6,15 +6,15 @@ import asyncio
 
 from kubemq import (
     AsyncCancellationToken,
-    AsyncCQClient,
+    AsyncClient,
     CommandMessage,
-    CommandResponseMessage,
+    CommandResponse,
     CommandsSubscription,
 )
 
 
 async def main() -> None:
-    async with AsyncCQClient(address="localhost:50000", client_id="python-rpc-quickstart-async-client") as client:
+    async with AsyncClient(address="localhost:50000", client_id="python-rpc-quickstart-async-client") as client:
         token = AsyncCancellationToken()
 
         async def command_handler() -> None:
@@ -28,7 +28,7 @@ async def main() -> None:
             ):
                 print(f"Received command: {cmd.body.decode('utf-8')}")
                 await client.send_response(
-                    CommandResponseMessage(command_received=cmd, is_executed=True)
+                    CommandResponse(command_received=cmd, is_executed=True)
                 )
 
         # Start the command handler in the background

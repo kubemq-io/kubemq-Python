@@ -138,11 +138,9 @@ class TestEmptyPayloads:
         assert msg.metadata is None
 
     def test_event_message_requires_channel(self) -> None:
-        from pydantic import ValidationError
-
         from kubemq.pubsub import EventMessage
 
-        with pytest.raises(ValidationError):
+        with pytest.raises(ValueError):
             EventMessage(channel="", body=b"data")
 
     def test_queue_message_empty_body_with_metadata(self) -> None:

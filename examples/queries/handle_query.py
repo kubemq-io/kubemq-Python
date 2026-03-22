@@ -6,22 +6,22 @@ import time
 
 from kubemq import (
     CancellationToken,
-    CQClient,
+    Client,
     QueriesSubscription,
     QueryMessage,
-    QueryMessageReceived,
-    QueryResponseMessage,
+    QueryReceived,
+    QueryResponse,
 )
 
 
 def main() -> None:
-    with CQClient(
+    with Client(
         address="localhost:50000",
         client_id="python-queries-handle-query-client",
     ) as client:
         cancel = CancellationToken()
 
-        def on_receive_query(request: QueryMessageReceived) -> None:
+        def on_receive_query(request: QueryReceived) -> None:
             """Handle incoming query and send response with data."""
             try:
                 body = request.body.decode("utf-8")
@@ -32,7 +32,7 @@ def main() -> None:
 
                 # Send response back with data
                 client.send_response_message(
-                    QueryResponseMessage(
+                    QueryResponse(
                         query_received=request,
                         is_executed=True,
                         body=result_data.encode(),
@@ -58,7 +58,7 @@ def main() -> None:
         time.sleep(1)
 
         # Send a test query
-        response = client.send_query_request(
+        response = client.send_query(
             QueryMessage(
                 channel="python-queries.handle-query",
                 body=b"fetch user profile",

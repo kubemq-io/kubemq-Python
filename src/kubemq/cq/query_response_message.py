@@ -1,16 +1,16 @@
+from dataclasses import dataclass, field
 from datetime import datetime
 
-from pydantic import BaseModel, Field, field_validator
-
-from kubemq.cq.query_message_received import QueryMessageReceived
+from kubemq.cq.query_message_received import QueryReceived
 from kubemq.grpc import Response as pbResponse
 
 
-class QueryResponseMessage(BaseModel):
+@dataclass
+class QueryResponse:
     """Class for representing a query response message.
 
     Attributes:
-        query_received (Optional[QueryMessageReceived]): The received query message.
+        query_received (Optional[QueryReceived]): The received query message.
         client_id (str): The client ID.
         request_id (str): The request ID.
         is_executed (bool): Indicates if the query has been executed.
@@ -21,31 +21,25 @@ class QueryResponseMessage(BaseModel):
         tags (Dict[str, str]): The tags associated with the query response.
     """
 
-    query_received: QueryMessageReceived | None = None
-    client_id: str = Field(default="")
-    request_id: str = Field(default="")
-    is_executed: bool = Field(default=False)
-    timestamp: datetime = Field(default_factory=datetime.now)
-    error: str = Field(default="")
+    query_received: QueryReceived | None = None
+    client_id: str = ""
+    request_id: str = ""
+    is_executed: bool = False
+    timestamp: datetime = field(default_factory=datetime.now)
+    error: str = ""
     metadata: str | None = None
-    body: bytes = Field(default=b"")
-    tags: dict[str, str] = Field(default_factory=dict)
-    cache_hit: bool = Field(default=False)
+    body: bytes = b""
+    tags: dict[str, str] = field(default_factory=dict)
+    cache_hit: bool = False
 
-    model_config = {"arbitrary_types_allowed": True}
-
-    @field_validator("query_received")
-    def validate_query_received(cls, v: QueryMessageReceived | None) -> QueryMessageReceived | None:
-        """Validate that the query request is present and has a reply channel."""
-        if v is None:
-            raise ValueError("Query response must have a query request.")
-        if v.reply_channel == "":
+    def __post_init__(self) -> None:
+        """Validate query response when query_received is provided."""
+        if self.query_received is not None and self.query_received.reply_channel == "":
             raise ValueError("Query response must have a reply channel.")
-        return v
 
     @classmethod
-    def decode(cls, pb_response: pbResponse) -> "QueryResponseMessage":
-        """Decodes the protocol buffer response and creates a new QueryResponseMessage instance."""
+    def decode(cls, pb_response: pbResponse) -> "QueryResponse":
+        """Decodes the protocol buffer response and creates a new QueryResponse instance."""
         return cls(
             client_id=pb_response.ClientID,
             request_id=pb_response.RequestID,
@@ -79,7 +73,7 @@ class QueryResponseMessage(BaseModel):
 
     def __repr__(self) -> str:
         return (
-            f"QueryResponseMessage: client_id={self.client_id}, "
+            f"QueryResponse: client_id={self.client_id}, "
             f"request_id={self.request_id}, is_executed={self.is_executed}, "
             f"error={self.error}, timestamp={self.timestamp}"
         )
@@ -87,23 +81,20 @@ class QueryResponseMessage(BaseModel):
     @classmethod
     def create(
         cls,
-        query_received: QueryMessageReceived | None = None,
+        query_received: QueryReceived | None = None,
         metadata: str | None = None,
         body: bytes = b"",
         tags: dict[str, str] | None = None,
         is_executed: bool = False,
         error: str = "",
         timestamp: datetime | None = None,
-    ) -> "QueryResponseMessage":
-        """Creates a new QueryResponseMessage instance.
-
-        This method provides backwards compatibility with the original constructor.
-        """
+    ) -> "QueryResponse":
+        """Creates a new QueryResponse instance."""
         return cls(
             query_received=query_received,
             metadata=metadata,
             body=body,
-            tags=tags,  # type: ignore[arg-type]
+            tags=tags or {},
             is_executed=is_executed,
             error=error,
             timestamp=timestamp or datetime.now(),

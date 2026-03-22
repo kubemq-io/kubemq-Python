@@ -187,7 +187,6 @@ class TestAsyncClientReceiveQueueMessages:
                 is_transaction_completed=False,
                 active_offsets=[],
                 receiver_client_id="test-client",
-                visibility_seconds=0,
                 is_auto_acked=False,
                 transport=mock_transport,
             )
@@ -220,7 +219,6 @@ class TestAsyncClientReceiveQueueMessages:
                 is_transaction_completed=False,
                 active_offsets=[],
                 receiver_client_id="test-client",
-                visibility_seconds=0,
                 is_auto_acked=True,
                 transport=mock_transport,
             )
@@ -353,7 +351,6 @@ class TestAsyncQueuesPollResponse:
             is_transaction_completed=False,
             active_offsets=[0, 1],
             receiver_client_id="client-123",
-            visibility_seconds=30,
             is_auto_acked=False,
             transport=MagicMock(),
         )
@@ -371,7 +368,6 @@ class TestAsyncQueuesPollResponse:
             is_transaction_completed=False,
             active_offsets=[],
             receiver_client_id="client-123",
-            visibility_seconds=30,
             is_auto_acked=False,
             transport=MagicMock(),
         )
@@ -389,7 +385,6 @@ class TestAsyncQueuesPollResponse:
             is_transaction_completed=False,
             active_offsets=[0],
             receiver_client_id="client-123",
-            visibility_seconds=30,
             is_auto_acked=False,
             transport=MagicMock(),
         )
@@ -408,7 +403,6 @@ class TestAsyncQueuesPollResponse:
             is_transaction_completed=False,
             active_offsets=[],
             receiver_client_id="client-123",
-            visibility_seconds=30,
             is_auto_acked=True,
             transport=MagicMock(),
         )
@@ -428,7 +422,6 @@ class TestAsyncQueuesPollResponse:
             is_transaction_completed=True,
             active_offsets=[],
             receiver_client_id="client-123",
-            visibility_seconds=30,
             is_auto_acked=False,
             transport=MagicMock(),
         )
@@ -448,7 +441,6 @@ class TestAsyncQueuesPollResponse:
             is_transaction_completed=False,
             active_offsets=[],
             receiver_client_id="client-123",
-            visibility_seconds=30,
             is_auto_acked=True,
             transport=MagicMock(),
         )
@@ -468,7 +460,6 @@ class TestAsyncQueuesPollResponse:
             is_transaction_completed=False,
             active_offsets=[],
             receiver_client_id="client-123",
-            visibility_seconds=30,
             is_auto_acked=True,
             transport=MagicMock(),
         )
@@ -621,7 +612,6 @@ class TestAsyncQueuesPollResponseOperations:
             is_transaction_completed=True,
             active_offsets=[],
             receiver_client_id="client-123",
-            visibility_seconds=30,
             is_auto_acked=False,
             transport=MagicMock(),
         )
@@ -641,7 +631,6 @@ class TestAsyncQueuesPollResponseOperations:
             is_transaction_completed=True,
             active_offsets=[],
             receiver_client_id="client-123",
-            visibility_seconds=30,
             is_auto_acked=False,
             transport=MagicMock(),
         )
@@ -670,7 +659,6 @@ class TestAsyncQueuesClientTransactionOps:
             is_transaction_completed=False,
             active_offsets=[1],
             receiver_client_id="client-123",
-            visibility_seconds=30,
             is_auto_acked=False,
             transport=mock_transport,
         )
@@ -695,7 +683,6 @@ class TestAsyncQueuesClientTransactionOps:
             is_transaction_completed=False,
             active_offsets=[1],
             receiver_client_id="client-123",
-            visibility_seconds=30,
             is_auto_acked=False,
             transport=mock_transport,
         )
@@ -760,7 +747,6 @@ class TestDoOperationWithReQueueChannel:
             is_transaction_completed=False,
             active_offsets=[10, 20],
             receiver_client_id="client-1",
-            visibility_seconds=0,
             is_auto_acked=False,
             transport=transport,
         )
@@ -794,7 +780,6 @@ class TestDoOperationWithReQueueChannel:
             is_transaction_completed=False,
             active_offsets=[5],
             receiver_client_id="client-1",
-            visibility_seconds=0,
             is_auto_acked=False,
             transport=transport,
         )
@@ -830,7 +815,6 @@ class TestAsyncQueuesPollResponseDecodeAllFields:
                 pb_response,
                 receiver_client_id="rcv-1",
                 transport=transport,
-                request_visibility_seconds=30,
                 request_auto_ack=True,
             )
 
@@ -839,7 +823,6 @@ class TestAsyncQueuesPollResponseDecodeAllFields:
         assert result.is_transaction_completed is True
         assert result.active_offsets == [5, 10]
         assert result.receiver_client_id == "rcv-1"
-        assert result.visibility_seconds == 30
         assert result.is_auto_acked is True
         assert len(result.messages) == 1
 
@@ -851,7 +834,6 @@ class TestAsyncQueuesPollResponseDecodeAllFields:
             True,
             "rcv-1",
             None,
-            visibility_seconds=30,
             is_auto_acked=True,
             async_response_handler=ANY,
         )
@@ -907,25 +889,33 @@ class TestReceiveQueueMessagesWithMessages:
         client._transport = mock_transport
         client._connected = True
 
-        mock_response = pb.ReceiveQueueMessagesResponse()
-        mock_response.RequestID = "req-1"
-        mock_response.IsError = False
+        # Build a QueuesDownstreamResponse (the bidi stream response type)
+        mock_downstream_response = pb.QueuesDownstreamResponse()
+        mock_downstream_response.RefRequestId = "req-1"
+        mock_downstream_response.TransactionId = "tx-1"
+        mock_downstream_response.IsError = False
+        mock_downstream_response.TransactionComplete = False
 
         for i in range(3):
-            msg = mock_response.Messages.add()
+            msg = mock_downstream_response.Messages.add()
             msg.MessageID = f"msg-{i}"
             msg.Body = b"data"
 
-        mock_transport.receive_queue_messages.return_value = mock_response
+        # Mock the downstream receiver
+        mock_receiver = AsyncMock()
+        mock_receiver.send = AsyncMock(return_value=mock_downstream_response)
 
-        with patch(
-            "kubemq.queues.async_client.QueueMessageReceived.decode",
-            return_value=MagicMock(),
+        with patch.object(
+            client, "_get_downstream_receiver", new_callable=AsyncMock, return_value=mock_receiver
         ):
-            response = await client.receive_queue_messages(
-                channel="test-ch",
-                max_messages=10,
-            )
+            with patch(
+                "kubemq.queues.async_client.QueueMessageReceived.decode",
+                return_value=MagicMock(),
+            ):
+                response = await client.receive_queue_messages(
+                    channel="test-ch",
+                    max_messages=10,
+                )
 
         assert len(response.messages) == 3
         assert response.is_auto_acked is False
@@ -956,7 +946,6 @@ class TestSubscribeToQueueBackoff:
                 is_transaction_completed=False,
                 active_offsets=[],
                 receiver_client_id="c",
-                visibility_seconds=0,
                 is_auto_acked=True,
                 transport=mock_transport,
             )
@@ -1001,7 +990,6 @@ class TestProcessQueueMessagesErrorPaths:
                 is_transaction_completed=False,
                 active_offsets=[],
                 receiver_client_id="c",
-                visibility_seconds=0,
                 is_auto_acked=True,
                 transport=mock_transport,
             )
@@ -1038,7 +1026,6 @@ class TestProcessQueueMessagesErrorPaths:
                 is_transaction_completed=False,
                 active_offsets=[],
                 receiver_client_id="c",
-                visibility_seconds=0,
                 is_auto_acked=True,
                 transport=mock_transport,
             )
@@ -1075,7 +1062,6 @@ class TestProcessQueueMessagesErrorPaths:
                 is_transaction_completed=True,
                 active_offsets=[],
                 receiver_client_id="c",
-                visibility_seconds=0,
                 is_auto_acked=True,
                 transport=mock_transport,
             )
@@ -1113,7 +1099,6 @@ class TestProcessQueueMessagesErrorPaths:
                 is_transaction_completed=True,
                 active_offsets=[],
                 receiver_client_id="c",
-                visibility_seconds=0,
                 is_auto_acked=True,
                 transport=mock_transport,
             )
@@ -1147,7 +1132,6 @@ class TestProcessQueueMessagesErrorPaths:
                 is_transaction_completed=True,
                 active_offsets=[],
                 receiver_client_id="c",
-                visibility_seconds=0,
                 is_auto_acked=True,
                 transport=mock_transport,
             )
@@ -1177,7 +1161,6 @@ class TestProcessQueueMessagesErrorPaths:
             is_transaction_completed=False,
             active_offsets=[1],
             receiver_client_id="c",
-            visibility_seconds=0,
             is_auto_acked=False,
             transport=mock_transport,
         )
@@ -1275,16 +1258,12 @@ class TestAsyncClientSendQueueMessageSimple:
 
     @pytest.mark.asyncio
     async def test_send_queue_message_simple_validation_error(self, mock_transport):
-        from pydantic import ValidationError as PydanticValidationError
-
         client = AsyncClient(address="localhost:50000")
         client._transport = mock_transport
         client._connected = True
 
         message = QueueMessage(channel="test-queue", body=b"test")
-        validation_err = PydanticValidationError.from_exception_data(
-            title="QueueMessage", line_errors=[]
-        )
+        validation_err = ValueError("QueueMessage validation failed")
         with patch.object(QueueMessage, "encode_message", side_effect=validation_err):
             with pytest.raises(KubeMQValidationError) as exc_info:
                 await client.send_queue_message_simple(message)
@@ -1308,8 +1287,6 @@ class TestAsyncClientSendQueueMessageBidiErrors:
 
     @pytest.mark.asyncio
     async def test_send_queue_message_validation_error(self, mock_transport):
-        from pydantic import ValidationError as PydanticValidationError
-
         client = AsyncClient(address="localhost:50000")
         client._transport = mock_transport
         client._connected = True
@@ -1318,9 +1295,7 @@ class TestAsyncClientSendQueueMessageBidiErrors:
         client._upstream_sender = mock_sender
 
         message = QueueMessage(channel="test-queue", body=b"test")
-        validation_err = PydanticValidationError.from_exception_data(
-            title="QueueMessage", line_errors=[]
-        )
+        validation_err = ValueError("QueueMessage validation failed")
         with patch.object(QueueMessage, "encode_message", side_effect=validation_err):
             with pytest.raises(KubeMQValidationError):
                 await client.send_queue_message(message)
@@ -1398,7 +1373,6 @@ class TestDoOperationWithMetadata:
             is_transaction_completed=False,
             active_offsets=[1],
             receiver_client_id="client-1",
-            visibility_seconds=0,
             is_auto_acked=False,
             transport=transport,
         )

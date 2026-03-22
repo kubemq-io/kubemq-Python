@@ -1155,6 +1155,8 @@ class TestAsyncTransportSubscriptionStreaming:
     @pytest.mark.asyncio
     async def test_subscribe_to_events_cancellation(self, mock_config):
         """Test subscribe_to_events respects cancellation token."""
+        import grpc
+
         from kubemq.common.async_cancellation_token import AsyncCancellationToken
 
         transport = AsyncTransport(mock_config)
@@ -1166,26 +1168,34 @@ class TestAsyncTransportSubscriptionStreaming:
         event2 = MagicMock(spec=pb.EventReceive)
         event3 = MagicMock(spec=pb.EventReceive)
 
-        # Create a proper async iterable
-        class MockAsyncStream:
+        # Create a mock stream that raises CANCELLED when cancel() is called,
+        # simulating real gRPC cancellation behavior
+        class MockCancellableStream:
             def __init__(self, items):
                 self.items = items
                 self.index = 0
+                self._cancelled = False
 
             def cancel(self):
-                pass
+                self._cancelled = True
 
             def __aiter__(self):
                 return self
 
             async def __anext__(self):
+                # Yield control to let the cancel watchdog task run
+                await asyncio.sleep(0)
+                if self._cancelled:
+                    raise grpc.aio.AioRpcError(
+                        grpc.StatusCode.CANCELLED, None, None
+                    )
                 if self.index >= len(self.items):
                     raise StopAsyncIteration
                 item = self.items[self.index]
                 self.index += 1
                 return item
 
-        mock_call = MockAsyncStream([event1, event2, event3])
+        mock_call = MockCancellableStream([event1, event2, event3])
         mock_stub.SubscribeToEvents = MagicMock(return_value=mock_call)
 
         with (

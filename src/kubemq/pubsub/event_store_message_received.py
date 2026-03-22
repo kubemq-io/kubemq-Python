@@ -1,13 +1,27 @@
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
-
-from pydantic import BaseModel, ConfigDict, Field
 
 from kubemq.grpc import EventReceive as pbEventReceive
 
 
-class EventStoreMessageReceived(BaseModel):
+@dataclass(frozen=True)
+class EventStoreReceived:
     """Received event store message from a subscription.
+
+    Attributes:
+        id: Unique event identifier.
+        channel: Channel name the event was published to.
+        metadata: Optional metadata string.
+        body: Raw message payload as bytes.
+        from_client_id: Client ID of the publisher (from tags).
+        timestamp: Receipt timestamp.
+        sequence: Ordering sequence number for the stored event.
+        tags: Key-value tags associated with the event.
+
+    See Also:
+        EventStoreMessage: The outgoing message type for publishing.
+        PubSubClient.subscribe_to_events_store: Subscribe to stored events.
 
     Thread Safety:
         Instances are safe to read from multiple threads or asyncio
@@ -16,16 +30,16 @@ class EventStoreMessageReceived(BaseModel):
 
     id: str = ""
     from_client_id: str = ""
-    timestamp: datetime = Field(default_factory=lambda: datetime.fromtimestamp(0))
+    timestamp: datetime = field(default_factory=lambda: datetime.fromtimestamp(0))
     channel: str = ""
     metadata: str = ""
     body: bytes = b""
     sequence: int = 0
-    tags: dict[str, str] = Field(default_factory=dict)
+    tags: dict[str, str] = field(default_factory=dict)
 
     @classmethod
-    def decode(cls, event_receive: pbEventReceive) -> "EventStoreMessageReceived":
-        """Decode a protobuf EventReceive into an EventStoreMessageReceived."""
+    def decode(cls, event_receive: pbEventReceive) -> "EventStoreReceived":
+        """Decode a protobuf EventReceive into an EventStoreReceived."""
         from_client_id = (
             event_receive.Tags.get("x-kubemq-client-id", "") if event_receive.Tags else ""
         )
@@ -42,11 +56,15 @@ class EventStoreMessageReceived(BaseModel):
             tags=tags,
         )
 
-    model_config = ConfigDict(arbitrary_types_allowed=True, frozen=True)
-
-    def model_dump(self, **kwargs: Any) -> dict[str, Any]:
+    def to_dict(self, **kwargs: Any) -> dict[str, Any]:
         """Serialize the model to a dictionary with formatted fields."""
-        dump = super().model_dump(**kwargs)
-        dump["timestamp"] = self.timestamp.isoformat()
-        dump["body"] = self.body.hex()  # Convert bytes to hex string for better readability
-        return dump
+        return {
+            "id": self.id,
+            "from_client_id": self.from_client_id,
+            "timestamp": self.timestamp.isoformat(),
+            "channel": self.channel,
+            "metadata": self.metadata,
+            "body": self.body.hex(),
+            "sequence": self.sequence,
+            "tags": self.tags,
+        }

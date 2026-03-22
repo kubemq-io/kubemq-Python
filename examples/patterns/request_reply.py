@@ -6,22 +6,22 @@ import time
 
 from kubemq import (
     CancellationToken,
-    CQClient,
+    Client,
     QueriesSubscription,
     QueryMessage,
-    QueryMessageReceived,
-    QueryResponseMessage,
+    QueryReceived,
+    QueryResponse,
 )
 
 
 def main() -> None:
-    with CQClient(
+    with Client(
         address="localhost:50000",
         client_id="python-patterns-request-reply-client",
     ) as client:
         cancel = CancellationToken()
 
-        def on_query(request: QueryMessageReceived) -> None:
+        def on_query(request: QueryReceived) -> None:
             """Process the request and return a reply."""
             query_body = request.body.decode("utf-8")
             print(f"[Server] Received request: {query_body}")
@@ -30,7 +30,7 @@ def main() -> None:
             reply_data = f"Processed: {query_body}"
 
             client.send_response_message(
-                QueryResponseMessage(
+                QueryResponse(
                     query_received=request,
                     is_executed=True,
                     body=reply_data.encode(),
@@ -53,7 +53,7 @@ def main() -> None:
 
         # "Client" side — send requests and get replies
         for i in range(3):
-            response = client.send_query_request(
+            response = client.send_query(
                 QueryMessage(
                     channel="python-patterns.request-reply",
                     body=f"Request #{i + 1}".encode(),

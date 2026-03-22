@@ -1,6 +1,6 @@
 """Unit tests for kubemq.pubsub message classes.
 
-Tests for EventMessage, EventStoreMessage, EventMessageReceived, and EventStoreMessageReceived classes.
+Tests for EventMessage, EventStoreMessage, EventReceived, and EventStoreReceived classes.
 """
 
 from __future__ import annotations
@@ -11,9 +11,9 @@ from unittest.mock import MagicMock
 import pytest
 
 from kubemq.pubsub.event_message import EventMessage
-from kubemq.pubsub.event_message_received import EventMessageReceived
+from kubemq.pubsub.event_message_received import EventReceived
 from kubemq.pubsub.event_store_message import EventStoreMessage
-from kubemq.pubsub.event_store_message_received import EventStoreMessageReceived
+from kubemq.pubsub.event_store_message_received import EventStoreReceived
 
 
 class TestEventMessageValidation:
@@ -191,17 +191,18 @@ class TestEventStoreMessageModelDump:
             body=b"\x00\x01\x02\x03",
         )
 
-        dump = event.model_dump()
+        import dataclasses
+        dump = dataclasses.asdict(event)
 
         assert dump["body"] == b"\x00\x01\x02\x03"
 
 
-class TestEventMessageReceivedCreation:
-    """Tests for EventMessageReceived creation."""
+class TestEventReceivedCreation:
+    """Tests for EventReceived creation."""
 
     def test_default_values(self):
         """Test default values are set correctly."""
-        msg = EventMessageReceived()
+        msg = EventReceived()
 
         assert msg.id == ""
         assert msg.from_client_id == ""
@@ -213,7 +214,7 @@ class TestEventMessageReceivedCreation:
 
     def test_custom_values(self):
         """Test custom values are set correctly."""
-        msg = EventMessageReceived(
+        msg = EventReceived(
             id="rcv-123",
             from_client_id="sender-client",
             channel="rcv-channel",
@@ -227,8 +228,8 @@ class TestEventMessageReceivedCreation:
         assert msg.channel == "rcv-channel"
 
 
-class TestEventMessageReceivedDecode:
-    """Tests for EventMessageReceived decoding."""
+class TestEventReceivedDecode:
+    """Tests for EventReceived decoding."""
 
     def test_decode_from_protobuf(self):
         """Test decoding from protobuf."""
@@ -239,7 +240,7 @@ class TestEventMessageReceivedDecode:
         pb_event.Body = b"decoded body"
         pb_event.Tags = {"x-kubemq-client-id": "sender-client", "custom": "tag"}
 
-        msg = EventMessageReceived.decode(pb_event)
+        msg = EventReceived.decode(pb_event)
 
         assert msg.id == "decoded-evt"
         assert msg.from_client_id == "sender-client"
@@ -255,35 +256,35 @@ class TestEventMessageReceivedDecode:
         pb_event.Body = b""
         pb_event.Tags = None
 
-        msg = EventMessageReceived.decode(pb_event)
+        msg = EventReceived.decode(pb_event)
 
         assert msg.from_client_id == ""
         assert msg.tags == {}
 
 
-class TestEventMessageReceivedModelDump:
-    """Tests for EventMessageReceived model_dump."""
+class TestEventReceivedModelDump:
+    """Tests for EventReceived model_dump."""
 
     def test_model_dump_converts_timestamp(self):
         """Test model_dump converts timestamp to ISO format."""
         timestamp = datetime(2024, 6, 15, 10, 30, 0)
-        msg = EventMessageReceived(
+        msg = EventReceived(
             id="evt-dump",
             channel="channel",
             timestamp=timestamp,
         )
 
-        dump = msg.model_dump()
+        dump = msg.to_dict()
 
         assert dump["timestamp"] == timestamp.isoformat()
 
 
-class TestEventStoreMessageReceivedCreation:
-    """Tests for EventStoreMessageReceived creation."""
+class TestEventStoreReceivedCreation:
+    """Tests for EventStoreReceived creation."""
 
     def test_default_values(self):
         """Test default values are set correctly."""
-        msg = EventStoreMessageReceived()
+        msg = EventStoreReceived()
 
         assert msg.id == ""
         assert msg.from_client_id == ""
@@ -295,7 +296,7 @@ class TestEventStoreMessageReceivedCreation:
 
     def test_custom_values_with_sequence(self):
         """Test custom values with sequence are set correctly."""
-        msg = EventStoreMessageReceived(
+        msg = EventStoreReceived(
             id="store-rcv-123",
             channel="store-channel",
             sequence=42,
@@ -307,8 +308,8 @@ class TestEventStoreMessageReceivedCreation:
         assert msg.sequence == 42
 
 
-class TestEventStoreMessageReceivedDecode:
-    """Tests for EventStoreMessageReceived decoding."""
+class TestEventStoreReceivedDecode:
+    """Tests for EventStoreReceived decoding."""
 
     def test_decode_from_protobuf(self):
         """Test decoding from protobuf."""
@@ -321,7 +322,7 @@ class TestEventStoreMessageReceivedDecode:
         pb_event.Timestamp = int(datetime(2024, 6, 15).timestamp() * 1e9)
         pb_event.Tags = {"x-kubemq-client-id": "sender"}
 
-        msg = EventStoreMessageReceived.decode(pb_event)
+        msg = EventStoreReceived.decode(pb_event)
 
         assert msg.id == "decoded-store"
         assert msg.sequence == 100
@@ -338,37 +339,37 @@ class TestEventStoreMessageReceivedDecode:
         pb_event.Timestamp = 0
         pb_event.Tags = None
 
-        msg = EventStoreMessageReceived.decode(pb_event)
+        msg = EventStoreReceived.decode(pb_event)
 
         assert msg.from_client_id == ""
         assert msg.tags == {}
 
 
-class TestEventStoreMessageReceivedModelDump:
-    """Tests for EventStoreMessageReceived model_dump."""
+class TestEventStoreReceivedModelDump:
+    """Tests for EventStoreReceived model_dump."""
 
     def test_model_dump_converts_body_to_hex(self):
         """Test model_dump converts body bytes to hex string."""
-        msg = EventStoreMessageReceived(
+        msg = EventStoreReceived(
             id="store-dump",
             channel="channel",
             body=b"\xde\xad\xbe\xef",
         )
 
-        dump = msg.model_dump()
+        dump = msg.to_dict()
 
         assert dump["body"] == "deadbeef"
 
     def test_model_dump_converts_timestamp(self):
         """Test model_dump converts timestamp to ISO format."""
         timestamp = datetime(2024, 6, 15, 10, 30, 0)
-        msg = EventStoreMessageReceived(
+        msg = EventStoreReceived(
             id="store-dump",
             channel="channel",
             timestamp=timestamp,
         )
 
-        dump = msg.model_dump()
+        dump = msg.to_dict()
 
         assert dump["timestamp"] == timestamp.isoformat()
 
@@ -439,25 +440,25 @@ class TestEventStoreMessageEncodeAllFields:
         assert pb.Store is True
 
 
-class TestEventSendResultModelDumpJson:
-    """Tests for EventSendResult.model_dump_json."""
+class TestEventStoreResultModelDumpJson:
+    """Tests for EventStoreResult.model_dump_json."""
 
     def test_model_dump_json_excludes_none(self):
-        from kubemq.pubsub.event_send_result import EventSendResult
+        from kubemq.pubsub.event_send_result import EventStoreResult
 
-        result = EventSendResult(id="r1", sent=True, error=None)
-        json_str = result.model_dump_json()
+        result = EventStoreResult(id="r1", sent=True, error=None)
+        json_str = result.to_json()
         assert "error" not in json_str
         assert "r1" in json_str
 
     def test_decode_from_result(self):
-        from kubemq.pubsub.event_send_result import EventSendResult
+        from kubemq.pubsub.event_send_result import EventStoreResult
 
         pb_result = MagicMock()
         pb_result.EventID = "decoded-r"
         pb_result.Sent = True
         pb_result.Error = "some error"
-        result = EventSendResult.decode(pb_result)
+        result = EventStoreResult.decode(pb_result)
         assert result.id == "decoded-r"
         assert result.sent is True
         assert result.error == "some error"

@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import asyncio
 
-from kubemq import AsyncQueuesClient, QueueMessage
+from kubemq import AsyncClient, QueueMessage
 
 
 async def main() -> None:
-    async with AsyncQueuesClient(address="localhost:50000", client_id="python-queues-quickstart-async-client") as client:
+    async with AsyncClient(address="localhost:50000", client_id="python-queues-quickstart-async-client") as client:
         # Send a message to the queue
         result = await client.send_queue_message(
             QueueMessage(channel="python-quickstart-queue-async", body=b"Async Task #1")

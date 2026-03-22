@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from kubemq import KubeMQConnectionError, PubSubClient
+from kubemq import Client, KubeMQConnectionError
 
 
 def main() -> None:
     try:
         # Attempt to connect to a non-existent server
-        client = PubSubClient(
+        client = Client(
             address="localhost:59999",
             client_id="python-error-handling-connection-error-client",
         )
