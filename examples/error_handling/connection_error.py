@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
-from kubemq import Client, KubeMQConnectionError
+from kubemq import KubeMQConnectionError
+from kubemq.queues import Client as QueuesClient
 
 
 def main() -> None:
     try:
         # Attempt to connect to a non-existent server
-        client = Client(
+        client = QueuesClient(
             address="localhost:59999",
             client_id="python-error-handling-connection-error-client",
         )

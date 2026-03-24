@@ -1672,3 +1672,881 @@ class TestSubscribeQueriesCallbackOuterException:
         )
 
         assert len(errors) == 1
+
+
+# ==============================================================================
+# Additional Coverage Tests — fast paths, fast subscribe, edge paths
+# ==============================================================================
+
+from kubemq.core.exceptions import KubeMQClientClosedError, KubeMQError  # noqa: E402
+
+
+class CancellingAsyncIteratorMock:
+    """Async iterator that yields items then cancels the token to break the retry loop."""
+
+    def __init__(self, items, token):
+        self.items = iter(items)
+        self.token = token
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        try:
+            return next(self.items)
+        except StopIteration:
+            self.token.cancel()
+            raise StopAsyncIteration
+
+
+class ErrorThenCancelIterator:
+    """Async iterator that raises an error, then cancels token on next call."""
+
+    def __init__(self, error, token):
+        self.error = error
+        self.token = token
+        self.raised = False
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        if not self.raised:
+            self.raised = True
+            raise self.error
+        self.token.cancel()
+        raise StopAsyncIteration
+
+
+class TestAsyncCQClientSendCommandFast:
+    """Tests for send_command_fast method (lines 472-487)."""
+
+    @pytest.mark.asyncio
+    async def test_send_command_fast_without_pipeline_sem(self, mock_transport):
+        """Test send_command_fast without pipeline semaphore."""
+        client = AsyncClient(address="localhost:50000")
+        client._transport = mock_transport
+        client._connected = True
+
+        mock_response = pb.Response()
+        mock_response.Executed = True
+        mock_response.Error = ""
+        mock_transport.send_request.return_value = mock_response
+
+        message = CommandMessage(channel="test", body=b"data", timeout_in_seconds=10)
+
+        response = await client.send_command_fast(message)
+
+        assert isinstance(response, CommandResponse)
+
+    @pytest.mark.asyncio
+    async def test_send_command_fast_with_pipeline_sem(self, mock_transport):
+        """Test send_command_fast with pipeline semaphore set."""
+        import asyncio
+
+        client = AsyncClient(address="localhost:50000")
+        client._transport = mock_transport
+        client._connected = True
+        client._pipeline_sem = asyncio.Semaphore(10)
+
+        mock_response = pb.Response()
+        mock_response.Executed = True
+        mock_response.Error = ""
+        mock_transport.send_request.return_value = mock_response
+
+        message = CommandMessage(channel="test", body=b"data", timeout_in_seconds=10)
+
+        response = await client.send_command_fast(message)
+
+        assert isinstance(response, CommandResponse)
+
+    @pytest.mark.asyncio
+    async def test_send_command_fast_when_not_connected(self):
+        """Test send_command_fast raises when not connected."""
+        client = AsyncClient(address="localhost:50000")
+        message = CommandMessage(channel="test", body=b"data", timeout_in_seconds=10)
+
+        with pytest.raises(KubeMQConnectionError):
+            await client.send_command_fast(message)
+
+
+class TestAsyncCQClientSendQueryFast:
+    """Tests for send_query_fast method (lines 495-510)."""
+
+    @pytest.mark.asyncio
+    async def test_send_query_fast_without_pipeline_sem(self, mock_transport):
+        """Test send_query_fast without pipeline semaphore."""
+        client = AsyncClient(address="localhost:50000")
+        client._transport = mock_transport
+        client._connected = True
+
+        mock_response = pb.Response()
+        mock_response.Executed = True
+        mock_response.Error = ""
+        mock_response.Body = b"result"
+        mock_transport.send_request.return_value = mock_response
+
+        message = QueryMessage(channel="test", body=b"data", timeout_in_seconds=10)
+
+        response = await client.send_query_fast(message)
+
+        assert isinstance(response, QueryResponse)
+
+    @pytest.mark.asyncio
+    async def test_send_query_fast_with_pipeline_sem(self, mock_transport):
+        """Test send_query_fast with pipeline semaphore set."""
+        import asyncio
+
+        client = AsyncClient(address="localhost:50000")
+        client._transport = mock_transport
+        client._connected = True
+        client._pipeline_sem = asyncio.Semaphore(10)
+
+        mock_response = pb.Response()
+        mock_response.Executed = True
+        mock_response.Error = ""
+        mock_response.Body = b"result"
+        mock_transport.send_request.return_value = mock_response
+
+        message = QueryMessage(channel="test", body=b"data", timeout_in_seconds=10)
+
+        response = await client.send_query_fast(message)
+
+        assert isinstance(response, QueryResponse)
+
+    @pytest.mark.asyncio
+    async def test_send_query_fast_when_not_connected(self):
+        """Test send_query_fast raises when not connected."""
+        client = AsyncClient(address="localhost:50000")
+        message = QueryMessage(channel="test", body=b"data", timeout_in_seconds=10)
+
+        with pytest.raises(KubeMQConnectionError):
+            await client.send_query_fast(message)
+
+
+class TestAsyncCQClientSendResponseFast:
+    """Tests for send_response_fast method (lines 514-517)."""
+
+    @pytest.mark.asyncio
+    async def test_send_response_fast(self, mock_transport):
+        """Test send_response_fast sends response without instrumentation."""
+        from kubemq.cq.command_message_received import CommandReceived
+
+        client = AsyncClient(address="localhost:50000")
+        client._transport = mock_transport
+        client._connected = True
+
+        command_received = CommandReceived(
+            id="cmd-123", channel="test", reply_channel="reply"
+        )
+        response = CommandResponse(
+            command_received=command_received, is_executed=True, error=""
+        )
+
+        await client.send_response_fast(response)
+
+        mock_transport.send_response.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_send_response_fast_when_not_connected(self):
+        """Test send_response_fast raises when not connected."""
+        from kubemq.cq.command_message_received import CommandReceived
+
+        client = AsyncClient(address="localhost:50000")
+        command_received = CommandReceived(
+            id="cmd-123", channel="test", reply_channel="reply"
+        )
+        response = CommandResponse(
+            command_received=command_received, is_executed=True, error=""
+        )
+
+        with pytest.raises(KubeMQConnectionError):
+            await client.send_response_fast(response)
+
+
+class TestAsyncCQClientSubscribeToCommandsFast:
+    """Tests for subscribe_to_commands_fast method (lines 528-576)."""
+
+    @pytest.mark.asyncio
+    async def test_yields_messages(self, mock_transport):
+        """Test subscribe_to_commands_fast yields decoded CommandReceived messages."""
+        client = AsyncClient(address="localhost:50000")
+        client._transport = mock_transport
+        client._connected = True
+
+        token = AsyncCancellationToken()
+        mock_pb = _make_mock_pb_request(request_id="fast-cmd-1")
+        mock_transport.subscribe_to_requests = MagicMock(
+            return_value=CancellingAsyncIteratorMock([mock_pb], token)
+        )
+
+        received = []
+        async for cmd in client.subscribe_to_commands_fast(
+            CommandsSubscription(channel="test", on_receive_command_callback=lambda c: None),
+            cancellation_token=token,
+        ):
+            received.append(cmd)
+
+        assert len(received) == 1
+        assert received[0].id == "fast-cmd-1"
+
+    @pytest.mark.asyncio
+    async def test_stream_end_reconnects(self, mock_transport):
+        """Test that when stream ends normally, it reconnects (retry loop)."""
+        client = AsyncClient(address="localhost:50000")
+        client._transport = mock_transport
+        client._connected = True
+
+        token = AsyncCancellationToken()
+        call_count = [0]
+
+        def make_iterator(*args, **kwargs):
+            call_count[0] += 1
+            if call_count[0] == 1:
+                # First call: return empty iterator (stream ended)
+                return AsyncIteratorMock([])
+            else:
+                # Second call: return items then cancel
+                mock_pb = _make_mock_pb_request(request_id="reconnected-cmd")
+                return CancellingAsyncIteratorMock([mock_pb], token)
+
+        mock_transport.subscribe_to_requests = MagicMock(side_effect=make_iterator)
+
+        received = []
+        with patch("kubemq.cq.async_client.asyncio.sleep", new_callable=AsyncMock):
+            async for cmd in client.subscribe_to_commands_fast(
+                CommandsSubscription(channel="test", on_receive_command_callback=lambda c: None),
+                cancellation_token=token,
+            ):
+                received.append(cmd)
+
+        assert len(received) == 1
+        assert received[0].id == "reconnected-cmd"
+        assert call_count[0] == 2
+
+    @pytest.mark.asyncio
+    async def test_kubemq_client_closed_error_reraises(self, mock_transport):
+        """Test KubeMQClientClosedError is re-raised immediately."""
+        client = AsyncClient(address="localhost:50000")
+        client._transport = mock_transport
+        client._connected = True
+
+        class ClosedIterator:
+            def __aiter__(self):
+                return self
+
+            async def __anext__(self):
+                raise KubeMQClientClosedError("client closed")
+
+        mock_transport.subscribe_to_requests = MagicMock(return_value=ClosedIterator())
+
+        with pytest.raises(KubeMQClientClosedError):
+            async for _ in client.subscribe_to_commands_fast(
+                CommandsSubscription(channel="test", on_receive_command_callback=lambda c: None),
+            ):
+                pass
+
+    @pytest.mark.asyncio
+    async def test_retryable_kubemq_error_retries(self, mock_transport):
+        """Test retryable KubeMQError triggers retry loop."""
+        client = AsyncClient(address="localhost:50000")
+        client._transport = mock_transport
+        client._connected = True
+
+        token = AsyncCancellationToken()
+        call_count = [0]
+
+        def make_iterator(*args, **kwargs):
+            call_count[0] += 1
+            if call_count[0] == 1:
+                return ErrorThenCancelIterator(
+                    KubeMQError("retryable err", is_retryable=True), token
+                )
+            return CancellingAsyncIteratorMock([], token)
+
+        mock_transport.subscribe_to_requests = MagicMock(side_effect=make_iterator)
+
+        with patch("kubemq.cq.async_client.asyncio.sleep", new_callable=AsyncMock):
+            async for _ in client.subscribe_to_commands_fast(
+                CommandsSubscription(channel="test", on_receive_command_callback=lambda c: None),
+                cancellation_token=token,
+            ):
+                pass
+
+        assert call_count[0] >= 1
+
+    @pytest.mark.asyncio
+    async def test_non_retryable_kubemq_error_reraises(self, mock_transport):
+        """Test non-retryable KubeMQError that is not a KubeMQConnectionError re-raises."""
+        client = AsyncClient(address="localhost:50000")
+        client._transport = mock_transport
+        client._connected = True
+
+        class NonRetryableIterator:
+            def __aiter__(self):
+                return self
+
+            async def __anext__(self):
+                raise KubeMQError("non-retryable", is_retryable=False)
+
+        mock_transport.subscribe_to_requests = MagicMock(return_value=NonRetryableIterator())
+
+        with pytest.raises(KubeMQError, match="non-retryable"):
+            async for _ in client.subscribe_to_commands_fast(
+                CommandsSubscription(channel="test", on_receive_command_callback=lambda c: None),
+            ):
+                pass
+
+    @pytest.mark.asyncio
+    async def test_connection_error_retries(self, mock_transport):
+        """Test KubeMQConnectionError (non-retryable but is KubeMQConnectionError) retries."""
+        client = AsyncClient(address="localhost:50000")
+        client._transport = mock_transport
+        client._connected = True
+
+        token = AsyncCancellationToken()
+        call_count = [0]
+
+        def make_iterator(*args, **kwargs):
+            call_count[0] += 1
+            if call_count[0] == 1:
+                return ErrorThenCancelIterator(
+                    KubeMQConnectionError("conn lost", is_retryable=False), token
+                )
+            return CancellingAsyncIteratorMock([], token)
+
+        mock_transport.subscribe_to_requests = MagicMock(side_effect=make_iterator)
+
+        with patch("kubemq.cq.async_client.asyncio.sleep", new_callable=AsyncMock):
+            async for _ in client.subscribe_to_commands_fast(
+                CommandsSubscription(channel="test", on_receive_command_callback=lambda c: None),
+                cancellation_token=token,
+            ):
+                pass
+
+        assert call_count[0] >= 1
+
+    @pytest.mark.asyncio
+    async def test_generic_exception_retries(self, mock_transport):
+        """Test generic Exception triggers retry loop."""
+        client = AsyncClient(address="localhost:50000")
+        client._transport = mock_transport
+        client._connected = True
+
+        token = AsyncCancellationToken()
+        call_count = [0]
+
+        def make_iterator(*args, **kwargs):
+            call_count[0] += 1
+            if call_count[0] == 1:
+                return ErrorThenCancelIterator(RuntimeError("something broke"), token)
+            return CancellingAsyncIteratorMock([], token)
+
+        mock_transport.subscribe_to_requests = MagicMock(side_effect=make_iterator)
+
+        with patch("kubemq.cq.async_client.asyncio.sleep", new_callable=AsyncMock):
+            async for _ in client.subscribe_to_commands_fast(
+                CommandsSubscription(channel="test", on_receive_command_callback=lambda c: None),
+                cancellation_token=token,
+            ):
+                pass
+
+        assert call_count[0] >= 1
+
+    @pytest.mark.asyncio
+    async def test_creates_default_token_if_not_provided(self, mock_transport):
+        """Test that a default cancellation token is created when none is provided."""
+        client = AsyncClient(address="localhost:50000")
+        client._transport = mock_transport
+        client._connected = True
+
+        mock_pb = _make_mock_pb_request(request_id="default-token-cmd")
+
+        # This iterator yields one item then stops; the while loop will try to
+        # re-subscribe. We patch sleep to cancel quickly.
+        first_call = [True]
+
+        def make_iterator(*args, **kwargs):
+            if first_call[0]:
+                first_call[0] = False
+                return AsyncIteratorMock([mock_pb])
+            # On second call, raise ClientClosed to break the loop
+            class StopIter:
+                def __aiter__(self):
+                    return self
+                async def __anext__(self):
+                    raise KubeMQClientClosedError()
+            return StopIter()
+
+        mock_transport.subscribe_to_requests = MagicMock(side_effect=make_iterator)
+
+        received = []
+        with pytest.raises(KubeMQClientClosedError):
+            with patch("kubemq.cq.async_client.asyncio.sleep", new_callable=AsyncMock):
+                async for cmd in client.subscribe_to_commands_fast(
+                    CommandsSubscription(channel="test", on_receive_command_callback=lambda c: None),
+                ):
+                    received.append(cmd)
+
+        assert len(received) == 1
+
+
+class TestAsyncCQClientSubscribeToQueriesFast:
+    """Tests for subscribe_to_queries_fast method (lines 584-632)."""
+
+    @pytest.mark.asyncio
+    async def test_yields_messages(self, mock_transport):
+        """Test subscribe_to_queries_fast yields decoded QueryReceived messages."""
+        client = AsyncClient(address="localhost:50000")
+        client._transport = mock_transport
+        client._connected = True
+
+        token = AsyncCancellationToken()
+        mock_pb = _make_mock_pb_request(request_id="fast-qry-1", request_type=2)
+        mock_transport.subscribe_to_requests = MagicMock(
+            return_value=CancellingAsyncIteratorMock([mock_pb], token)
+        )
+
+        received = []
+        async for qry in client.subscribe_to_queries_fast(
+            QueriesSubscription(channel="test", on_receive_query_callback=lambda q: None),
+            cancellation_token=token,
+        ):
+            received.append(qry)
+
+        assert len(received) == 1
+        assert received[0].id == "fast-qry-1"
+
+    @pytest.mark.asyncio
+    async def test_stream_end_reconnects(self, mock_transport):
+        """Test that when stream ends normally, it reconnects (retry loop)."""
+        client = AsyncClient(address="localhost:50000")
+        client._transport = mock_transport
+        client._connected = True
+
+        token = AsyncCancellationToken()
+        call_count = [0]
+
+        def make_iterator(*args, **kwargs):
+            call_count[0] += 1
+            if call_count[0] == 1:
+                return AsyncIteratorMock([])
+            else:
+                mock_pb = _make_mock_pb_request(request_id="reconnected-qry", request_type=2)
+                return CancellingAsyncIteratorMock([mock_pb], token)
+
+        mock_transport.subscribe_to_requests = MagicMock(side_effect=make_iterator)
+
+        received = []
+        with patch("kubemq.cq.async_client.asyncio.sleep", new_callable=AsyncMock):
+            async for qry in client.subscribe_to_queries_fast(
+                QueriesSubscription(channel="test", on_receive_query_callback=lambda q: None),
+                cancellation_token=token,
+            ):
+                received.append(qry)
+
+        assert len(received) == 1
+        assert received[0].id == "reconnected-qry"
+        assert call_count[0] == 2
+
+    @pytest.mark.asyncio
+    async def test_kubemq_client_closed_error_reraises(self, mock_transport):
+        """Test KubeMQClientClosedError is re-raised immediately."""
+        client = AsyncClient(address="localhost:50000")
+        client._transport = mock_transport
+        client._connected = True
+
+        class ClosedIterator:
+            def __aiter__(self):
+                return self
+
+            async def __anext__(self):
+                raise KubeMQClientClosedError("client closed")
+
+        mock_transport.subscribe_to_requests = MagicMock(return_value=ClosedIterator())
+
+        with pytest.raises(KubeMQClientClosedError):
+            async for _ in client.subscribe_to_queries_fast(
+                QueriesSubscription(channel="test", on_receive_query_callback=lambda q: None),
+            ):
+                pass
+
+    @pytest.mark.asyncio
+    async def test_retryable_kubemq_error_retries(self, mock_transport):
+        """Test retryable KubeMQError triggers retry loop."""
+        client = AsyncClient(address="localhost:50000")
+        client._transport = mock_transport
+        client._connected = True
+
+        token = AsyncCancellationToken()
+        call_count = [0]
+
+        def make_iterator(*args, **kwargs):
+            call_count[0] += 1
+            if call_count[0] == 1:
+                return ErrorThenCancelIterator(
+                    KubeMQError("retryable qry err", is_retryable=True), token
+                )
+            return CancellingAsyncIteratorMock([], token)
+
+        mock_transport.subscribe_to_requests = MagicMock(side_effect=make_iterator)
+
+        with patch("kubemq.cq.async_client.asyncio.sleep", new_callable=AsyncMock):
+            async for _ in client.subscribe_to_queries_fast(
+                QueriesSubscription(channel="test", on_receive_query_callback=lambda q: None),
+                cancellation_token=token,
+            ):
+                pass
+
+        assert call_count[0] >= 1
+
+    @pytest.mark.asyncio
+    async def test_non_retryable_kubemq_error_reraises(self, mock_transport):
+        """Test non-retryable KubeMQError (not KubeMQConnectionError) re-raises."""
+        client = AsyncClient(address="localhost:50000")
+        client._transport = mock_transport
+        client._connected = True
+
+        class NonRetryableIterator:
+            def __aiter__(self):
+                return self
+
+            async def __anext__(self):
+                raise KubeMQError("non-retryable qry", is_retryable=False)
+
+        mock_transport.subscribe_to_requests = MagicMock(return_value=NonRetryableIterator())
+
+        with pytest.raises(KubeMQError, match="non-retryable qry"):
+            async for _ in client.subscribe_to_queries_fast(
+                QueriesSubscription(channel="test", on_receive_query_callback=lambda q: None),
+            ):
+                pass
+
+    @pytest.mark.asyncio
+    async def test_connection_error_retries(self, mock_transport):
+        """Test KubeMQConnectionError retries even if non-retryable."""
+        client = AsyncClient(address="localhost:50000")
+        client._transport = mock_transport
+        client._connected = True
+
+        token = AsyncCancellationToken()
+        call_count = [0]
+
+        def make_iterator(*args, **kwargs):
+            call_count[0] += 1
+            if call_count[0] == 1:
+                return ErrorThenCancelIterator(
+                    KubeMQConnectionError("conn lost qry", is_retryable=False), token
+                )
+            return CancellingAsyncIteratorMock([], token)
+
+        mock_transport.subscribe_to_requests = MagicMock(side_effect=make_iterator)
+
+        with patch("kubemq.cq.async_client.asyncio.sleep", new_callable=AsyncMock):
+            async for _ in client.subscribe_to_queries_fast(
+                QueriesSubscription(channel="test", on_receive_query_callback=lambda q: None),
+                cancellation_token=token,
+            ):
+                pass
+
+        assert call_count[0] >= 1
+
+    @pytest.mark.asyncio
+    async def test_generic_exception_retries(self, mock_transport):
+        """Test generic Exception triggers retry loop for queries."""
+        client = AsyncClient(address="localhost:50000")
+        client._transport = mock_transport
+        client._connected = True
+
+        token = AsyncCancellationToken()
+        call_count = [0]
+
+        def make_iterator(*args, **kwargs):
+            call_count[0] += 1
+            if call_count[0] == 1:
+                return ErrorThenCancelIterator(RuntimeError("qry broke"), token)
+            return CancellingAsyncIteratorMock([], token)
+
+        mock_transport.subscribe_to_requests = MagicMock(side_effect=make_iterator)
+
+        with patch("kubemq.cq.async_client.asyncio.sleep", new_callable=AsyncMock):
+            async for _ in client.subscribe_to_queries_fast(
+                QueriesSubscription(channel="test", on_receive_query_callback=lambda q: None),
+                cancellation_token=token,
+            ):
+                pass
+
+        assert call_count[0] >= 1
+
+
+class TestAsyncCQClientSubscribeCommandsCallbackEdgePaths:
+    """Tests for subscribe_commands_with_callback edge paths (lines 915-933)."""
+
+    @pytest.mark.asyncio
+    async def test_register_subscription_task_called(self, mock_transport):
+        """Test that _register_subscription_task is called for current task (line 915-916)."""
+        client = AsyncClient(address="localhost:50000")
+        client._transport = mock_transport
+        client._connected = True
+
+        mock_pb = _make_mock_pb_request()
+        mock_transport.subscribe_to_requests = MagicMock(
+            return_value=AsyncIteratorMock([mock_pb])
+        )
+
+        subscription = CommandsSubscription(
+            channel="test", on_receive_command_callback=lambda c: None,
+        )
+
+        with patch.object(client, "_register_subscription_task") as mock_reg:
+            await client.subscribe_commands_with_callback(
+                subscription, AsyncMock(),
+            )
+            mock_reg.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_link_appended_when_trace_present_sequential(self, mock_transport):
+        """Test link creation in sequential callback mode (line 933)."""
+        client = AsyncClient(address="localhost:50000")
+        client._transport = mock_transport
+        client._connected = True
+
+        mock_pb = _make_mock_pb_request(
+            tags={"traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"}
+        )
+        mock_transport.subscribe_to_requests = MagicMock(
+            return_value=AsyncIteratorMock([mock_pb])
+        )
+
+        subscription = CommandsSubscription(
+            channel="test", on_receive_command_callback=lambda c: None,
+        )
+        received = []
+
+        async def cb(cmd):
+            received.append(cmd)
+
+        await client.subscribe_commands_with_callback(subscription, cb)
+
+        assert len(received) == 1
+
+    @pytest.mark.asyncio
+    async def test_concurrent_callback_no_error_callback_no_logger(self, mock_transport):
+        """Test concurrent callback error path when no error_callback and no logger (line 964-971)."""
+        client = AsyncClient(address="localhost:50000")
+        client._transport = mock_transport
+        client._connected = True
+        client._logger = None  # No logger
+
+        mock_pb = _make_mock_pb_request()
+        mock_transport.subscribe_to_requests = MagicMock(
+            return_value=AsyncIteratorMock([mock_pb])
+        )
+
+        subscription = CommandsSubscription(
+            channel="test", on_receive_command_callback=lambda c: None,
+        )
+
+        async def failing_callback(cmd):
+            raise ValueError("no handler no logger")
+
+        # Should not raise; error is silently swallowed when no error_callback and no logger
+        await client.subscribe_commands_with_callback(
+            subscription, failing_callback, max_concurrent_callbacks=5,
+        )
+
+
+class TestAsyncCQClientSubscribeQueriesCallbackEdgePaths:
+    """Tests for subscribe_queries_with_callback edge paths (lines 1051-1107)."""
+
+    @pytest.mark.asyncio
+    async def test_register_subscription_task_called(self, mock_transport):
+        """Test that _register_subscription_task is called for current task (line 1051-1052)."""
+        client = AsyncClient(address="localhost:50000")
+        client._transport = mock_transport
+        client._connected = True
+
+        mock_pb = _make_mock_pb_request(request_type=2, request_id="qry-task")
+        mock_transport.subscribe_to_requests = MagicMock(
+            return_value=AsyncIteratorMock([mock_pb])
+        )
+
+        subscription = QueriesSubscription(
+            channel="test", on_receive_query_callback=lambda q: None,
+        )
+
+        with patch.object(client, "_register_subscription_task") as mock_reg:
+            await client.subscribe_queries_with_callback(
+                subscription, AsyncMock(),
+            )
+            mock_reg.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_link_appended_when_trace_present_sequential(self, mock_transport):
+        """Test link creation in sequential callback mode for queries (line 1069)."""
+        client = AsyncClient(address="localhost:50000")
+        client._transport = mock_transport
+        client._connected = True
+
+        mock_pb = _make_mock_pb_request(
+            request_type=2, request_id="qry-link",
+            tags={"traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"},
+        )
+        mock_transport.subscribe_to_requests = MagicMock(
+            return_value=AsyncIteratorMock([mock_pb])
+        )
+
+        subscription = QueriesSubscription(
+            channel="test", on_receive_query_callback=lambda q: None,
+        )
+        received = []
+
+        async def cb(qry):
+            received.append(qry)
+
+        await client.subscribe_queries_with_callback(subscription, cb)
+
+        assert len(received) == 1
+
+    @pytest.mark.asyncio
+    async def test_concurrent_callback_no_error_callback_no_logger(self, mock_transport):
+        """Test concurrent callback error path when no error_callback and no logger (line 1100-1107)."""
+        client = AsyncClient(address="localhost:50000")
+        client._transport = mock_transport
+        client._connected = True
+        client._logger = None  # No logger
+
+        mock_pb = _make_mock_pb_request(request_type=2, request_id="qry-nohandler")
+        mock_transport.subscribe_to_requests = MagicMock(
+            return_value=AsyncIteratorMock([mock_pb])
+        )
+
+        subscription = QueriesSubscription(
+            channel="test", on_receive_query_callback=lambda q: None,
+        )
+
+        async def failing_callback(qry):
+            raise ValueError("qry no handler no logger")
+
+        # Should not raise; error is silently swallowed
+        await client.subscribe_queries_with_callback(
+            subscription, failing_callback, max_concurrent_callbacks=5,
+        )
+
+    @pytest.mark.asyncio
+    async def test_outer_exception_reraises_without_error_callback(self, mock_transport):
+        """Test outer exception re-raises when no error_callback is provided."""
+        client = AsyncClient(address="localhost:50000")
+        client._transport = mock_transport
+        client._connected = True
+
+        class ErrorIterator:
+            def __aiter__(self):
+                return self
+
+            async def __anext__(self):
+                raise RuntimeError("outer qry reraise")
+
+        mock_transport.subscribe_to_requests = MagicMock(return_value=ErrorIterator())
+
+        subscription = QueriesSubscription(
+            channel="test", on_receive_query_callback=lambda q: None,
+        )
+
+        with pytest.raises(RuntimeError, match="outer qry reraise"):
+            await client.subscribe_queries_with_callback(
+                subscription, AsyncMock(),
+            )
+
+
+class TestAsyncCQClientSubscribeToCancelledError:
+    """Tests for CancelledError handling in subscribe methods (lines 735, 845)."""
+
+    @pytest.mark.asyncio
+    async def test_subscribe_to_commands_cancelled_error(self, mock_transport):
+        """Test CancelledError is caught in subscribe_to_commands (line 735)."""
+        import asyncio
+
+        client = AsyncClient(address="localhost:50000")
+        client._transport = mock_transport
+        client._connected = True
+
+        class CancelledIterator:
+            def __aiter__(self):
+                return self
+
+            async def __anext__(self):
+                raise asyncio.CancelledError()
+
+        mock_transport.subscribe_to_requests = MagicMock(return_value=CancelledIterator())
+
+        subscription = CommandsSubscription(
+            channel="test", on_receive_command_callback=lambda c: None,
+        )
+
+        # CancelledError should be caught and not propagated
+        received = []
+        async for cmd in client.subscribe_to_commands(subscription):
+            received.append(cmd)
+
+        assert len(received) == 0
+
+    @pytest.mark.asyncio
+    async def test_subscribe_to_queries_cancelled_error(self, mock_transport):
+        """Test CancelledError is caught in subscribe_to_queries (line 845)."""
+        import asyncio
+
+        client = AsyncClient(address="localhost:50000")
+        client._transport = mock_transport
+        client._connected = True
+
+        class CancelledIterator:
+            def __aiter__(self):
+                return self
+
+            async def __anext__(self):
+                raise asyncio.CancelledError()
+
+        mock_transport.subscribe_to_requests = MagicMock(return_value=CancelledIterator())
+
+        subscription = QueriesSubscription(
+            channel="test", on_receive_query_callback=lambda q: None,
+        )
+
+        received = []
+        async for qry in client.subscribe_to_queries(subscription):
+            received.append(qry)
+
+        assert len(received) == 0
+
+
+class TestAsyncCQClientSubscribeToQueriesAsyncCallback:
+    """Test async callback path in subscribe_to_queries (line 825)."""
+
+    @pytest.mark.asyncio
+    async def test_async_query_callback_called(self, mock_transport):
+        """Test that async on_receive_query_callback is awaited (line 825)."""
+        client = AsyncClient(address="localhost:50000")
+        client._transport = mock_transport
+        client._connected = True
+
+        mock_pb = _make_mock_pb_request(request_type=2, request_id="qry-async-cb")
+        mock_transport.subscribe_to_requests = MagicMock(
+            return_value=AsyncIteratorMock([mock_pb])
+        )
+
+        received = []
+
+        async def async_cb(q):
+            received.append(q)
+
+        subscription = QueriesSubscription(
+            channel="test", on_receive_query_callback=async_cb,
+        )
+
+        queries = []
+        async for qry in client.subscribe_to_queries(subscription):
+            queries.append(qry)
+
+        assert len(received) == 1
+        assert len(queries) == 1

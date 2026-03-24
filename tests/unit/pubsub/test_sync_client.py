@@ -1791,7 +1791,7 @@ class TestSyncPubSubClientEventsStoreSubscription:
                 mock_thread.assert_called_once()
                 call_kwargs = mock_thread.call_args[1]
                 assert call_kwargs["daemon"] is True
-                assert len(call_kwargs["args"]) == 5
+                assert len(call_kwargs["args"]) == 6
                 mock_thread_instance.start.assert_called_once()
 
 
@@ -1952,7 +1952,7 @@ class TestSyncClientStoreClosureExecution:
         received = []
         cancel = threading.Event()
         client, args = self._setup_store(lambda msg: received.append(msg))
-        _, decode_and_track, error_callable, _, channel = args
+        _, decode_and_track, error_callable, _, channel, _ = args
 
         mock_msg = self._make_mock_store_msg(sequence=5)
 

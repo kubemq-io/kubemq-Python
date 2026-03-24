@@ -77,6 +77,13 @@ class SyncTransport:
 
     Note: The alias `Transport` is provided for backward compatibility
     and will be deprecated in future versions.
+
+    TODO(PY-5): Wire ReconnectionManager to this sync transport path.
+    Currently, ReconnectionManager (with subscription recovery) is only
+    wired to the async transport. Sync-path users get inferior reconnection
+    without automatic subscription recovery. Either replicate the
+    ReconnectionManager's subscription recovery mechanism here, or unify
+    the two transport paths.
     """
 
     def __init__(self, connection: Connection) -> None:

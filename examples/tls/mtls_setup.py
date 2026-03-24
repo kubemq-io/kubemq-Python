@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from kubemq import Client, EventMessage, TLSConfig
+from kubemq import TLSConfig
+from kubemq.pubsub import Client as PubSubClient, EventMessage
 
 
 def main() -> None:
@@ -14,7 +15,7 @@ def main() -> None:
         ca_file="/path/to/ca.pem",
     )
 
-    with Client(
+    with PubSubClient(
         address="kubemq-server:50000",
         client_id="python-tls-mtls-setup-client",
         tls=tls_config,

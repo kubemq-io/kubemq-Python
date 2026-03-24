@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import asyncio
 
-from kubemq import AsyncClient, QueueMessage
+from kubemq.queues import AsyncClient as AsyncQueuesClient
+from kubemq import QueueMessage
 
 
 async def main() -> None:
-    async with AsyncClient(
+    async with AsyncQueuesClient(
         address="localhost:50000",
         client_id="python-queues-batch-send-client",
     ) as client:

@@ -23,8 +23,8 @@ class TestEventMessageBehavior:
     """Characterization tests for EventMessage class."""
 
     def test_event_message_requires_channel(self):
-        """Capture: EventMessage raises ValueError without channel."""
-        with pytest.raises(ValueError, match="channel"):
+        """Capture: EventMessage raises TypeError without required channel."""
+        with pytest.raises(TypeError):
             EventMessage(body=b"test")
 
     def test_event_message_requires_content(self):
@@ -76,21 +76,14 @@ class TestEventStoreMessageBehavior:
     """Characterization tests for EventStoreMessage class."""
 
     def test_event_store_message_requires_channel(self):
-        """Capture: EventStoreMessage raises ValueError without channel."""
-        with pytest.raises(ValueError, match="channel"):
+        """Capture: EventStoreMessage raises TypeError without required channel."""
+        with pytest.raises(TypeError):
             EventStoreMessage(body=b"test")
 
     def test_event_store_message_validation(self):
-        """Capture: EventStoreMessage behavior with content validation.
-
-        Note: Due to field validation order in Pydantic, the validation may
-        not catch all cases as expected. The validator checks each field
-        individually which can lead to edge cases.
-        """
-        # This creates a message with default body=b"" which doesn't raise
-        # because validation happens per-field, not at model level
-        msg = EventStoreMessage(channel="test")  # May not raise
-        assert msg.channel == "test"
+        """Capture: EventStoreMessage requires at least one content field."""
+        with pytest.raises(ValueError, match="metadata.*body.*tags"):
+            EventStoreMessage(channel="test")
 
     def test_event_store_message_accepts_body_only(self):
         """Capture: EventStoreMessage accepts channel + body as minimum."""
@@ -104,13 +97,13 @@ class TestEventsSubscriptionBehavior:
     """Characterization tests for EventsSubscription class."""
 
     def test_subscription_requires_channel(self):
-        """Capture: EventsSubscription requires channel."""
-        with pytest.raises(ValueError, match="channel"):
+        """Capture: EventsSubscription requires channel and callback."""
+        with pytest.raises(TypeError):
             EventsSubscription(channel="")
 
     def test_subscription_requires_on_receive_callback(self):
         """Capture: EventsSubscription requires on_receive_event_callback."""
-        with pytest.raises(ValueError, match="on_receive_event_callback"):
+        with pytest.raises(TypeError):
             EventsSubscription(channel="test-channel")
 
     def test_subscription_accepts_valid_parameters(self):
@@ -156,13 +149,13 @@ class TestEventsStoreSubscriptionBehavior:
     """Characterization tests for EventsStoreSubscription class."""
 
     def test_store_subscription_requires_channel(self):
-        """Capture: EventsStoreSubscription requires channel."""
-        with pytest.raises(ValueError, match="channel"):
+        """Capture: EventsStoreSubscription requires channel and callback."""
+        with pytest.raises(TypeError):
             EventsStoreSubscription(channel="")
 
     def test_store_subscription_requires_on_receive_callback(self):
         """Capture: EventsStoreSubscription requires on_receive_event_callback."""
-        with pytest.raises(ValueError):
+        with pytest.raises(TypeError):
             EventsStoreSubscription(channel="test-channel")
 
     def test_store_subscription_default_type_is_undefined(self):

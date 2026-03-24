@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import time
 
-from kubemq import Client, QueueMessage
+from kubemq.queues import Client as QueuesClient
+from kubemq import QueueMessage
 
 
 def main() -> None:
-    with Client(
+    with QueuesClient(
         address="localhost:50000",
         client_id="python-queues-delayed-messages-client",
     ) as client:

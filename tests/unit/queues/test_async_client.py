@@ -1613,3 +1613,860 @@ class TestProcessQueueMessagesCallbacks:
             )
 
         assert len(errors) >= 1
+
+
+# ==============================================================================
+# Coverage extension: _do_operation, decode, send_queue_message,
+# receive_queue_messages (None/IsError), send_queue_message_fast,
+# peek_queue_messages, subscribe_to_queue, close with downstream,
+# process_queue_messages error branches
+# ==============================================================================
+
+
+class TestDoOperationWithMetadata:
+    """Covers _do_operation() with metadata dict — lines 111-113."""
+
+    @pytest.mark.asyncio
+    async def test_do_operation_passes_metadata(self):
+        captured = []
+
+        async def fake_downstream(request_iter):
+            async for req in request_iter:
+                captured.append(req)
+            yield pb.QueuesDownstreamResponse()
+
+        transport = MagicMock()
+        transport.queues_downstream = fake_downstream
+
+        response = AsyncQueuesPollResponse(
+            ref_request_id="req-1",
+            transaction_id="tx-1",
+            messages=[],
+            error="",
+            is_error=False,
+            is_transaction_completed=False,
+            active_offsets=[1],
+            receiver_client_id="client-1",
+            is_auto_acked=False,
+            transport=transport,
+        )
+
+        await response._do_operation(
+            pb.QueuesDownstreamRequestType.AckAll,
+            metadata={"trace-id": "abc123", "source": "test"},
+        )
+
+        assert len(captured) == 1
+        assert captured[0].Metadata["trace-id"] == "abc123"
+        assert captured[0].Metadata["source"] == "test"
+        assert response.is_transaction_completed is True
+
+
+class TestAsyncQueuesPollResponseDecode:
+    """Covers AsyncQueuesPollResponse.decode() — lines 132-175."""
+
+    @pytest.mark.asyncio
+    async def test_decode_creates_response_from_protobuf(self):
+        """decode() produces a correctly populated AsyncQueuesPollResponse."""
+        pb_response = pb.QueuesDownstreamResponse()
+        pb_response.RefRequestId = "ref-req-1"
+        pb_response.TransactionId = "tx-abc"
+        pb_response.TransactionComplete = False
+        pb_response.IsError = False
+        pb_response.Error = ""
+        pb_response.ActiveOffsets.extend([10, 20])
+
+        # Add a message
+        msg = pb_response.Messages.add()
+        msg.MessageID = "msg-1"
+        msg.Channel = "q1"
+        msg.Body = b"hello"
+
+        transport = MagicMock()
+
+        result = AsyncQueuesPollResponse.decode(
+            pb_response,
+            receiver_client_id="client-1",
+            transport=transport,
+            request_auto_ack=False,
+        )
+
+        assert result.ref_request_id == "ref-req-1"
+        assert result.transaction_id == "tx-abc"
+        assert result.is_error is False
+        assert len(result.messages) == 1
+        assert result.messages[0].id == "msg-1"
+        assert result.messages[0].channel == "q1"
+        assert result.messages[0].body == b"hello"
+        assert result.active_offsets == [10, 20]
+        assert result.receiver_client_id == "client-1"
+        assert result.is_auto_acked is False
+
+    @pytest.mark.asyncio
+    async def test_decode_with_auto_ack(self):
+        """decode() with request_auto_ack=True sets is_auto_acked."""
+        pb_response = pb.QueuesDownstreamResponse()
+        pb_response.RefRequestId = "ref-2"
+        pb_response.TransactionId = "tx-2"
+        pb_response.TransactionComplete = True
+
+        transport = MagicMock()
+
+        result = AsyncQueuesPollResponse.decode(
+            pb_response,
+            receiver_client_id="client-2",
+            transport=transport,
+            request_auto_ack=True,
+        )
+
+        assert result.is_auto_acked is True
+        assert result.is_transaction_completed is True
+
+    @pytest.mark.asyncio
+    async def test_decode_async_handler_calls_transport(self):
+        """The _async_handler created by decode() calls transport.queues_downstream."""
+        pb_response = pb.QueuesDownstreamResponse()
+        pb_response.RefRequestId = "ref-3"
+        pb_response.TransactionId = "tx-3"
+
+        msg = pb_response.Messages.add()
+        msg.MessageID = "msg-3"
+        msg.Channel = "q1"
+        msg.Body = b"data"
+
+        downstream_calls = []
+
+        async def fake_downstream(request_iter):
+            async for req in request_iter:
+                downstream_calls.append(req)
+            yield pb.QueuesDownstreamResponse()
+
+        transport = MagicMock()
+        transport.queues_downstream = fake_downstream
+
+        result = AsyncQueuesPollResponse.decode(
+            pb_response,
+            receiver_client_id="client-3",
+            transport=transport,
+        )
+
+        # Call the async_response_handler that decode created
+        handler = result.messages[0].async_response_handler
+        assert handler is not None
+        fake_req = pb.QueuesDownstreamRequest(RequestID="ack-1")
+        await handler(fake_req)
+
+        assert len(downstream_calls) == 1
+        assert downstream_calls[0].RequestID == "ack-1"
+
+
+class TestAsyncClientSendQueueMessageViaUpstream:
+    """Covers send_queue_message() via upstream sender — lines 315-321 (span.is_recording)."""
+
+    @pytest.mark.asyncio
+    async def test_send_queue_message_with_recording_span(self, mock_transport):
+        """send_queue_message sets span attributes when span is recording."""
+        client = AsyncClient(address="localhost:50000")
+        client._transport = mock_transport
+        client._connected = True
+
+        mock_send_result = QueueSendResult(id="msg-1", is_error=False, sent_at=1000)
+        mock_sender = AsyncMock()
+        mock_sender.send = AsyncMock(return_value=mock_send_result)
+        client._upstream_sender = mock_sender
+
+        message = QueueMessage(channel="test-channel", body=b"test body")
+
+        result = await client.send_queue_message(message)
+
+        assert result.is_error is False
+        assert result.id == "msg-1"
+        mock_sender.send.assert_called_once()
+
+
+class TestAsyncClientSendQueueMessageFast:
+    """Covers send_queue_message_fast() — lines 410-412."""
+
+    @pytest.mark.asyncio
+    async def test_send_queue_message_fast(self, mock_transport):
+        """send_queue_message_fast sends via upstream sender, no instrumentation."""
+        client = AsyncClient(address="localhost:50000")
+        client._transport = mock_transport
+        client._connected = True
+
+        mock_send_result = QueueSendResult(id="msg-fast", is_error=False, sent_at=2000)
+        mock_sender = AsyncMock()
+        mock_sender.send = AsyncMock(return_value=mock_send_result)
+        client._upstream_sender = mock_sender
+
+        message = QueueMessage(channel="fast-ch", body=b"fast data")
+        result = await client.send_queue_message_fast(message)
+
+        assert result.is_error is False
+        assert result.id == "msg-fast"
+        mock_sender.send.assert_called_once()
+
+
+class TestAsyncClientReceiveQueueMessagesViaBidiStream:
+    """Covers receive_queue_messages() via bidi downstream — lines 617, 631, 647."""
+
+    @pytest.mark.asyncio
+    async def test_receive_returns_timeout_when_response_is_none(self, mock_transport):
+        """receive_queue_messages returns error response when receiver.send() is None."""
+        client = AsyncClient(address="localhost:50000", client_id="test-client")
+        client._transport = mock_transport
+        client._connected = True
+
+        mock_receiver = AsyncMock()
+        mock_receiver.send = AsyncMock(return_value=None)
+        client._downstream_receiver = mock_receiver
+
+        response = await client.receive_queue_messages(channel="test-ch")
+
+        assert response.is_error is True
+        assert "Timeout" in response.error
+        assert response.messages == []
+
+    @pytest.mark.asyncio
+    async def test_receive_returns_error_when_kubemq_response_is_error(self, mock_transport):
+        """receive_queue_messages returns error when server reports IsError."""
+        client = AsyncClient(address="localhost:50000", client_id="test-client")
+        client._transport = mock_transport
+        client._connected = True
+
+        mock_response = MagicMock()
+        mock_response.IsError = True
+        mock_response.Error = "queue not found"
+        mock_response.RefRequestId = "ref-err"
+        mock_response.TransactionId = "tx-err"
+
+        mock_receiver = AsyncMock()
+        mock_receiver.send = AsyncMock(return_value=mock_response)
+        client._downstream_receiver = mock_receiver
+
+        response = await client.receive_queue_messages(channel="test-ch")
+
+        assert response.is_error is True
+        assert response.error == "queue not found"
+        assert response.messages == []
+
+    @pytest.mark.asyncio
+    async def test_receive_returns_messages_on_success(self, mock_transport):
+        """receive_queue_messages decodes messages on success."""
+        client = AsyncClient(address="localhost:50000", client_id="test-client")
+        client._transport = mock_transport
+        client._connected = True
+
+        pb_msg = pb.QueueMessage()
+        pb_msg.MessageID = "msg-rx"
+        pb_msg.Channel = "test-ch"
+        pb_msg.Body = b"payload"
+
+        mock_response = MagicMock()
+        mock_response.IsError = False
+        mock_response.Error = ""
+        mock_response.RefRequestId = "ref-ok"
+        mock_response.TransactionId = "tx-ok"
+        mock_response.TransactionComplete = False
+        mock_response.Messages = [pb_msg]
+        mock_response.ActiveOffsets = [1]
+
+        mock_receiver = AsyncMock()
+        mock_receiver.send = AsyncMock(return_value=mock_response)
+        client._downstream_receiver = mock_receiver
+
+        response = await client.receive_queue_messages(channel="test-ch")
+
+        assert response.is_error is False
+        assert len(response.messages) == 1
+        assert response.messages[0].id == "msg-rx"
+
+
+class TestAsyncClientCloseWithDownstream:
+    """Covers close() with downstream_receiver — lines 263-264."""
+
+    @pytest.mark.asyncio
+    async def test_close_shuts_down_downstream_receiver(self):
+        """close() closes both upstream sender and downstream receiver."""
+        client = AsyncClient(address="localhost:50000")
+        client._transport = AsyncMock()
+        client._connected = True
+
+        mock_sender = AsyncMock()
+        mock_receiver = AsyncMock()
+        client._upstream_sender = mock_sender
+        client._downstream_receiver = mock_receiver
+
+        await client.close()
+
+        mock_sender.close.assert_called_once()
+        mock_receiver.close.assert_called_once()
+        assert client._upstream_sender is None
+        assert client._downstream_receiver is None
+
+    @pytest.mark.asyncio
+    async def test_close_only_downstream(self):
+        """close() works when only downstream_receiver is set (no sender)."""
+        client = AsyncClient(address="localhost:50000")
+        client._transport = AsyncMock()
+        client._connected = True
+
+        mock_receiver = AsyncMock()
+        client._downstream_receiver = mock_receiver
+
+        await client.close()
+
+        mock_receiver.close.assert_called_once()
+        assert client._downstream_receiver is None
+
+
+class TestAsyncClientGetDownstreamReceiver:
+    """Covers _get_downstream_receiver() — lines 247-249."""
+
+    @pytest.mark.asyncio
+    async def test_get_downstream_receiver_initializes_lazily(self, mock_transport):
+        """_get_downstream_receiver creates and starts receiver on first call."""
+        client = AsyncClient(address="localhost:50000")
+        client._transport = mock_transport
+        client._connected = True
+
+        with (
+            patch(
+                "kubemq.queues.async_client.AsyncDownstreamReceiver"
+            ) as MockReceiverCls,
+        ):
+            mock_instance = AsyncMock()
+            MockReceiverCls.return_value = mock_instance
+
+            result = await client._get_downstream_receiver()
+
+            assert result is mock_instance
+            mock_instance.start.assert_called_once()
+
+
+class TestAsyncClientSubscribeToQueueLoop:
+    """Covers subscribe_to_queue() subscription loop — lines 822-838."""
+
+    @pytest.mark.asyncio
+    @pytest.mark.timeout(5)
+    async def test_subscribe_yields_non_empty_responses(self, mock_transport):
+        """subscribe_to_queue yields responses that have messages."""
+        client = AsyncClient(address="localhost:50000", client_id="test-client")
+        client._transport = mock_transport
+        client._connected = True
+
+        call_count = [0]
+        token = AsyncCancellationToken()
+
+        async def mock_receive_queue(*args, **kwargs):
+            call_count[0] += 1
+            if call_count[0] == 1:
+                return AsyncQueuesPollResponse(
+                    ref_request_id="r1",
+                    transaction_id="tx1",
+                    messages=[MagicMock()],
+                    error="",
+                    is_error=False,
+                    is_transaction_completed=True,
+                    active_offsets=[1],
+                    receiver_client_id="test-client",
+                    is_auto_acked=True,
+                    transport=mock_transport,
+                )
+            token.cancel()
+            return AsyncQueuesPollResponse(
+                ref_request_id="r2",
+                transaction_id="",
+                messages=[],
+                error="",
+                is_error=False,
+                is_transaction_completed=True,
+                active_offsets=[],
+                receiver_client_id="test-client",
+                is_auto_acked=True,
+                transport=mock_transport,
+            )
+
+        with patch.object(client, "receive_queue_messages", side_effect=mock_receive_queue):
+            responses = []
+            async for resp in client.subscribe_to_queue(
+                channel="test-ch",
+                cancellation_token=token,
+            ):
+                responses.append(resp)
+
+            assert len(responses) == 1
+            assert len(responses[0].messages) == 1
+
+    @pytest.mark.asyncio
+    @pytest.mark.timeout(5)
+    async def test_subscribe_retries_on_error_with_backoff(self, mock_transport):
+        """subscribe_to_queue retries on error and increments attempt."""
+        client = AsyncClient(address="localhost:50000", client_id="test-client")
+        client._transport = mock_transport
+        client._connected = True
+
+        call_count = [0]
+        token = AsyncCancellationToken()
+
+        async def mock_receive_queue(*args, **kwargs):
+            call_count[0] += 1
+            if call_count[0] <= 2:
+                raise RuntimeError("transient error")
+            token.cancel()
+            return AsyncQueuesPollResponse(
+                ref_request_id="r1",
+                transaction_id="",
+                messages=[],
+                error="",
+                is_error=False,
+                is_transaction_completed=True,
+                active_offsets=[],
+                receiver_client_id="test-client",
+                is_auto_acked=True,
+                transport=mock_transport,
+            )
+
+        with patch.object(client, "receive_queue_messages", side_effect=mock_receive_queue):
+            async for _ in client.subscribe_to_queue(
+                channel="test-ch",
+                cancellation_token=token,
+            ):
+                pass
+
+        assert call_count[0] >= 3
+
+    @pytest.mark.asyncio
+    @pytest.mark.timeout(5)
+    async def test_subscribe_skips_empty_responses(self, mock_transport):
+        """subscribe_to_queue does not yield empty responses."""
+        client = AsyncClient(address="localhost:50000", client_id="test-client")
+        client._transport = mock_transport
+        client._connected = True
+
+        call_count = [0]
+        token = AsyncCancellationToken()
+
+        async def mock_receive_queue(*args, **kwargs):
+            call_count[0] += 1
+            if call_count[0] > 2:
+                token.cancel()
+            return AsyncQueuesPollResponse(
+                ref_request_id="r1",
+                transaction_id="",
+                messages=[],
+                error="",
+                is_error=False,
+                is_transaction_completed=True,
+                active_offsets=[],
+                receiver_client_id="test-client",
+                is_auto_acked=True,
+                transport=mock_transport,
+            )
+
+        with patch.object(client, "receive_queue_messages", side_effect=mock_receive_queue):
+            responses = []
+            async for resp in client.subscribe_to_queue(
+                channel="test-ch",
+                cancellation_token=token,
+            ):
+                responses.append(resp)
+
+            # All responses were empty, none should be yielded
+            assert responses == []
+
+
+class TestAsyncClientProcessQueueMessagesErrorBranches:
+    """Covers process_queue_messages error branches — lines 885-901, 925."""
+
+    @pytest.mark.asyncio
+    @pytest.mark.timeout(5)
+    async def test_process_error_response_with_error_callback(self, mock_transport):
+        """Error responses are forwarded to error_callback and processing continues."""
+        client = AsyncClient(address="localhost:50000", client_id="test-client")
+        client._transport = mock_transport
+        client._connected = True
+
+        token = AsyncCancellationToken()
+        errors = []
+
+        error_response = MagicMock(spec=AsyncQueuesPollResponse)
+        error_response.is_error = True
+        error_response.error = "queue offline"
+        error_response.is_empty.return_value = False
+        error_response.messages = []
+
+        async def fake_subscribe(**kwargs):
+            yield error_response
+            token.cancel()
+
+        async def callback(msg):
+            pass
+
+        async def error_cb(err):
+            errors.append(err)
+
+        with patch.object(client, "subscribe_to_queue", side_effect=fake_subscribe):
+            await client.process_queue_messages(
+                channel="q1",
+                callback=callback,
+                error_callback=error_cb,
+                cancellation_token=token,
+            )
+
+        assert len(errors) == 1
+        assert "queue offline" in str(errors[0])
+
+    @pytest.mark.asyncio
+    @pytest.mark.timeout(5)
+    async def test_process_error_response_without_error_callback(self, mock_transport):
+        """Error responses are logged (not raised) when no error_callback."""
+        client = AsyncClient(address="localhost:50000", client_id="test-client")
+        client._transport = mock_transport
+        client._connected = True
+
+        token = AsyncCancellationToken()
+
+        error_response = MagicMock(spec=AsyncQueuesPollResponse)
+        error_response.is_error = True
+        error_response.error = "queue offline"
+        error_response.is_empty.return_value = False
+
+        async def fake_subscribe(**kwargs):
+            yield error_response
+            token.cancel()
+
+        async def callback(msg):
+            pass
+
+        with patch.object(client, "subscribe_to_queue", side_effect=fake_subscribe):
+            # Should not raise even without error_callback
+            await client.process_queue_messages(
+                channel="q1",
+                callback=callback,
+                cancellation_token=token,
+            )
+
+    @pytest.mark.asyncio
+    @pytest.mark.timeout(5)
+    async def test_process_error_callback_itself_raises(self, mock_transport):
+        """When error_callback itself raises, exception is logged not propagated."""
+        client = AsyncClient(address="localhost:50000", client_id="test-client")
+        client._transport = mock_transport
+        client._connected = True
+
+        token = AsyncCancellationToken()
+
+        error_response = MagicMock(spec=AsyncQueuesPollResponse)
+        error_response.is_error = True
+        error_response.error = "queue offline"
+        error_response.is_empty.return_value = False
+
+        async def fake_subscribe(**kwargs):
+            yield error_response
+            token.cancel()
+
+        async def callback(msg):
+            pass
+
+        async def bad_error_cb(err):
+            raise RuntimeError("error_callback exploded")
+
+        with patch.object(client, "subscribe_to_queue", side_effect=fake_subscribe):
+            # Should not raise even though error_callback raises
+            await client.process_queue_messages(
+                channel="q1",
+                callback=callback,
+                error_callback=bad_error_cb,
+                cancellation_token=token,
+            )
+
+    @pytest.mark.asyncio
+    @pytest.mark.timeout(5)
+    async def test_process_auto_ack_false_calls_ack_all(self, mock_transport):
+        """process_queue_messages calls ack_all when auto_ack=False and txn not complete."""
+        client = AsyncClient(address="localhost:50000", client_id="test-client")
+        client._transport = mock_transport
+        client._connected = True
+
+        token = AsyncCancellationToken()
+        callback_messages = []
+
+        mock_msg = MagicMock()
+        success_response = MagicMock(spec=AsyncQueuesPollResponse)
+        success_response.is_error = False
+        success_response.is_empty.return_value = False
+        success_response.messages = [mock_msg]
+        success_response.is_transaction_completed = False
+        success_response.ack_all = AsyncMock()
+
+        async def fake_subscribe(**kwargs):
+            yield success_response
+            token.cancel()
+
+        async def callback(msg):
+            callback_messages.append(msg)
+
+        with patch.object(client, "subscribe_to_queue", side_effect=fake_subscribe):
+            await client.process_queue_messages(
+                channel="q1",
+                callback=callback,
+                auto_ack=False,
+                cancellation_token=token,
+            )
+
+        assert len(callback_messages) == 1
+        success_response.ack_all.assert_called_once()
+
+    @pytest.mark.asyncio
+    @pytest.mark.timeout(5)
+    async def test_process_ack_all_error_with_error_callback(self, mock_transport):
+        """When ack_all raises and error_callback is set, error is forwarded."""
+        client = AsyncClient(address="localhost:50000", client_id="test-client")
+        client._transport = mock_transport
+        client._connected = True
+
+        token = AsyncCancellationToken()
+        errors = []
+
+        mock_msg = MagicMock()
+        success_response = MagicMock(spec=AsyncQueuesPollResponse)
+        success_response.is_error = False
+        success_response.is_empty.return_value = False
+        success_response.messages = [mock_msg]
+        success_response.is_transaction_completed = False
+        success_response.ack_all = AsyncMock(side_effect=RuntimeError("ack failed"))
+
+        async def fake_subscribe(**kwargs):
+            yield success_response
+            token.cancel()
+
+        async def callback(msg):
+            pass
+
+        async def error_cb(err):
+            errors.append(err)
+
+        with patch.object(client, "subscribe_to_queue", side_effect=fake_subscribe):
+            await client.process_queue_messages(
+                channel="q1",
+                callback=callback,
+                error_callback=error_cb,
+                auto_ack=False,
+                cancellation_token=token,
+            )
+
+        assert len(errors) == 1
+        assert "ack failed" in str(errors[0])
+
+    @pytest.mark.asyncio
+    @pytest.mark.timeout(5)
+    async def test_process_handler_error_without_error_callback(self, mock_transport):
+        """Handler error without error_callback is logged, not raised."""
+        client = AsyncClient(address="localhost:50000", client_id="test-client")
+        client._transport = mock_transport
+        client._connected = True
+
+        token = AsyncCancellationToken()
+
+        mock_msg = MagicMock()
+        success_response = MagicMock(spec=AsyncQueuesPollResponse)
+        success_response.is_error = False
+        success_response.is_empty.return_value = False
+        success_response.messages = [mock_msg]
+        success_response.is_transaction_completed = True
+
+        async def fake_subscribe(**kwargs):
+            yield success_response
+            token.cancel()
+
+        async def failing_callback(msg):
+            raise ValueError("handler broke")
+
+        with patch.object(client, "subscribe_to_queue", side_effect=fake_subscribe):
+            # Should not raise - error is logged
+            await client.process_queue_messages(
+                channel="q1",
+                callback=failing_callback,
+                cancellation_token=token,
+            )
+
+
+class TestAsyncClientReceiveQueueMessagesFast:
+    """Covers receive_queue_messages_fast() — lines 422-465."""
+
+    @pytest.mark.asyncio
+    async def test_fast_receive_success_with_messages(self, mock_transport):
+        """receive_queue_messages_fast returns messages on success."""
+        client = AsyncClient(address="localhost:50000", client_id="test-client")
+        client._transport = mock_transport
+        client._connected = True
+
+        pb_msg = pb.QueueMessage()
+        pb_msg.MessageID = "msg-fast-1"
+        pb_msg.Channel = "fast-ch"
+        pb_msg.Body = b"fast payload"
+
+        mock_response = MagicMock()
+        mock_response.IsError = False
+        mock_response.Error = ""
+        mock_response.RefRequestId = "ref-fast"
+        mock_response.TransactionId = "tx-fast"
+        mock_response.TransactionComplete = False
+        mock_response.Messages = [pb_msg]
+        mock_response.ActiveOffsets = [1]
+
+        mock_receiver = AsyncMock()
+        mock_receiver.send = AsyncMock(return_value=mock_response)
+        client._downstream_receiver = mock_receiver
+
+        response = await client.receive_queue_messages_fast(
+            channel="fast-ch",
+            max_messages=5,
+            wait_timeout_seconds=30,
+        )
+
+        assert response.is_error is False
+        assert len(response.messages) == 1
+        assert response.messages[0].id == "msg-fast-1"
+        assert response.receiver_client_id == "test-client"
+
+    @pytest.mark.asyncio
+    async def test_fast_receive_returns_error_on_none_response(self, mock_transport):
+        """receive_queue_messages_fast returns error when response is None."""
+        client = AsyncClient(address="localhost:50000", client_id="test-client")
+        client._transport = mock_transport
+        client._connected = True
+
+        mock_receiver = AsyncMock()
+        mock_receiver.send = AsyncMock(return_value=None)
+        client._downstream_receiver = mock_receiver
+
+        response = await client.receive_queue_messages_fast(channel="fast-ch")
+
+        assert response.is_error is True
+        assert "Timeout" in response.error
+
+    @pytest.mark.asyncio
+    async def test_fast_receive_returns_error_on_is_error(self, mock_transport):
+        """receive_queue_messages_fast returns error when IsError is True."""
+        client = AsyncClient(address="localhost:50000", client_id="test-client")
+        client._transport = mock_transport
+        client._connected = True
+
+        mock_response = MagicMock()
+        mock_response.IsError = True
+        mock_response.Error = "queue full"
+        mock_response.TransactionId = "tx-err"
+
+        mock_receiver = AsyncMock()
+        mock_receiver.send = AsyncMock(return_value=mock_response)
+        client._downstream_receiver = mock_receiver
+
+        response = await client.receive_queue_messages_fast(channel="fast-ch")
+
+        assert response.is_error is True
+        assert response.error == "queue full"
+
+    @pytest.mark.asyncio
+    async def test_fast_receive_with_auto_ack(self, mock_transport):
+        """receive_queue_messages_fast passes auto_ack correctly."""
+        client = AsyncClient(address="localhost:50000", client_id="test-client")
+        client._transport = mock_transport
+        client._connected = True
+
+        mock_response = MagicMock()
+        mock_response.IsError = False
+        mock_response.Error = ""
+        mock_response.RefRequestId = "ref-aa"
+        mock_response.TransactionId = "tx-aa"
+        mock_response.TransactionComplete = True
+        mock_response.Messages = []
+        mock_response.ActiveOffsets = []
+
+        mock_receiver = AsyncMock()
+        mock_receiver.send = AsyncMock(return_value=mock_response)
+        client._downstream_receiver = mock_receiver
+
+        response = await client.receive_queue_messages_fast(
+            channel="fast-ch",
+            auto_ack=True,
+        )
+
+        assert response.is_auto_acked is True
+
+
+class TestAsyncClientSendQueueMessageSimpleWithSpan:
+    """Covers send_queue_message_simple with span.is_recording() — lines 315-321."""
+
+    @pytest.mark.asyncio
+    async def test_send_simple_sets_span_attributes_when_recording(self, mock_transport):
+        """send_queue_message_simple sets span attributes when span is recording."""
+        from contextlib import contextmanager
+
+        client = AsyncClient(address="localhost:50000")
+        client._transport = mock_transport
+        client._connected = True
+
+        # Mock the transport to return a valid result
+        pb_result = pb.SendQueueMessageResult()
+        pb_result.MessageID = "msg-span"
+        pb_result.IsError = False
+        pb_result.SentAt = 1000
+        mock_transport.send_queue_message.return_value = pb_result
+
+        # Mock the instrumentor to provide a recording span
+        mock_span = MagicMock()
+        mock_span.is_recording.return_value = True
+
+        @contextmanager
+        def fake_start_span(op, channel):
+            yield mock_span
+
+        client._instrumentor = MagicMock()
+        client._instrumentor.start_span = fake_start_span
+
+        message = QueueMessage(channel="test-channel", body=b"test body")
+
+        result = await client.send_queue_message_simple(message)
+
+        assert result.is_error is False
+        # Verify span.set_attribute was called (lines 315-321)
+        assert mock_span.set_attribute.call_count == 2
+
+
+class TestAsyncClientSendQueueMessageBidiWithSpan:
+    """Covers send_queue_message with span.is_recording() — lines 383-389."""
+
+    @pytest.mark.asyncio
+    async def test_send_bidi_sets_span_attributes_when_recording(self, mock_transport):
+        """send_queue_message sets span attributes when span is recording."""
+        from contextlib import contextmanager
+
+        client = AsyncClient(address="localhost:50000")
+        client._transport = mock_transport
+        client._connected = True
+
+        mock_send_result = QueueSendResult(id="msg-span", is_error=False, sent_at=1000)
+        mock_sender = AsyncMock()
+        mock_sender.send = AsyncMock(return_value=mock_send_result)
+        client._upstream_sender = mock_sender
+
+        # Mock the instrumentor to provide a recording span
+        mock_span = MagicMock()
+        mock_span.is_recording.return_value = True
+
+        @contextmanager
+        def fake_start_span(op, channel):
+            yield mock_span
+
+        client._instrumentor = MagicMock()
+        client._instrumentor.start_span = fake_start_span
+
+        message = QueueMessage(channel="test-channel", body=b"test body")
+
+        result = await client.send_queue_message(message)
+
+        assert result.is_error is False
+        # Verify span.set_attribute was called (lines 383-389)
+        assert mock_span.set_attribute.call_count == 2

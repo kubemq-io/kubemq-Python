@@ -25,6 +25,8 @@ from kubemq.common.async_cancellation_token import AsyncCancellationToken
 from kubemq.core.client import NativeAsyncBaseClient
 from kubemq.core.config import ClientConfig
 from kubemq.core.exceptions import (
+    KubeMQClientClosedError,
+    KubeMQConnectionError,
     KubeMQError,
     KubeMQHandlerError,
     KubeMQStreamBrokenError,
@@ -576,6 +578,8 @@ class AsyncClient(NativeAsyncBaseClient):
         try:
             while not token.is_cancelled:
                 try:
+                    self._ensure_connected()
+                    assert self._transport is not None
                     request = subscription.encode(self._config.client_id or "")
 
                     async for pb_event in self._transport.subscribe_to_events(request, token):
@@ -650,10 +654,25 @@ class AsyncClient(NativeAsyncBaseClient):
 
                         yield event
 
-                    break  # clean stream exit
+                    # Stream ended -- loop back and re-subscribe unless cancelled.
+                    if token.is_cancelled:
+                        break
+                    _logger.debug(
+                        "Events subscribe stream ended, reconnecting (attempt %d)",
+                        attempt + 1,
+                    )
+                    delay = backoff.delay_seconds(attempt)
+                    attempt += 1
+                    await asyncio.sleep(delay)
+                    continue
+
+                except KubeMQClientClosedError:
+                    raise
 
                 except KubeMQError as e:
-                    if not e.is_retryable or token.is_cancelled:
+                    if token.is_cancelled:
+                        raise
+                    if not e.is_retryable and not isinstance(e, KubeMQConnectionError):
                         if subscription.on_error_callback:
                             error_msg = str(e)
                             if asyncio.iscoroutinefunction(subscription.on_error_callback):
@@ -701,26 +720,135 @@ class AsyncClient(NativeAsyncBaseClient):
         subscription: EventsSubscription,
         cancellation_token: AsyncCancellationToken | None = None,
     ) -> AsyncIterator[EventReceived]:
-        """Subscribe to events — fast path, no instrumentation per message."""
-        self._ensure_connected()
-        assert self._transport is not None
+        """Subscribe to events -- fast path with automatic reconnection.
+
+        No per-message instrumentation overhead, but includes a retry loop
+        so the subscription recovers after broker outages.
+        """
         token = cancellation_token or AsyncCancellationToken()
-        request = subscription.encode(self._config.client_id or "")
-        async for pb_event in self._transport.subscribe_to_events(request, token):
-            yield EventReceived.decode(pb_event)
+        backoff = BackoffCalculator(self._config.retry_policy)
+        attempt = 0
+
+        while not token.is_cancelled:
+            try:
+                self._ensure_connected()
+                assert self._transport is not None
+                request = subscription.encode(self._config.client_id or "")
+                async for pb_event in self._transport.subscribe_to_events(request, token):
+                    attempt = 0
+                    yield EventReceived.decode(pb_event)
+                # Stream ended (server closed or connection lost).
+                # Do NOT break -- loop back and re-subscribe unless cancelled.
+                if token.is_cancelled:
+                    return
+                _logger.warning(
+                    "Events fast-subscribe stream ended, reconnecting (attempt %d)",
+                    attempt + 1,
+                )
+                delay = backoff.delay_seconds(attempt)
+                attempt += 1
+                await asyncio.sleep(delay)
+                continue
+            except KubeMQClientClosedError:
+                raise
+            except KubeMQError as e:
+                if token.is_cancelled:
+                    return
+                if not e.is_retryable and not isinstance(e, KubeMQConnectionError):
+                    raise
+                _logger.warning(
+                    "Events fast-subscribe stream broken (attempt %d): %s",
+                    attempt + 1,
+                    e.message,
+                )
+                delay = backoff.delay_seconds(attempt)
+                attempt += 1
+                await asyncio.sleep(delay)
+            except Exception as e:
+                if token.is_cancelled:
+                    return
+                _logger.warning(
+                    "Events fast-subscribe error (attempt %d): %s",
+                    attempt + 1,
+                    e,
+                )
+                delay = backoff.delay_seconds(attempt)
+                attempt += 1
+                await asyncio.sleep(delay)
 
     async def subscribe_to_events_store_fast(
         self,
         subscription: EventsStoreSubscription,
         cancellation_token: AsyncCancellationToken | None = None,
     ) -> AsyncIterator[EventStoreReceived]:
-        """Subscribe to events store — fast path, no instrumentation per message."""
-        self._ensure_connected()
-        assert self._transport is not None
+        """Subscribe to events store -- fast path with automatic reconnection.
+
+        No per-message instrumentation overhead, but includes a retry loop
+        so the subscription recovers after broker outages.  On reconnect,
+        resumes from the last received sequence to avoid re-processing.
+        """
         token = cancellation_token or AsyncCancellationToken()
-        request = subscription.encode(self._config.client_id or "")
-        async for pb_event in self._transport.subscribe_to_events(request, token):
-            yield EventStoreReceived.decode(pb_event)
+        backoff = BackoffCalculator(self._config.retry_policy)
+        attempt = 0
+        last_sequence = 0
+
+        while not token.is_cancelled:
+            try:
+                self._ensure_connected()
+                assert self._transport is not None
+                # Resume from last received sequence on reconnect
+                if last_sequence > 0:
+                    resume_sub = dataclasses.replace(
+                        subscription,
+                        events_store_type=EventStoreStartPosition.StartAtSequence,
+                        events_store_sequence_value=last_sequence + 1,
+                    )
+                    request = resume_sub.encode(self._config.client_id or "")
+                else:
+                    request = subscription.encode(self._config.client_id or "")
+                async for pb_event in self._transport.subscribe_to_events(request, token):
+                    attempt = 0
+                    received = EventStoreReceived.decode(pb_event)
+                    if received.sequence > 0:
+                        last_sequence = received.sequence
+                    yield received
+                # Stream ended -- loop back and re-subscribe unless cancelled.
+                if token.is_cancelled:
+                    return
+                _logger.warning(
+                    "EventStore fast-subscribe stream ended, reconnecting (attempt %d)",
+                    attempt + 1,
+                )
+                delay = backoff.delay_seconds(attempt)
+                attempt += 1
+                await asyncio.sleep(delay)
+                continue
+            except KubeMQClientClosedError:
+                raise
+            except KubeMQError as e:
+                if token.is_cancelled:
+                    return
+                if not e.is_retryable and not isinstance(e, KubeMQConnectionError):
+                    raise
+                _logger.warning(
+                    "EventStore fast-subscribe stream broken (attempt %d): %s",
+                    attempt + 1,
+                    e.message,
+                )
+                delay = backoff.delay_seconds(attempt)
+                attempt += 1
+                await asyncio.sleep(delay)
+            except Exception as e:
+                if token.is_cancelled:
+                    return
+                _logger.warning(
+                    "EventStore fast-subscribe error (attempt %d): %s",
+                    attempt + 1,
+                    e,
+                )
+                delay = backoff.delay_seconds(attempt)
+                attempt += 1
+                await asyncio.sleep(delay)
 
     async def subscribe_to_events_store(
         self,
@@ -776,6 +904,8 @@ class AsyncClient(NativeAsyncBaseClient):
         try:
             while not token.is_cancelled:
                 try:
+                    self._ensure_connected()
+                    assert self._transport is not None
                     if last_sequence > 0:
                         resume_sub = dataclasses.replace(
                             subscription,
@@ -861,10 +991,25 @@ class AsyncClient(NativeAsyncBaseClient):
 
                         yield event
 
-                    break  # clean stream exit
+                    # Stream ended -- loop back and re-subscribe unless cancelled.
+                    if token.is_cancelled:
+                        break
+                    _logger.debug(
+                        "EventStore subscribe stream ended, reconnecting (attempt %d)",
+                        attempt + 1,
+                    )
+                    delay = backoff.delay_seconds(attempt)
+                    attempt += 1
+                    await asyncio.sleep(delay)
+                    continue
+
+                except KubeMQClientClosedError:
+                    raise
 
                 except KubeMQError as e:
-                    if not e.is_retryable or token.is_cancelled:
+                    if token.is_cancelled:
+                        raise
+                    if not e.is_retryable and not isinstance(e, KubeMQConnectionError):
                         if subscription.on_error_callback:
                             error_msg = str(e)
                             if asyncio.iscoroutinefunction(subscription.on_error_callback):
@@ -986,6 +1131,8 @@ class AsyncClient(NativeAsyncBaseClient):
         try:
             while not token.is_cancelled:
                 try:
+                    self._ensure_connected()
+                    assert self._transport is not None
                     request = subscription.encode(self._config.client_id or "")
 
                     if max_concurrent_callbacks == 1:
@@ -1070,10 +1217,25 @@ class AsyncClient(NativeAsyncBaseClient):
                             pending_tasks.add(task)
                             task.add_done_callback(pending_tasks.discard)
 
-                    break  # clean stream exit
+                    # Stream ended -- loop back and re-subscribe unless cancelled.
+                    if token.is_cancelled:
+                        return
+                    _logger.debug(
+                        "Events callback stream ended, reconnecting (attempt %d)",
+                        attempt + 1,
+                    )
+                    delay = backoff.delay_seconds(attempt)
+                    attempt += 1
+                    await asyncio.sleep(delay)
+                    continue
+
+                except KubeMQClientClosedError:
+                    raise
 
                 except KubeMQError as e:
-                    if not e.is_retryable or token.is_cancelled:
+                    if token.is_cancelled:
+                        return
+                    if not e.is_retryable and not isinstance(e, KubeMQConnectionError):
                         if error_callback:
                             await error_callback(e)
                         else:
@@ -1182,6 +1344,8 @@ class AsyncClient(NativeAsyncBaseClient):
         try:
             while not token.is_cancelled:
                 try:
+                    self._ensure_connected()
+                    assert self._transport is not None
                     if last_sequence > 0:
                         resume_sub = dataclasses.replace(
                             subscription,
@@ -1276,10 +1440,25 @@ class AsyncClient(NativeAsyncBaseClient):
                             pending_tasks.add(task)
                             task.add_done_callback(pending_tasks.discard)
 
-                    break  # clean stream exit
+                    # Stream ended -- loop back and re-subscribe unless cancelled.
+                    if token.is_cancelled:
+                        return
+                    _logger.debug(
+                        "EventStore callback stream ended, reconnecting (attempt %d)",
+                        attempt + 1,
+                    )
+                    delay = backoff.delay_seconds(attempt)
+                    attempt += 1
+                    await asyncio.sleep(delay)
+                    continue
+
+                except KubeMQClientClosedError:
+                    raise
 
                 except KubeMQError as e:
-                    if not e.is_retryable or token.is_cancelled:
+                    if token.is_cancelled:
+                        return
+                    if not e.is_retryable and not isinstance(e, KubeMQConnectionError):
                         if error_callback:
                             await error_callback(e)
                         else:

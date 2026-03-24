@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from kubemq import Client, QueueMessage
+from kubemq.queues import Client as QueuesClient
+from kubemq import QueueMessage
 
 
 def main() -> None:
-    with Client(address="localhost:50000", client_id="python-queues-quickstart-client") as client:
+    with QueuesClient(address="localhost:50000", client_id="python-queues-quickstart-client") as client:
         # Send a message to the queue
         result = client.send_queue_message(
             QueueMessage(channel="python-quickstart-queue", body=b"Task #1")

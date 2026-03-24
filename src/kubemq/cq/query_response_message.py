@@ -53,7 +53,11 @@ class QueryResponse:
         )
 
     def encode(self, client_id: str) -> pbResponse:
-        """Encodes the query response message into a protocol buffer response."""
+        """Encodes the query response message into a protocol buffer response.
+
+        Returns:
+            The protobuf Response ready for transmission.
+        """
         if not self.query_received:
             raise ValueError("Query received is required for encoding.")
         if not self.query_received.id or self.query_received.id.strip() == "":

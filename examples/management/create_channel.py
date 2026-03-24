@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
-from kubemq import Client
+from kubemq.cq import Client as CQClient
+from kubemq.pubsub import Client as PubSubClient
+from kubemq.queues import Client as QueuesClient
 
 
 def main() -> None:
     # Create events channel
-    with Client(
+    with PubSubClient(
         address="localhost:50000",
         client_id="python-management-create-channel-client",
     ) as client:
@@ -24,7 +26,7 @@ def main() -> None:
             print(f"Error creating events store channel: {e}")
 
     # Create queues channel
-    with Client(
+    with QueuesClient(
         address="localhost:50000",
         client_id="python-management-create-channel-client",
     ) as client:
@@ -35,7 +37,7 @@ def main() -> None:
             print(f"Error creating queues channel: {e}")
 
     # Create CQ channels
-    with Client(
+    with CQClient(
         address="localhost:50000",
         client_id="python-management-create-channel-client",
     ) as client:

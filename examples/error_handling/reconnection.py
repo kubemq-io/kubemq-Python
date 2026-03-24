@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from kubemq import Client, ClientConfig, EventMessage, KeepAliveConfig
+from kubemq import ClientConfig, KeepAliveConfig
+from kubemq.pubsub import Client as PubSubClient, EventMessage
 
 
 def main() -> None:
@@ -24,7 +25,7 @@ def main() -> None:
     )
 
     try:
-        with Client(config=config) as client:
+        with PubSubClient(config=config) as client:
             info = client.ping()
             print(f"Connected to {info.host}")
             print(f"Auto-reconnect: {config.auto_reconnect}")

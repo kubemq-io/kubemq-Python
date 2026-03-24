@@ -39,7 +39,11 @@ class EventStoreReceived:
 
     @classmethod
     def decode(cls, event_receive: pbEventReceive) -> "EventStoreReceived":
-        """Decode a protobuf EventReceive into an EventStoreReceived."""
+        """Decode a protobuf EventReceive into an EventStoreReceived.
+
+        Returns:
+            A new EventStoreReceived instance populated from the protobuf message.
+        """
         from_client_id = (
             event_receive.Tags.get("x-kubemq-client-id", "") if event_receive.Tags else ""
         )
