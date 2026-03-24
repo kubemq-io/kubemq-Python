@@ -10,13 +10,6 @@ class QueuesStats:
         waiting (int): The number of messages waiting in the queue.
         expired (int): The number of messages that have expired.
         delayed (int): The number of delayed messages.
-
-    Methods:
-        __init__(messages: int, volume: int, waiting: int, expired: int, delayed: int, **kwargs)
-            Initializes the QueueStats object with the provided statistics.
-
-        __repr__()
-            Returns a string representation of the QueueStats object.
     """
 
     def __init__(
@@ -41,15 +34,6 @@ class QueuesStats:
 class QueuesChannel:
     """Represents a channel in a queueing system.
 
-    Args:
-        name (str): The name of the channel.
-        type (str): The type of the channel.
-        last_activity (int): The timestamp of the last activity on the channel.
-        is_active (bool): Indicates whether the channel is currently active or not.
-        incoming (QueuesStats): The statistics of incoming messages on the channel.
-        outgoing (QueuesStats): The statistics of outgoing messages on the channel.
-        **kwargs: Additional keyword arguments can be provided.
-
     Attributes:
         name (str): The name of the channel.
         type (str): The type of the channel.
@@ -57,13 +41,6 @@ class QueuesChannel:
         is_active (bool): Indicates whether the channel is currently active or not.
         incoming (QueuesStats): The statistics of incoming messages on the channel.
         outgoing (QueuesStats): The statistics of outgoing messages on the channel.
-
-    Returns:
-        str: A string representation of the QueuesChannel object.
-
-    Example:
-        channel = QueuesChannel("channel1", "type1", 1622014799, True, incoming_stats, outgoing_stats)
-        print(channel)
     """
 
     def __init__(
@@ -88,14 +65,11 @@ class QueuesChannel:
 
 
 class PubSubStats:
-    """Initialize the PubSubStats object with the number of messages and volume.
+    """Statistics for a pub/sub channel.
 
-    Args:
+    Attributes:
         messages (int): The number of messages.
         volume (int): The volume of the messages.
-
-    Returns:
-        None
     """
 
     def __init__(self, messages: int, volume: int, **kwargs: object) -> None:
@@ -137,13 +111,6 @@ class CQStats:
         messages (int): The number of messages in the queue.
         volume (int): The volume of the queue.
         responses (int): The number of responses in the queue.
-
-    Methods:
-        __init__(messages: int, volume: int, responses: int, **kwargs):
-            Initializes a new instance of the CQStats class.
-        __repr__():
-            Returns a string representation of the CQStats object.
-
     """
 
     def __init__(self, messages: int, volume: int, responses: int, **kwargs: object) -> None:

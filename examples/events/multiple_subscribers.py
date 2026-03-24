@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import time
 
-from kubemq import CancellationToken, Client, EventMessage, EventsSubscription
+from kubemq import CancellationToken, EventMessage, EventsSubscription
+from kubemq.pubsub import Client as PubSubClient
 
 
 def make_handler(name: str):  # type: ignore[no-untyped-def]
@@ -24,7 +25,7 @@ def on_error(error: str) -> None:
 def main() -> None:
     cancel = CancellationToken()
 
-    with Client(
+    with PubSubClient(
         address="localhost:50000",
         client_id="python-events-multiple-subscribers-client",
     ) as client:

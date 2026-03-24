@@ -30,6 +30,7 @@ from kubemq.core import BaseClient, ClientConfig
 from kubemq.core.compat import run_in_thread
 from kubemq.core.config import KeepAliveConfig, TLSConfig
 from kubemq.core.exceptions import (
+    ErrorCode,
     KubeMQHandlerError,
     KubeMQStreamBrokenError,
     KubeMQValidationError,
@@ -914,6 +915,7 @@ class Client(BaseClient):
                 lambda error: subscription.raise_on_error(error),
                 cancel_token_event,
                 channel,
+                transport,
             )
         if isinstance(subscription, EventsSubscription):
             args = (
@@ -924,6 +926,7 @@ class Client(BaseClient):
                 lambda error: subscription.raise_on_error(error),
                 cancel_token_event,
                 channel,
+                transport,
             )
         thread = threading.Thread(target=self._subscribe_task, args=args, daemon=True)
         self._register_subscription_thread(thread)
@@ -936,32 +939,63 @@ class Client(BaseClient):
         error_callable: Any,
         cancel_token: threading.Event,
         channel: str = "",
+        transport: Any = None,
     ) -> None:
         """Background subscription task with exponential backoff on stream breaks."""
         backoff = BackoffCalculator(self._config.retry_policy)
         attempt = 0
+        # PY-7: Track time of last successful message for backoff cooldown.
+        # Only reset backoff after sustained success (5 seconds of no errors).
+        _BACKOFF_COOLDOWN_SECONDS = 5.0
+        _last_error_time: float = 0.0
+        # PY-6: Track watcher thread and cancel event for cleanup.
+        _watcher_thread: threading.Thread | None = None
+        _watcher_cancel = threading.Event()
 
         while not cancel_token.is_set() and not self._shutdown_event.is_set():
             try:
+                # PY-2: Force channel rebuild on retry iterations to get a
+                # fresh gRPC channel instead of relying on transparent reconnect.
+                if attempt > 0 and transport is not None:
+                    try:
+                        transport.recreate_channel()
+                    except Exception:
+                        pass  # stream_callable will fail and trigger backoff
+
                 response = stream_callable()
+
+                # PY-6: Signal and join the old watcher thread before
+                # creating a new one to prevent thread leaks.
+                if _watcher_thread is not None:
+                    _watcher_cancel.set()
+                    _watcher_thread.join(timeout=2.0)
+                _watcher_cancel = threading.Event()
 
                 # Start a watcher thread to cancel the gRPC stream when
                 # the cancellation token or shutdown event fires.
-                def _cancel_watcher(resp=response):  # type: ignore[assignment]
-                    while not cancel_token.is_set() and not self._shutdown_event.is_set():
+                def _cancel_watcher(resp=response, stop=_watcher_cancel):  # type: ignore[assignment]
+                    while (
+                        not cancel_token.is_set()
+                        and not self._shutdown_event.is_set()
+                        and not stop.is_set()
+                    ):
                         cancel_token.wait(timeout=0.5)
                     try:
                         resp.cancel()
                     except Exception:
                         pass
 
-                watcher = threading.Thread(target=_cancel_watcher, daemon=True)
-                watcher.start()
+                _watcher_thread = threading.Thread(target=_cancel_watcher, daemon=True)
+                _watcher_thread.start()
 
                 for message in response:
                     if cancel_token.is_set():
                         break
-                    attempt = 0
+                    # PY-7: Only reset backoff after sustained success
+                    # (cooldown period with no errors), not after a single message.
+                    now = time.monotonic()
+                    if _last_error_time == 0.0 or (now - _last_error_time) >= _BACKOFF_COOLDOWN_SECONDS:
+                        attempt = 0
                     start = time.perf_counter()
                     error_type_val = None
                     tags_dict = dict(message.Tags) if hasattr(message, "Tags") else {}
@@ -994,6 +1028,7 @@ class Client(BaseClient):
                                 duration, "process", channel, error_type_val
                             )
             except grpc.RpcError as e:
+                _last_error_time = time.monotonic()  # PY-7
                 sdk_error = convert_grpc_error(e, operation="Subscribe")
                 stream_error = KubeMQStreamBrokenError(
                     f"Stream broken: {sdk_error.message}",
@@ -1003,7 +1038,11 @@ class Client(BaseClient):
                 )
                 error_callable(str(stream_error))
 
-                if not sdk_error.is_retryable:
+                # PY-1: Only break on truly fatal codes (auth/permission).
+                # Transient non-retryable codes like INTERNAL can occur
+                # during broker restarts and should be retried with backoff.
+                _FATAL_CODES = {ErrorCode.AUTH_FAILED, ErrorCode.PERMISSION_DENIED}
+                if not sdk_error.is_retryable and sdk_error.code in _FATAL_CODES:
                     break
 
                 delay = backoff.delay_seconds(attempt)
@@ -1011,6 +1050,7 @@ class Client(BaseClient):
                 cancel_token.wait(timeout=delay)
                 continue
             except Exception as e:
+                _last_error_time = time.monotonic()  # PY-7
                 error_callable(decode_grpc_error(e))
                 delay = backoff.delay_seconds(attempt)
                 attempt += 1

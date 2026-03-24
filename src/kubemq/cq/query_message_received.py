@@ -38,7 +38,11 @@ class QueryReceived:
 
     @classmethod
     def decode(cls, query_receive: pbRequest) -> "QueryReceived":
-        """Decodes a protobuf request object and returns a QueryReceived instance."""
+        """Decodes a protobuf request object and returns a QueryReceived instance.
+
+        Returns:
+            A new QueryReceived instance populated from the protobuf message.
+        """
         return cls(
             id=query_receive.RequestID,
             from_client_id=query_receive.ClientID,

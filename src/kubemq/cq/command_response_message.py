@@ -39,7 +39,11 @@ class CommandResponse:
         )
 
     def encode(self, client_id: str) -> pbResponse:
-        """Encode the response message to a protobuf Response."""
+        """Encode the response message to a protobuf Response.
+
+        Returns:
+            The protobuf Response ready for transmission.
+        """
         if not self.command_received:
             raise ValueError("Command received is required for encoding.")
         if not self.command_received.id or self.command_received.id.strip() == "":

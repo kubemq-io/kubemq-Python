@@ -38,7 +38,11 @@ class CommandReceived:
 
     @classmethod
     def decode(cls, command_receive: pbRequest) -> "CommandReceived":
-        """Decode a protobuf Request into a CommandReceived."""
+        """Decode a protobuf Request into a CommandReceived.
+
+        Returns:
+            A new CommandReceived instance populated from the protobuf message.
+        """
         return cls(
             id=command_receive.RequestID,
             from_client_id=command_receive.ClientID,

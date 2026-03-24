@@ -12,6 +12,9 @@ from typing import (
 )
 
 
+import logging
+
+from kubemq._internal.retry import BackoffCalculator
 from kubemq._internal.telemetry import (
     KubeMQTagsCarrier,
     create_link_from_context,
@@ -21,7 +24,7 @@ from kubemq._internal.telemetry import (
 from kubemq.common.async_cancellation_token import AsyncCancellationToken
 from kubemq.core.client import NativeAsyncBaseClient
 from kubemq.core.config import ClientConfig
-from kubemq.core.exceptions import KubeMQValidationError
+from kubemq.core.exceptions import KubeMQClientClosedError, KubeMQConnectionError, KubeMQError, KubeMQValidationError
 from kubemq.cq.command_message import CommandMessage
 from kubemq.cq.command_message_received import CommandReceived
 from kubemq.cq.command_response_message import CommandResponse
@@ -33,6 +36,8 @@ from kubemq.cq.query_response_message import QueryResponse
 
 if TYPE_CHECKING:
     pass
+
+_logger = logging.getLogger("kubemq.cq.async_client")
 
 # Type aliases for callbacks
 AsyncCommandCallback = Callable[[CommandReceived], Awaitable[None]]
@@ -519,26 +524,112 @@ class AsyncClient(NativeAsyncBaseClient):
         subscription: CommandsSubscription,
         cancellation_token: AsyncCancellationToken | None = None,
     ) -> AsyncIterator[CommandReceived]:
-        """Subscribe to commands — fast path, no instrumentation per message."""
-        self._ensure_connected()
-        assert self._transport is not None
+        """Subscribe to commands -- fast path with automatic reconnection."""
         token = cancellation_token or AsyncCancellationToken()
-        request = subscription.encode(self._config.client_id or "")
-        async for pb_request in self._transport.subscribe_to_requests(request, token):
-            yield CommandReceived.decode(pb_request)
+        backoff = BackoffCalculator(self._config.retry_policy)
+        attempt = 0
+
+        while not token.is_cancelled:
+            try:
+                self._ensure_connected()
+                assert self._transport is not None
+                request = subscription.encode(self._config.client_id or "")
+                async for pb_request in self._transport.subscribe_to_requests(request, token):
+                    attempt = 0
+                    yield CommandReceived.decode(pb_request)
+                # Stream ended -- loop back and re-subscribe unless cancelled.
+                if token.is_cancelled:
+                    return
+                _logger.warning(
+                    "Commands fast-subscribe stream ended, reconnecting (attempt %d)",
+                    attempt + 1,
+                )
+                delay = backoff.delay_seconds(attempt)
+                attempt += 1
+                await asyncio.sleep(delay)
+                continue
+            except KubeMQClientClosedError:
+                raise
+            except KubeMQError as e:
+                if token.is_cancelled:
+                    return
+                if not e.is_retryable and not isinstance(e, KubeMQConnectionError):
+                    raise
+                _logger.warning(
+                    "Commands fast-subscribe stream broken (attempt %d): %s",
+                    attempt + 1,
+                    e.message,
+                )
+                delay = backoff.delay_seconds(attempt)
+                attempt += 1
+                await asyncio.sleep(delay)
+            except Exception as e:
+                if token.is_cancelled:
+                    return
+                _logger.warning(
+                    "Commands fast-subscribe error (attempt %d): %s",
+                    attempt + 1,
+                    e,
+                )
+                delay = backoff.delay_seconds(attempt)
+                attempt += 1
+                await asyncio.sleep(delay)
 
     async def subscribe_to_queries_fast(
         self,
         subscription: QueriesSubscription,
         cancellation_token: AsyncCancellationToken | None = None,
     ) -> AsyncIterator[QueryReceived]:
-        """Subscribe to queries — fast path, no instrumentation per message."""
-        self._ensure_connected()
-        assert self._transport is not None
+        """Subscribe to queries -- fast path with automatic reconnection."""
         token = cancellation_token or AsyncCancellationToken()
-        request = subscription.encode(self._config.client_id or "")
-        async for pb_request in self._transport.subscribe_to_requests(request, token):
-            yield QueryReceived.decode(pb_request)
+        backoff = BackoffCalculator(self._config.retry_policy)
+        attempt = 0
+
+        while not token.is_cancelled:
+            try:
+                self._ensure_connected()
+                assert self._transport is not None
+                request = subscription.encode(self._config.client_id or "")
+                async for pb_request in self._transport.subscribe_to_requests(request, token):
+                    attempt = 0
+                    yield QueryReceived.decode(pb_request)
+                # Stream ended -- loop back and re-subscribe unless cancelled.
+                if token.is_cancelled:
+                    return
+                _logger.warning(
+                    "Queries fast-subscribe stream ended, reconnecting (attempt %d)",
+                    attempt + 1,
+                )
+                delay = backoff.delay_seconds(attempt)
+                attempt += 1
+                await asyncio.sleep(delay)
+                continue
+            except KubeMQClientClosedError:
+                raise
+            except KubeMQError as e:
+                if token.is_cancelled:
+                    return
+                if not e.is_retryable and not isinstance(e, KubeMQConnectionError):
+                    raise
+                _logger.warning(
+                    "Queries fast-subscribe stream broken (attempt %d): %s",
+                    attempt + 1,
+                    e.message,
+                )
+                delay = backoff.delay_seconds(attempt)
+                attempt += 1
+                await asyncio.sleep(delay)
+            except Exception as e:
+                if token.is_cancelled:
+                    return
+                _logger.warning(
+                    "Queries fast-subscribe error (attempt %d): %s",
+                    attempt + 1,
+                    e,
+                )
+                delay = backoff.delay_seconds(attempt)
+                attempt += 1
+                await asyncio.sleep(delay)
 
     async def subscribe_to_commands(
         self,
@@ -640,6 +731,8 @@ class AsyncClient(NativeAsyncBaseClient):
 
                 yield command
 
+        except asyncio.CancelledError:
+            _logger.debug("Command subscription cancelled")
         except Exception as e:
             if subscription.on_error_callback:
                 error_msg = str(e)
@@ -748,6 +841,8 @@ class AsyncClient(NativeAsyncBaseClient):
 
                 yield query
 
+        except asyncio.CancelledError:
+            _logger.debug("Query subscription cancelled")
         except Exception as e:
             if subscription.on_error_callback:
                 error_msg = str(e)

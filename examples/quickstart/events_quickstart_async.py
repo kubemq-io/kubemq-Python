@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import asyncio
 
-from kubemq import AsyncClient, EventMessage
+from kubemq import EventMessage
+from kubemq.pubsub import AsyncClient as AsyncPubSubClient
 
 
 async def main() -> None:
-    async with AsyncClient(address="localhost:50000", client_id="python-events-quickstart-async-client") as client:
+    async with AsyncPubSubClient(address="localhost:50000", client_id="python-events-quickstart-async-client") as client:
         await client.send_event(EventMessage(channel="python-quickstart", body=b"Hello async KubeMQ!"))
         print("Async event sent!")
 

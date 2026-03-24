@@ -92,7 +92,11 @@ class QueueMessage:
 
     # Encoding methods
     def encode(self, client_id: str) -> pbQueuesUpstreamRequest:
-        """Encode the message to a QueuesUpstreamRequest protobuf object."""
+        """Encode the message to a QueuesUpstreamRequest protobuf object.
+
+        Returns:
+            The protobuf QueuesUpstreamRequest ready for transmission.
+        """
         pb_queue_stream = pbQueuesUpstreamRequest()
         pb_queue_stream.RequestID = fast_id()
         pb_message = self.encode_message(client_id)
@@ -134,7 +138,11 @@ class QueueMessage:
 
     # Utility methods
     def with_updates(self, **kwargs: Any) -> QueueMessage:
-        """Create a new QueueMessage with updated values."""
+        """Create a new QueueMessage with updated values.
+
+        Returns:
+            A new QueueMessage with the specified fields replaced.
+        """
         return dataclasses.replace(self, **kwargs)
 
     def __str__(self) -> str:

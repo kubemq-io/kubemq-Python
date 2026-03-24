@@ -1,12 +1,12 @@
 import logging
 import time
 
-from kubemq import Client
+from kubemq.queues import Client as QueuesClient
 
 
 def main():
     try:
-        client = Client(
+        client = QueuesClient(
             address="localhost:50000",
             client_id="python-client-test-client",
             log_level=logging.DEBUG,

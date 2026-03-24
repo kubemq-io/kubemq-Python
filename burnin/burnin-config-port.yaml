@@ -111,3 +111,7 @@ warmup:
 
 cors:
   origins: "*"
+
+api:
+  port: 8889
+  enabled: true

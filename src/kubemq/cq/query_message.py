@@ -66,7 +66,11 @@ class QueryMessage:
             raise ValueError("cache_ttl_in_seconds must be > 0 when cache_key is set.")
 
     def encode(self, client_id: str, *, span: bytes = b"") -> pbQuery:
-        """Encode the query message to a protobuf Request."""
+        """Encode the query message to a protobuf Request.
+
+        Returns:
+            The protobuf Request ready for transmission.
+        """
         pb_query = pbQuery()
         pb_query.RequestID = self.id or fast_id()
         pb_query.ClientID = client_id
@@ -84,7 +88,11 @@ class QueryMessage:
         return pb_query
 
     def with_updates(self, **kwargs: Any) -> Self:
-        """Create a new message with updated values."""
+        """Create a new message with updated values.
+
+        Returns:
+            A new QueryMessage with the specified fields replaced.
+        """
         return dataclasses.replace(self, **kwargs)
 
     def __repr__(self) -> str:

@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
-from kubemq import Client
+from kubemq.cq import Client as CQClient
+from kubemq.pubsub import Client as PubSubClient
+from kubemq.queues import Client as QueuesClient
 
 
 def main() -> None:
     # Delete events channels
-    with Client(
+    with PubSubClient(
         address="localhost:50000",
         client_id="python-management-delete-channel-client",
     ) as client:
@@ -24,7 +26,7 @@ def main() -> None:
             print(f"Error deleting events store channel: {e}")
 
     # Delete queues channel
-    with Client(
+    with QueuesClient(
         address="localhost:50000",
         client_id="python-management-delete-channel-client",
     ) as client:
@@ -35,7 +37,7 @@ def main() -> None:
             print(f"Error deleting queues channel: {e}")
 
     # Delete CQ channels
-    with Client(
+    with CQClient(
         address="localhost:50000",
         client_id="python-management-delete-channel-client",
     ) as client:

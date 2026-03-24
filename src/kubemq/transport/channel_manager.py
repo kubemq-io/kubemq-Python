@@ -146,17 +146,23 @@ class ChannelManager:
         Returns:
             kubemq_pb2_grpc.kubemqStub: New client instance
         """
+        self.logger.info("Starting channel recreation process")
+        self.connection_state.set_connected(False)
+
+        # Check if auto-reconnect is disabled
+        if self._connection.disable_auto_reconnect:
+            self.logger.warning(
+                "Auto-reconnect is disabled, not attempting to recreate channel"
+            )
+            raise ConnectionError("Auto-reconnect is disabled by configuration")
+
+        # PY-3: Sleep OUTSIDE the lock to avoid blocking other components
+        # (e.g., senders and receivers) that share the same channel lock.
+        reconnect_seconds = self._connection.reconnect_interval_seconds
+        self.logger.info(f"Waiting {reconnect_seconds} seconds before reconnection")
+        time.sleep(reconnect_seconds)
+
         with self._channel_lock:
-            self.logger.info("Starting channel recreation process")
-            self.connection_state.set_connected(False)
-
-            # Check if auto-reconnect is disabled
-            if self._connection.disable_auto_reconnect:
-                self.logger.warning(
-                    "Auto-reconnect is disabled, not attempting to recreate channel"
-                )
-                raise ConnectionError("Auto-reconnect is disabled by configuration")
-
             # Close existing channel if exists
             if self._channel is not None:
                 try:
@@ -165,11 +171,6 @@ class ChannelManager:
                     self.logger.warning(f"Error closing existing channel: {str(e)}")
                 self._channel = None
                 self._client = None
-
-            reconnect_seconds = self._connection.reconnect_interval_seconds
-
-            self.logger.info(f"Waiting {reconnect_seconds} seconds before reconnection")
-            time.sleep(reconnect_seconds)
 
             # Recreate channel with existing credentials and options
             try:

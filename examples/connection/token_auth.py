@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from kubemq import Client, EventMessage
+from kubemq.pubsub import Client as PubSubClient, EventMessage
 
 
 def main() -> None:
-    with Client(
+    with PubSubClient(
         address="localhost:50000",
         auth_token="your-authentication-token",
         client_id="python-connection-token-auth-client",

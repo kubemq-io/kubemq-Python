@@ -48,7 +48,11 @@ class EventStoreMessage:
             )
 
     def encode(self, client_id: str) -> pbEvent:
-        """Encode the event store message to a protobuf Event."""
+        """Encode the event store message to a protobuf Event.
+
+        Returns:
+            The protobuf Event ready for transmission.
+        """
         pb_event = pbEvent()
         pb_event.EventID = self.id or fast_id()
         pb_event.ClientID = client_id
@@ -60,5 +64,9 @@ class EventStoreMessage:
         return pb_event
 
     def with_updates(self, **kwargs: object) -> Self:
-        """Create a new message with updated values."""
+        """Create a new message with updated values.
+
+        Returns:
+            A new EventStoreMessage with the specified fields replaced.
+        """
         return dataclasses.replace(self, **kwargs)

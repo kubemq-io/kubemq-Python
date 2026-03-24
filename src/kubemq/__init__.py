@@ -60,8 +60,6 @@ from importlib.metadata import version as _metadata_version
 # Logging implementations
 from kubemq._internal.logging import NoOpLogger, StdLibLoggerAdapter
 
-# Unified clients (PY-01)
-from kubemq.async_unified_client import AsyncClient
 
 # Async cancellation token
 from kubemq.common.async_cancellation_token import AsyncCancellationToken
@@ -169,7 +167,6 @@ from kubemq.queues.queues_message import QueueMessage
 from kubemq.queues.queues_message_received import QueueMessageReceived
 from kubemq.queues.queues_poll_response import QueuesPollResponse
 from kubemq.queues.queues_send_result import QueueSendResult
-from kubemq.unified_client import Client
 
 # Version — single source of truth from pyproject.toml via installed metadata
 __version__: str
@@ -181,9 +178,6 @@ except Exception:
 __all__ = [
     # Version
     "__version__",
-    # Unified clients (PY-01)
-    "Client",
-    "AsyncClient",
     # Core exceptions and error types
     "ErrorCode",
     "ErrorCategory",

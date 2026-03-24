@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from kubemq import Client, EventMessage
+from kubemq.pubsub import Client as PubSubClient, EventMessage
 
 
 def main() -> None:
-    client = Client(
+    client = PubSubClient(
         address="localhost:50000",
         client_id="python-connection-close-client",
     )

@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from kubemq import Client, ClientConfig, CommandMessage, KeepAliveConfig
+from kubemq import ClientConfig, KeepAliveConfig
+from kubemq.cq import Client as CQClient, CommandMessage
 
 
 def main() -> None:
@@ -18,7 +19,7 @@ def main() -> None:
         ),
     )
 
-    with Client(config=config) as client:
+    with CQClient(config=config) as client:
         info = client.ping()
         print(f"Connected to {info.host} with custom timeouts")
 
