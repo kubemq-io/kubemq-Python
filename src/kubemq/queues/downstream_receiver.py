@@ -258,8 +258,10 @@ class DownstreamReceiver:
                     self.allow_new_requests = False
                 return False
             else:
+                # PY-4: When auto-reconnect is enabled, return True so the
+                # outer loop continues retrying instead of giving up.
                 self.logger.error(f"Connection error: {str(conn_ex)}")
-                return False
+                return True
         except Exception as channel_ex:
             self.logger.error(
                 f"Failed to recreate channel: {str(channel_ex)}, type: {type(channel_ex).__name__}"

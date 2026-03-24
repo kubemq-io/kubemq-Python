@@ -720,9 +720,15 @@ class AsyncTransport:
                     break
                 yield event
 
+        except asyncio.CancelledError:
+            # CancelledError is expected when the cancellation token fires
+            # and the watchdog cancels the gRPC call.
+            self._logger.debug("Subscription cancelled (asyncio.CancelledError)")
         except grpc.aio.AioRpcError as e:
             # CANCELLED is expected during shutdown/cancellation
             if e.code() != grpc.StatusCode.CANCELLED:
+                if self._is_connection_error(e):
+                    await self._on_connection_lost()
                 raise from_grpc_error(e) from e
         finally:
             if cancel_watchdog and not cancel_watchdog.done():
@@ -770,8 +776,12 @@ class AsyncTransport:
                     break
                 yield req
 
+        except asyncio.CancelledError:
+            self._logger.debug("Request subscription cancelled (asyncio.CancelledError)")
         except grpc.aio.AioRpcError as e:
             if e.code() != grpc.StatusCode.CANCELLED:
+                if self._is_connection_error(e):
+                    await self._on_connection_lost()
                 raise from_grpc_error(e) from e
         finally:
             if cancel_watchdog and not cancel_watchdog.done():
@@ -946,6 +956,8 @@ class AsyncTransport:
                 if self._closing:
                     break
                 yield response
+        except asyncio.CancelledError:
+            self._logger.debug("Upstream queue stream cancelled")
         except grpc.aio.AioRpcError as e:
             if e.code() != grpc.StatusCode.CANCELLED:
                 raise from_grpc_error(e) from e
@@ -979,6 +991,8 @@ class AsyncTransport:
                 if self._closing:
                     break
                 yield response
+        except asyncio.CancelledError:
+            self._logger.debug("Downstream queue stream cancelled")
         except grpc.aio.AioRpcError as e:
             if e.code() != grpc.StatusCode.CANCELLED:
                 raise from_grpc_error(e) from e

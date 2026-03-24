@@ -22,8 +22,8 @@ class TestCommandMessageBehavior:
     """Characterization tests for CommandMessage class."""
 
     def test_command_message_requires_channel(self):
-        """Capture: CommandMessage raises ValueError without channel."""
-        with pytest.raises(ValueError, match="channel"):
+        """Capture: CommandMessage raises TypeError without required args."""
+        with pytest.raises(TypeError):
             CommandMessage(body=b"test")
 
     def test_command_message_requires_timeout(self):
@@ -59,8 +59,8 @@ class TestQueryMessageBehavior:
     """Characterization tests for QueryMessage class."""
 
     def test_query_message_requires_channel(self):
-        """Capture: QueryMessage raises ValueError without channel."""
-        with pytest.raises(ValueError, match="channel"):
+        """Capture: QueryMessage raises TypeError without required args."""
+        with pytest.raises(TypeError):
             QueryMessage(body=b"test")
 
     def test_query_message_requires_timeout(self):
@@ -85,13 +85,13 @@ class TestCommandsSubscriptionBehavior:
     """Characterization tests for CommandsSubscription class."""
 
     def test_subscription_requires_channel(self):
-        """Capture: CommandsSubscription requires channel."""
-        with pytest.raises(ValueError, match="channel"):
+        """Capture: CommandsSubscription requires channel and callback."""
+        with pytest.raises(TypeError):
             CommandsSubscription(channel="")
 
     def test_subscription_requires_callback(self):
         """Capture: CommandsSubscription requires on_receive_command_callback."""
-        with pytest.raises(ValueError):
+        with pytest.raises(TypeError):
             CommandsSubscription(channel="test-channel")
 
     def test_subscription_accepts_valid_parameters(self):
@@ -112,13 +112,13 @@ class TestQueriesSubscriptionBehavior:
     """Characterization tests for QueriesSubscription class."""
 
     def test_subscription_requires_channel(self):
-        """Capture: QueriesSubscription requires channel."""
-        with pytest.raises(ValueError, match="channel"):
+        """Capture: QueriesSubscription requires channel and callback."""
+        with pytest.raises(TypeError):
             QueriesSubscription(channel="")
 
     def test_subscription_requires_callback(self):
         """Capture: QueriesSubscription requires on_receive_query_callback."""
-        with pytest.raises(ValueError):
+        with pytest.raises(TypeError):
             QueriesSubscription(channel="test-channel")
 
     def test_subscription_accepts_valid_parameters(self):

@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from kubemq import Client, CommandMessage
+from kubemq.cq import Client as CQClient, CommandMessage
 
 
 def main() -> None:
-    with Client(
+    with CQClient(
         address="localhost:50000",
         client_id="python-commands-command-timeout-client",
     ) as client:

@@ -51,7 +51,11 @@ class CommandMessage:
             )
 
     def encode(self, client_id: str, *, span: bytes = b"") -> pbCommand:
-        """Encode the command message to a protobuf Request."""
+        """Encode the command message to a protobuf Request.
+
+        Returns:
+            The protobuf Request ready for transmission.
+        """
         pb_command = pbCommand()
         pb_command.RequestID = self.id or fast_id()
         pb_command.ClientID = client_id
@@ -67,7 +71,11 @@ class CommandMessage:
         return pb_command
 
     def with_updates(self, **kwargs: Any) -> Self:
-        """Create a new message with updated values."""
+        """Create a new message with updated values.
+
+        Returns:
+            A new CommandMessage with the specified fields replaced.
+        """
         return dataclasses.replace(self, **kwargs)
 
     def __repr__(self) -> str:

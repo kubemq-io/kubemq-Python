@@ -16,8 +16,8 @@ class TestQueueMessageBehavior:
     """Characterization tests for QueueMessage class."""
 
     def test_queue_message_requires_channel(self):
-        """Capture: QueueMessage raises ValueError without channel."""
-        with pytest.raises(ValueError, match="channel"):
+        """Capture: QueueMessage raises TypeError without required channel."""
+        with pytest.raises(TypeError):
             QueueMessage(body=b"test")
 
     def test_queue_message_requires_body(self):

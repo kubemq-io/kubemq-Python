@@ -393,7 +393,7 @@ class TestAsyncQueuesClientMessageAttributes:
             message = QueueMessage(
                 channel=unique_channel,
                 body=b"expiring message",
-                policy_expiration_seconds=60,
+                expiration_in_seconds=60,
             )
 
             result = await client.send_queue_message(message)
@@ -409,7 +409,7 @@ class TestAsyncQueuesClientMessageAttributes:
             message = QueueMessage(
                 channel=unique_channel,
                 body=b"delayed message",
-                policy_delay_seconds=1,
+                delay_in_seconds=1,
             )
 
             result = await client.send_queue_message(message)

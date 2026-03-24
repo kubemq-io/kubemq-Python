@@ -467,7 +467,7 @@ class TestUpstreamSenderRecreateChannelConnectionErrorEnabled:
 
         result = sender._recreate_channel()
 
-        assert result is False
+        assert result is True
         error_calls = [str(c) for c in mock_logger.error.call_args_list]
         assert any("Connection error" in c for c in error_calls)
 

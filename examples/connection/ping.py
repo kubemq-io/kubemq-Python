@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from kubemq import Client
+from kubemq.queues import Client as QueuesClient
 
 
 def main() -> None:
-    with Client(
+    with QueuesClient(
         address="localhost:50000",
         client_id="python-connection-ping-client",
     ) as client:

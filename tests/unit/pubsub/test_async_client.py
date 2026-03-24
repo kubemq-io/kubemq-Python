@@ -196,8 +196,12 @@ class TestAsyncClientSubscription:
         client._transport = mock_transport
         client._connected = True  # type: ignore[attr-defined]
 
-        # Make the transport return an async iterator directly (not a coroutine)
-        mock_transport.subscribe_to_events = MagicMock(return_value=AsyncIteratorMock([]))
+        token = AsyncCancellationToken()
+
+        # Make the transport return an async iterator that cancels the token when exhausted
+        mock_transport.subscribe_to_events = MagicMock(
+            return_value=CancellingAsyncIteratorMock([], token)
+        )
 
         subscription = EventsSubscription(
             channel="test",
@@ -205,7 +209,7 @@ class TestAsyncClientSubscription:
         )
 
         # Should not raise
-        async for _ in client.subscribe_to_events(subscription):
+        async for _ in client.subscribe_to_events(subscription, cancellation_token=token):
             pass
 
 
@@ -267,6 +271,24 @@ class AsyncIteratorMock:
         try:
             return next(self.items)
         except StopIteration:
+            raise StopAsyncIteration
+
+
+class CancellingAsyncIteratorMock:
+    """Mock async iterator that cancels a token after yielding all items."""
+
+    def __init__(self, items, token: AsyncCancellationToken):
+        self.items = iter(items)
+        self.token = token
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        try:
+            return next(self.items)
+        except StopIteration:
+            self.token.cancel()
             raise StopAsyncIteration
 
 
@@ -370,6 +392,8 @@ class TestAsyncClientSubscribeToEventsStore:
         client._transport = mock_transport
         client._connected = True  # type: ignore[attr-defined]
 
+        token = AsyncCancellationToken()
+
         # Create mock protobuf events
         mock_pb_event = MagicMock()
         mock_pb_event.EventID = "event-123"
@@ -380,9 +404,9 @@ class TestAsyncClientSubscribeToEventsStore:
         mock_pb_event.Sequence = 1
         mock_pb_event.Tags = {}
 
-        # Make the transport return an async iterator
+        # Make the transport return an async iterator that cancels the token when done
         mock_transport.subscribe_to_events = MagicMock(
-            return_value=AsyncIteratorMock([mock_pb_event])
+            return_value=CancellingAsyncIteratorMock([mock_pb_event], token)
         )
 
         subscription = EventsStoreSubscription(
@@ -392,7 +416,7 @@ class TestAsyncClientSubscribeToEventsStore:
         )
 
         events = []
-        async for event in client.subscribe_to_events_store(subscription):
+        async for event in client.subscribe_to_events_store(subscription, cancellation_token=token):
             events.append(event)
 
         assert len(events) == 1
@@ -424,6 +448,8 @@ class TestAsyncClientSubscribeWithCallback:
         client._transport = mock_transport
         client._connected = True  # type: ignore[attr-defined]
 
+        token = AsyncCancellationToken()
+
         # Create mock protobuf event
         mock_pb_event = MagicMock()
         mock_pb_event.EventID = "event-123"
@@ -433,7 +459,7 @@ class TestAsyncClientSubscribeWithCallback:
         mock_pb_event.Tags = {}
 
         mock_transport.subscribe_to_events = MagicMock(
-            return_value=AsyncIteratorMock([mock_pb_event])
+            return_value=CancellingAsyncIteratorMock([mock_pb_event], token)
         )
 
         subscription = EventsSubscription(
@@ -446,7 +472,7 @@ class TestAsyncClientSubscribeWithCallback:
         async def callback(event):
             received_events.append(event)
 
-        await client.subscribe_with_callback(subscription, callback)
+        await client.subscribe_with_callback(subscription, callback, cancellation_token=token)
 
         assert len(received_events) == 1
 
@@ -516,6 +542,8 @@ class TestAsyncClientSubscribeStoreWithCallback:
         client._transport = mock_transport
         client._connected = True  # type: ignore[attr-defined]
 
+        token = AsyncCancellationToken()
+
         # Create mock protobuf event
         mock_pb_event = MagicMock()
         mock_pb_event.EventID = "event-123"
@@ -527,7 +555,7 @@ class TestAsyncClientSubscribeStoreWithCallback:
         mock_pb_event.Tags = {}
 
         mock_transport.subscribe_to_events = MagicMock(
-            return_value=AsyncIteratorMock([mock_pb_event])
+            return_value=CancellingAsyncIteratorMock([mock_pb_event], token)
         )
 
         subscription = EventsStoreSubscription(
@@ -541,7 +569,7 @@ class TestAsyncClientSubscribeStoreWithCallback:
         async def callback(event):
             received_events.append(event)
 
-        await client.subscribe_store_with_callback(subscription, callback)
+        await client.subscribe_store_with_callback(subscription, callback, cancellation_token=token)
 
         assert len(received_events) == 1
         assert received_events[0].id == "event-123"
@@ -557,6 +585,8 @@ class TestAsyncClientSubscriptionCallbackHandling:
         client._transport = mock_transport
         client._connected = True  # type: ignore[attr-defined]
 
+        token = AsyncCancellationToken()
+
         # Create mock protobuf event
         mock_pb_event = MagicMock()
         mock_pb_event.EventID = "event-123"
@@ -566,7 +596,7 @@ class TestAsyncClientSubscriptionCallbackHandling:
         mock_pb_event.Tags = {}
 
         mock_transport.subscribe_to_events = MagicMock(
-            return_value=AsyncIteratorMock([mock_pb_event])
+            return_value=CancellingAsyncIteratorMock([mock_pb_event], token)
         )
 
         received_events = []
@@ -579,7 +609,7 @@ class TestAsyncClientSubscriptionCallbackHandling:
             on_receive_event_callback=sync_callback,
         )
 
-        async for _ in client.subscribe_to_events(subscription):
+        async for _ in client.subscribe_to_events(subscription, cancellation_token=token):
             pass
 
         assert len(received_events) == 1
@@ -591,6 +621,8 @@ class TestAsyncClientSubscriptionCallbackHandling:
         client._transport = mock_transport
         client._connected = True  # type: ignore[attr-defined]
 
+        token = AsyncCancellationToken()
+
         # Create mock protobuf event
         mock_pb_event = MagicMock()
         mock_pb_event.EventID = "event-123"
@@ -600,7 +632,7 @@ class TestAsyncClientSubscriptionCallbackHandling:
         mock_pb_event.Tags = {}
 
         mock_transport.subscribe_to_events = MagicMock(
-            return_value=AsyncIteratorMock([mock_pb_event])
+            return_value=CancellingAsyncIteratorMock([mock_pb_event], token)
         )
 
         received_events = []
@@ -613,7 +645,7 @@ class TestAsyncClientSubscriptionCallbackHandling:
             on_receive_event_callback=async_callback,
         )
 
-        async for _ in client.subscribe_to_events(subscription):
+        async for _ in client.subscribe_to_events(subscription, cancellation_token=token):
             pass
 
         assert len(received_events) == 1
@@ -724,6 +756,8 @@ class TestAsyncClientSubscribeToEventsYield:
         client._transport = mock_transport
         client._connected = True  # type: ignore[attr-defined]
 
+        token = AsyncCancellationToken()
+
         mock_pb_event = MagicMock()
         mock_pb_event.EventID = "event-123"
         mock_pb_event.Channel = "test-channel"
@@ -732,7 +766,7 @@ class TestAsyncClientSubscribeToEventsYield:
         mock_pb_event.Tags = {"key": "value"}
 
         mock_transport.subscribe_to_events = MagicMock(
-            return_value=AsyncIteratorMock([mock_pb_event])
+            return_value=CancellingAsyncIteratorMock([mock_pb_event], token)
         )
 
         subscription = EventsSubscription(
@@ -741,7 +775,7 @@ class TestAsyncClientSubscribeToEventsYield:
         )
 
         events = []
-        async for event in client.subscribe_to_events(subscription):
+        async for event in client.subscribe_to_events(subscription, cancellation_token=token):
             events.append(event)
 
         assert len(events) == 1
@@ -760,6 +794,8 @@ class TestAsyncClientSubscribeToEventsYield:
         client._transport = mock_transport
         client._connected = True  # type: ignore[attr-defined]
 
+        token = AsyncCancellationToken()
+
         mock_pb_event = MagicMock()
         mock_pb_event.EventID = "es-789"
         mock_pb_event.Channel = "store-channel"
@@ -775,7 +811,7 @@ class TestAsyncClientSubscribeToEventsYield:
             received.append(event)
 
         mock_transport.subscribe_to_events = MagicMock(
-            return_value=AsyncIteratorMock([mock_pb_event])
+            return_value=CancellingAsyncIteratorMock([mock_pb_event], token)
         )
 
         subscription = EventsStoreSubscription(
@@ -785,7 +821,7 @@ class TestAsyncClientSubscribeToEventsYield:
         )
 
         events = []
-        async for event in client.subscribe_to_events_store(subscription):
+        async for event in client.subscribe_to_events_store(subscription, cancellation_token=token):
             events.append(event)
 
         assert len(events) == 1
@@ -806,6 +842,8 @@ class TestAsyncClientSubscribeWithCallbackConcurrent:
         client._transport = mock_transport
         client._connected = True  # type: ignore[attr-defined]
 
+        token = AsyncCancellationToken()
+
         pb_events = []
         for i in range(5):
             ev = MagicMock()
@@ -816,7 +854,9 @@ class TestAsyncClientSubscribeWithCallbackConcurrent:
             ev.Tags = {}
             pb_events.append(ev)
 
-        mock_transport.subscribe_to_events = MagicMock(return_value=AsyncIteratorMock(pb_events))
+        mock_transport.subscribe_to_events = MagicMock(
+            return_value=CancellingAsyncIteratorMock(pb_events, token)
+        )
 
         received = []
 
@@ -826,6 +866,7 @@ class TestAsyncClientSubscribeWithCallbackConcurrent:
         await client.subscribe_with_callback(
             EventsSubscription(channel="ch", on_receive_event_callback=lambda e: None),
             callback,
+            cancellation_token=token,
             max_concurrent_callbacks=3,
         )
 
@@ -840,6 +881,8 @@ class TestAsyncClientSubscribeWithCallbackConcurrent:
         client._transport = mock_transport
         client._connected = True  # type: ignore[attr-defined]
 
+        token = AsyncCancellationToken()
+
         pb_events = []
         for i in range(5):
             ev = MagicMock()
@@ -852,7 +895,9 @@ class TestAsyncClientSubscribeWithCallbackConcurrent:
             ev.Tags = {}
             pb_events.append(ev)
 
-        mock_transport.subscribe_to_events = MagicMock(return_value=AsyncIteratorMock(pb_events))
+        mock_transport.subscribe_to_events = MagicMock(
+            return_value=CancellingAsyncIteratorMock(pb_events, token)
+        )
 
         received = []
 
@@ -862,6 +907,7 @@ class TestAsyncClientSubscribeWithCallbackConcurrent:
         await client.subscribe_store_with_callback(
             EventsStoreSubscription(channel="store-ch", on_receive_event_callback=lambda e: None, events_store_type=EventStoreStartPosition.StartFromNew),
             callback,
+            cancellation_token=token,
             max_concurrent_callbacks=3,
         )
 
@@ -958,6 +1004,8 @@ class TestAsyncClientSubscribeHandlerErrorIsolation:
         client._transport = mock_transport
         client._connected = True  # type: ignore[attr-defined]
 
+        token = AsyncCancellationToken()
+
         mock_pb_event = MagicMock()
         mock_pb_event.EventID = "err-1"
         mock_pb_event.Channel = "ch"
@@ -966,7 +1014,7 @@ class TestAsyncClientSubscribeHandlerErrorIsolation:
         mock_pb_event.Tags = {}
 
         mock_transport.subscribe_to_events = MagicMock(
-            return_value=AsyncIteratorMock([mock_pb_event])
+            return_value=CancellingAsyncIteratorMock([mock_pb_event], token)
         )
 
         errors = []
@@ -981,6 +1029,7 @@ class TestAsyncClientSubscribeHandlerErrorIsolation:
             EventsSubscription(channel="ch", on_receive_event_callback=lambda e: None),
             bad_callback,
             error_callback=err_callback,
+            cancellation_token=token,
         )
 
         assert len(errors) == 1
@@ -999,6 +1048,8 @@ class TestAsyncClientSubscribeHandlerErrorIsolation:
         client._transport = mock_transport
         client._connected = True  # type: ignore[attr-defined]
 
+        token = AsyncCancellationToken()
+
         mock_pb_event = MagicMock()
         mock_pb_event.EventID = "err-2"
         mock_pb_event.Channel = "store-ch"
@@ -1009,7 +1060,7 @@ class TestAsyncClientSubscribeHandlerErrorIsolation:
         mock_pb_event.Tags = {}
 
         mock_transport.subscribe_to_events = MagicMock(
-            return_value=AsyncIteratorMock([mock_pb_event])
+            return_value=CancellingAsyncIteratorMock([mock_pb_event], token)
         )
 
         errors = []
@@ -1024,6 +1075,7 @@ class TestAsyncClientSubscribeHandlerErrorIsolation:
             EventsStoreSubscription(channel="store-ch", on_receive_event_callback=lambda e: None, events_store_type=EventStoreStartPosition.StartFromNew),
             bad_callback,
             error_callback=err_callback,
+            cancellation_token=token,
         )
 
         assert len(errors) == 1
@@ -1083,6 +1135,26 @@ class OneShotRetryIterator:
         if self._call_count == 1:
             return RaisingAsyncIterator([], self._exc)
         return AsyncIteratorMock(self._items)
+
+
+class CancellingOneShotRetryIterator:
+    """Like OneShotRetryIterator but cancels a token after second iteration.
+
+    First call raises a retryable error; second call yields items then
+    cancels the token so the retry loop exits cleanly.
+    """
+
+    def __init__(self, exc, items, token: AsyncCancellationToken):
+        self._exc = exc
+        self._items = items
+        self._token = token
+        self._call_count = 0
+
+    def __call__(self, *args, **kwargs):
+        self._call_count += 1
+        if self._call_count == 1:
+            return RaisingAsyncIterator([], self._exc)
+        return CancellingAsyncIteratorMock(self._items, self._token)
 
 
 def _make_connected_client(mock_transport):
@@ -1294,8 +1366,11 @@ class TestSubscribeToEventsHandlerErrors:
         """Handler raises -> KubeMQHandlerError -> on_error_callback called (lines 394-408)."""
 
         client = _make_connected_client(mock_transport)
+        token = AsyncCancellationToken()
         pb_ev = _make_pb_event()
-        mock_transport.subscribe_to_events = MagicMock(return_value=AsyncIteratorMock([pb_ev]))
+        mock_transport.subscribe_to_events = MagicMock(
+            return_value=CancellingAsyncIteratorMock([pb_ev], token)
+        )
 
         errors = []
 
@@ -1312,7 +1387,7 @@ class TestSubscribeToEventsHandlerErrors:
         )
 
         events = []
-        async for ev in client.subscribe_to_events(sub):
+        async for ev in client.subscribe_to_events(sub, cancellation_token=token):
             events.append(ev)
 
         assert len(events) == 1
@@ -1323,8 +1398,11 @@ class TestSubscribeToEventsHandlerErrors:
     async def test_handler_error_without_error_callback(self, mock_transport):
         """Handler raises, no error_callback -> logged (lines 409-410)."""
         client = _make_connected_client(mock_transport)
+        token = AsyncCancellationToken()
         pb_ev = _make_pb_event()
-        mock_transport.subscribe_to_events = MagicMock(return_value=AsyncIteratorMock([pb_ev]))
+        mock_transport.subscribe_to_events = MagicMock(
+            return_value=CancellingAsyncIteratorMock([pb_ev], token)
+        )
 
         def bad_handler(event):
             raise ValueError("handler crash")
@@ -1335,7 +1413,7 @@ class TestSubscribeToEventsHandlerErrors:
         )
 
         events = []
-        async for ev in client.subscribe_to_events(sub):
+        async for ev in client.subscribe_to_events(sub, cancellation_token=token):
             events.append(ev)
 
         assert len(events) == 1
@@ -1344,8 +1422,11 @@ class TestSubscribeToEventsHandlerErrors:
     async def test_handler_error_async_error_callback(self, mock_transport):
         """Handler raises -> async on_error_callback called."""
         client = _make_connected_client(mock_transport)
+        token = AsyncCancellationToken()
         pb_ev = _make_pb_event()
-        mock_transport.subscribe_to_events = MagicMock(return_value=AsyncIteratorMock([pb_ev]))
+        mock_transport.subscribe_to_events = MagicMock(
+            return_value=CancellingAsyncIteratorMock([pb_ev], token)
+        )
 
         errors = []
 
@@ -1361,7 +1442,7 @@ class TestSubscribeToEventsHandlerErrors:
             on_error_callback=async_err_cb,
         )
 
-        async for _ in client.subscribe_to_events(sub):
+        async for _ in client.subscribe_to_events(sub, cancellation_token=token):
             pass
 
         assert len(errors) == 1
@@ -1375,11 +1456,12 @@ class TestSubscribeToEventsStreamErrors:
     async def test_retryable_error_backoff_and_retry(self, mock_transport):
         """Retryable KubeMQConnectionError -> backoff, retry, stream reconnect (lines 431-461)."""
         client = _make_connected_client(mock_transport)
+        token = AsyncCancellationToken()
 
         retryable_err = KubeMQConnectionError("connection lost", is_retryable=True)
         pb_ev = _make_pb_event()
 
-        mock_transport.subscribe_to_events = OneShotRetryIterator(retryable_err, [pb_ev])
+        mock_transport.subscribe_to_events = CancellingOneShotRetryIterator(retryable_err, [pb_ev], token)
 
         errors = []
 
@@ -1394,7 +1476,7 @@ class TestSubscribeToEventsStreamErrors:
 
         events = []
         with patch("kubemq.pubsub.async_client.asyncio.sleep", new_callable=AsyncMock):
-            async for ev in client.subscribe_to_events(sub):
+            async for ev in client.subscribe_to_events(sub, cancellation_token=token):
                 events.append(ev)
 
         assert len(events) == 1
@@ -1534,8 +1616,11 @@ class TestSubscribeToEventsStoreErrors:
         from kubemq.pubsub.events_store_subscription import EventsStoreSubscription, EventStoreStartPosition
 
         client = _make_connected_client(mock_transport)
+        token = AsyncCancellationToken()
         pb_ev = _make_pb_event()
-        mock_transport.subscribe_to_events = MagicMock(return_value=AsyncIteratorMock([pb_ev]))
+        mock_transport.subscribe_to_events = MagicMock(
+            return_value=CancellingAsyncIteratorMock([pb_ev], token)
+        )
 
         errors = []
 
@@ -1553,7 +1638,7 @@ class TestSubscribeToEventsStoreErrors:
         )
 
         events = []
-        async for ev in client.subscribe_to_events_store(sub):
+        async for ev in client.subscribe_to_events_store(sub, cancellation_token=token):
             events.append(ev)
 
         assert len(events) == 1
@@ -1566,8 +1651,11 @@ class TestSubscribeToEventsStoreErrors:
         from kubemq.pubsub.events_store_subscription import EventsStoreSubscription, EventStoreStartPosition
 
         client = _make_connected_client(mock_transport)
+        token = AsyncCancellationToken()
         pb_ev = _make_pb_event()
-        mock_transport.subscribe_to_events = MagicMock(return_value=AsyncIteratorMock([pb_ev]))
+        mock_transport.subscribe_to_events = MagicMock(
+            return_value=CancellingAsyncIteratorMock([pb_ev], token)
+        )
 
         def bad_handler(event):
             raise ValueError("no cb test")
@@ -1579,7 +1667,7 @@ class TestSubscribeToEventsStoreErrors:
         )
 
         events = []
-        async for ev in client.subscribe_to_events_store(sub):
+        async for ev in client.subscribe_to_events_store(sub, cancellation_token=token):
             events.append(ev)
 
         assert len(events) == 1
@@ -1590,10 +1678,11 @@ class TestSubscribeToEventsStoreErrors:
         from kubemq.pubsub.events_store_subscription import EventsStoreSubscription, EventStoreStartPosition
 
         client = _make_connected_client(mock_transport)
+        token = AsyncCancellationToken()
 
         retryable_err = KubeMQConnectionError("lost", is_retryable=True)
         pb_ev = _make_pb_event()
-        mock_transport.subscribe_to_events = OneShotRetryIterator(retryable_err, [pb_ev])
+        mock_transport.subscribe_to_events = CancellingOneShotRetryIterator(retryable_err, [pb_ev], token)
 
         errors = []
 
@@ -1609,7 +1698,7 @@ class TestSubscribeToEventsStoreErrors:
 
         events = []
         with patch("kubemq.pubsub.async_client.asyncio.sleep", new_callable=AsyncMock):
-            async for ev in client.subscribe_to_events_store(sub):
+            async for ev in client.subscribe_to_events_store(sub, cancellation_token=token):
                 events.append(ev)
 
         assert len(events) == 1
@@ -1702,8 +1791,11 @@ class TestSubscribeToEventsStoreErrors:
         from kubemq.pubsub.events_store_subscription import EventsStoreSubscription, EventStoreStartPosition
 
         client = _make_connected_client(mock_transport)
+        token = AsyncCancellationToken()
         pb_ev = _make_pb_event()
-        mock_transport.subscribe_to_events = MagicMock(return_value=AsyncIteratorMock([pb_ev]))
+        mock_transport.subscribe_to_events = MagicMock(
+            return_value=CancellingAsyncIteratorMock([pb_ev], token)
+        )
 
         errors = []
 
@@ -1721,7 +1813,7 @@ class TestSubscribeToEventsStoreErrors:
         )
 
         events = []
-        async for ev in client.subscribe_to_events_store(sub):
+        async for ev in client.subscribe_to_events_store(sub, cancellation_token=token):
             events.append(ev)
 
         assert len(events) == 1
@@ -1742,8 +1834,11 @@ class TestSubscribeWithCallbackSequential:
         from kubemq.core.exceptions import KubeMQHandlerError
 
         client = _make_connected_client(mock_transport)
+        token = AsyncCancellationToken()
         pb_ev = _make_pb_event()
-        mock_transport.subscribe_to_events = MagicMock(return_value=AsyncIteratorMock([pb_ev]))
+        mock_transport.subscribe_to_events = MagicMock(
+            return_value=CancellingAsyncIteratorMock([pb_ev], token)
+        )
 
         errors = []
 
@@ -1757,6 +1852,7 @@ class TestSubscribeWithCallbackSequential:
             EventsSubscription(channel="ch", on_receive_event_callback=lambda e: None),
             bad_cb,
             error_callback=err_cb,
+            cancellation_token=token,
             max_concurrent_callbacks=1,
         )
 
@@ -1767,8 +1863,11 @@ class TestSubscribeWithCallbackSequential:
     async def test_sequential_handler_error_no_callback(self, mock_transport):
         """Sequential: handler raises, no error_callback -> logged (lines 715-716)."""
         client = _make_connected_client(mock_transport)
+        token = AsyncCancellationToken()
         pb_ev = _make_pb_event()
-        mock_transport.subscribe_to_events = MagicMock(return_value=AsyncIteratorMock([pb_ev]))
+        mock_transport.subscribe_to_events = MagicMock(
+            return_value=CancellingAsyncIteratorMock([pb_ev], token)
+        )
 
         async def bad_cb(event):
             raise ValueError("seq no cb")
@@ -1777,6 +1876,7 @@ class TestSubscribeWithCallbackSequential:
             await client.subscribe_with_callback(
                 EventsSubscription(channel="ch", on_receive_event_callback=lambda e: None),
                 bad_cb,
+                cancellation_token=token,
                 max_concurrent_callbacks=1,
             )
             mock_logger.error.assert_called()
@@ -1785,8 +1885,11 @@ class TestSubscribeWithCallbackSequential:
     async def test_sequential_link_appended(self, mock_transport):
         """Verify link is created when parent context is present (line 692+)."""
         client = _make_connected_client(mock_transport)
+        token = AsyncCancellationToken()
         pb_ev = _make_pb_event(tags={"traceparent": "00-abc-def-01"})
-        mock_transport.subscribe_to_events = MagicMock(return_value=AsyncIteratorMock([pb_ev]))
+        mock_transport.subscribe_to_events = MagicMock(
+            return_value=CancellingAsyncIteratorMock([pb_ev], token)
+        )
 
         received = []
 
@@ -1796,6 +1899,7 @@ class TestSubscribeWithCallbackSequential:
         await client.subscribe_with_callback(
             EventsSubscription(channel="ch", on_receive_event_callback=lambda e: None),
             cb,
+            cancellation_token=token,
             max_concurrent_callbacks=1,
         )
 
@@ -1809,8 +1913,11 @@ class TestSubscribeWithCallbackConcurrentErrors:
     async def test_concurrent_handler_error_with_callback(self, mock_transport):
         """Concurrent: handler error -> error_callback (lines 738-743)."""
         client = _make_connected_client(mock_transport)
+        token = AsyncCancellationToken()
         pb_ev = _make_pb_event()
-        mock_transport.subscribe_to_events = MagicMock(return_value=AsyncIteratorMock([pb_ev]))
+        mock_transport.subscribe_to_events = MagicMock(
+            return_value=CancellingAsyncIteratorMock([pb_ev], token)
+        )
 
         errors = []
 
@@ -1824,6 +1931,7 @@ class TestSubscribeWithCallbackConcurrentErrors:
             EventsSubscription(channel="ch", on_receive_event_callback=lambda e: None),
             bad_cb,
             error_callback=err_cb,
+            cancellation_token=token,
             max_concurrent_callbacks=3,
         )
 
@@ -1834,8 +1942,11 @@ class TestSubscribeWithCallbackConcurrentErrors:
     async def test_concurrent_handler_error_no_callback(self, mock_transport):
         """Concurrent: handler error, no error_callback -> logger.error (lines 744-749)."""
         client = _make_connected_client(mock_transport)
+        token = AsyncCancellationToken()
         pb_ev = _make_pb_event()
-        mock_transport.subscribe_to_events = MagicMock(return_value=AsyncIteratorMock([pb_ev]))
+        mock_transport.subscribe_to_events = MagicMock(
+            return_value=CancellingAsyncIteratorMock([pb_ev], token)
+        )
 
         async def bad_cb(event):
             raise ValueError("concurrent no cb")
@@ -1845,6 +1956,7 @@ class TestSubscribeWithCallbackConcurrentErrors:
         await client.subscribe_with_callback(
             EventsSubscription(channel="ch", on_receive_event_callback=lambda e: None),
             bad_cb,
+            cancellation_token=token,
             max_concurrent_callbacks=3,
         )
 
@@ -1859,10 +1971,11 @@ class TestSubscribeWithCallbackStreamErrors:
     async def test_retryable_error_backoff(self, mock_transport):
         """Retryable KubeMQError -> backoff, retry (lines 766-790)."""
         client = _make_connected_client(mock_transport)
+        token = AsyncCancellationToken()
 
         retryable = KubeMQConnectionError("conn lost", is_retryable=True)
         pb_ev = _make_pb_event()
-        mock_transport.subscribe_to_events = OneShotRetryIterator(retryable, [pb_ev])
+        mock_transport.subscribe_to_events = CancellingOneShotRetryIterator(retryable, [pb_ev], token)
 
         errors = []
         received = []
@@ -1878,6 +1991,7 @@ class TestSubscribeWithCallbackStreamErrors:
                 EventsSubscription(channel="ch", on_receive_event_callback=lambda e: None),
                 cb,
                 error_callback=err_cb,
+                cancellation_token=token,
             )
 
         assert len(received) == 1
@@ -1976,8 +2090,11 @@ class TestSubscribeStoreWithCallbackSequential:
         from kubemq.pubsub.events_store_subscription import EventsStoreSubscription, EventStoreStartPosition
 
         client = _make_connected_client(mock_transport)
+        token = AsyncCancellationToken()
         pb_ev = _make_pb_event()
-        mock_transport.subscribe_to_events = MagicMock(return_value=AsyncIteratorMock([pb_ev]))
+        mock_transport.subscribe_to_events = MagicMock(
+            return_value=CancellingAsyncIteratorMock([pb_ev], token)
+        )
 
         errors = []
 
@@ -1991,6 +2108,7 @@ class TestSubscribeStoreWithCallbackSequential:
             EventsStoreSubscription(channel="ch", on_receive_event_callback=lambda e: None, events_store_type=EventStoreStartPosition.StartFromNew),
             bad_cb,
             error_callback=err_cb,
+            cancellation_token=token,
             max_concurrent_callbacks=1,
         )
 
@@ -2003,8 +2121,11 @@ class TestSubscribeStoreWithCallbackSequential:
         from kubemq.pubsub.events_store_subscription import EventsStoreSubscription, EventStoreStartPosition
 
         client = _make_connected_client(mock_transport)
+        token = AsyncCancellationToken()
         pb_ev = _make_pb_event()
-        mock_transport.subscribe_to_events = MagicMock(return_value=AsyncIteratorMock([pb_ev]))
+        mock_transport.subscribe_to_events = MagicMock(
+            return_value=CancellingAsyncIteratorMock([pb_ev], token)
+        )
 
         async def bad_cb(event):
             raise ValueError("store seq no cb")
@@ -2013,6 +2134,7 @@ class TestSubscribeStoreWithCallbackSequential:
             await client.subscribe_store_with_callback(
                 EventsStoreSubscription(channel="ch", on_receive_event_callback=lambda e: None, events_store_type=EventStoreStartPosition.StartFromNew),
                 bad_cb,
+                cancellation_token=token,
                 max_concurrent_callbacks=1,
             )
             mock_logger.error.assert_called()
@@ -2027,8 +2149,11 @@ class TestSubscribeStoreWithCallbackConcurrentErrors:
         from kubemq.pubsub.events_store_subscription import EventsStoreSubscription, EventStoreStartPosition
 
         client = _make_connected_client(mock_transport)
+        token = AsyncCancellationToken()
         pb_ev = _make_pb_event()
-        mock_transport.subscribe_to_events = MagicMock(return_value=AsyncIteratorMock([pb_ev]))
+        mock_transport.subscribe_to_events = MagicMock(
+            return_value=CancellingAsyncIteratorMock([pb_ev], token)
+        )
 
         errors = []
 
@@ -2042,6 +2167,7 @@ class TestSubscribeStoreWithCallbackConcurrentErrors:
             EventsStoreSubscription(channel="ch", on_receive_event_callback=lambda e: None, events_store_type=EventStoreStartPosition.StartFromNew),
             bad_cb,
             error_callback=err_cb,
+            cancellation_token=token,
             max_concurrent_callbacks=3,
         )
 
@@ -2054,8 +2180,11 @@ class TestSubscribeStoreWithCallbackConcurrentErrors:
         from kubemq.pubsub.events_store_subscription import EventsStoreSubscription, EventStoreStartPosition
 
         client = _make_connected_client(mock_transport)
+        token = AsyncCancellationToken()
         pb_ev = _make_pb_event()
-        mock_transport.subscribe_to_events = MagicMock(return_value=AsyncIteratorMock([pb_ev]))
+        mock_transport.subscribe_to_events = MagicMock(
+            return_value=CancellingAsyncIteratorMock([pb_ev], token)
+        )
 
         async def bad_cb(event):
             raise ValueError("store concurrent no cb")
@@ -2065,6 +2194,7 @@ class TestSubscribeStoreWithCallbackConcurrentErrors:
         await client.subscribe_store_with_callback(
             EventsStoreSubscription(channel="ch", on_receive_event_callback=lambda e: None, events_store_type=EventStoreStartPosition.StartFromNew),
             bad_cb,
+            cancellation_token=token,
             max_concurrent_callbacks=3,
         )
 
@@ -2081,10 +2211,11 @@ class TestSubscribeStoreWithCallbackStreamErrors:
         from kubemq.pubsub.events_store_subscription import EventsStoreSubscription, EventStoreStartPosition
 
         client = _make_connected_client(mock_transport)
+        token = AsyncCancellationToken()
 
         retryable = KubeMQConnectionError("store conn lost", is_retryable=True)
         pb_ev = _make_pb_event()
-        mock_transport.subscribe_to_events = OneShotRetryIterator(retryable, [pb_ev])
+        mock_transport.subscribe_to_events = CancellingOneShotRetryIterator(retryable, [pb_ev], token)
 
         errors = []
         received = []
@@ -2100,6 +2231,7 @@ class TestSubscribeStoreWithCallbackStreamErrors:
                 EventsStoreSubscription(channel="ch", on_receive_event_callback=lambda e: None, events_store_type=EventStoreStartPosition.StartFromNew),
                 cb,
                 error_callback=err_cb,
+                cancellation_token=token,
             )
 
         assert len(received) == 1
@@ -2324,8 +2456,11 @@ class TestAsyncClientSubscriptionCallbackErrorIsolation:
     @pytest.mark.asyncio
     async def test_handler_error_callback_raises_is_logged(self, mock_transport):
         client = _make_connected_client(mock_transport)
+        token = AsyncCancellationToken()
         pb_ev = _make_pb_event()
-        mock_transport.subscribe_to_events = MagicMock(return_value=AsyncIteratorMock([pb_ev]))
+        mock_transport.subscribe_to_events = MagicMock(
+            return_value=CancellingAsyncIteratorMock([pb_ev], token)
+        )
 
         def bad_handler(event):
             raise ValueError("handler crash")
@@ -2340,7 +2475,7 @@ class TestAsyncClientSubscriptionCallbackErrorIsolation:
         )
 
         events = []
-        async for ev in client.subscribe_to_events(sub):
+        async for ev in client.subscribe_to_events(sub, cancellation_token=token):
             events.append(ev)
 
         assert len(events) == 1
@@ -2348,8 +2483,11 @@ class TestAsyncClientSubscriptionCallbackErrorIsolation:
     @pytest.mark.asyncio
     async def test_subscribe_with_callback_error_callback_raises_is_logged(self, mock_transport):
         client = _make_connected_client(mock_transport)
+        token = AsyncCancellationToken()
         pb_ev = _make_pb_event()
-        mock_transport.subscribe_to_events = MagicMock(return_value=AsyncIteratorMock([pb_ev]))
+        mock_transport.subscribe_to_events = MagicMock(
+            return_value=CancellingAsyncIteratorMock([pb_ev], token)
+        )
 
         async def bad_cb(event):
             raise ValueError("handler boom")
@@ -2362,6 +2500,7 @@ class TestAsyncClientSubscriptionCallbackErrorIsolation:
                 EventsSubscription(channel="ch", on_receive_event_callback=lambda e: None),
                 bad_cb,
                 error_callback=bad_err_cb,
+                cancellation_token=token,
                 max_concurrent_callbacks=1,
             )
             mock_logger.exception.assert_called()
@@ -2375,6 +2514,7 @@ class TestAsyncClientSubscribeToEventsStoreResumeSequence:
         from kubemq.pubsub.events_store_subscription import EventsStoreSubscription, EventStoreStartPosition
 
         client = _make_connected_client(mock_transport)
+        cancel_token = AsyncCancellationToken()
 
         pb_ev1 = MagicMock()
         pb_ev1.EventID = "ev-1"
@@ -2404,7 +2544,7 @@ class TestAsyncClientSubscribeToEventsStoreResumeSequence:
             captured_requests.append(request)
             if call_count[0] == 1:
                 return RaisingAsyncIterator([pb_ev1], retryable)
-            return AsyncIteratorMock([pb_ev2])
+            return CancellingAsyncIteratorMock([pb_ev2], cancel_token)
 
         mock_transport.subscribe_to_events = mock_subscribe
 
@@ -2422,7 +2562,7 @@ class TestAsyncClientSubscribeToEventsStoreResumeSequence:
 
         events = []
         with patch("kubemq.pubsub.async_client.asyncio.sleep", new_callable=AsyncMock):
-            async for ev in client.subscribe_to_events_store(sub):
+            async for ev in client.subscribe_to_events_store(sub, cancellation_token=cancel_token):
                 events.append(ev)
 
         assert len(events) == 2
@@ -2439,6 +2579,7 @@ class TestAsyncClientSubscribeStoreWithCallbackResumeSequence:
         from kubemq.pubsub.events_store_subscription import EventsStoreSubscription, EventStoreStartPosition
 
         client = _make_connected_client(mock_transport)
+        cancel_token = AsyncCancellationToken()
 
         pb_ev1 = MagicMock()
         pb_ev1.EventID = "ev-1"
@@ -2466,7 +2607,7 @@ class TestAsyncClientSubscribeStoreWithCallbackResumeSequence:
             call_count[0] += 1
             if call_count[0] == 1:
                 return RaisingAsyncIterator([pb_ev1], retryable)
-            return AsyncIteratorMock([pb_ev2])
+            return CancellingAsyncIteratorMock([pb_ev2], cancel_token)
 
         mock_transport.subscribe_to_events = mock_subscribe
 
@@ -2488,6 +2629,7 @@ class TestAsyncClientSubscribeStoreWithCallbackResumeSequence:
                 ),
                 cb,
                 error_callback=err_cb,
+                cancellation_token=cancel_token,
             )
 
         assert len(received) == 2
@@ -2522,8 +2664,11 @@ class TestAsyncClientSubscribeWithCallbackErrorCallbackRaisesStore:
         from kubemq.pubsub.events_store_subscription import EventsStoreSubscription, EventStoreStartPosition
 
         client = _make_connected_client(mock_transport)
+        token = AsyncCancellationToken()
         pb_ev = _make_pb_event()
-        mock_transport.subscribe_to_events = MagicMock(return_value=AsyncIteratorMock([pb_ev]))
+        mock_transport.subscribe_to_events = MagicMock(
+            return_value=CancellingAsyncIteratorMock([pb_ev], token)
+        )
 
         async def bad_cb(event):
             raise ValueError("store handler boom")
@@ -2536,6 +2681,7 @@ class TestAsyncClientSubscribeWithCallbackErrorCallbackRaisesStore:
                 EventsStoreSubscription(channel="ch", on_receive_event_callback=lambda e: None, events_store_type=EventStoreStartPosition.StartFromNew),
                 bad_cb,
                 error_callback=bad_err_cb,
+                cancellation_token=token,
                 max_concurrent_callbacks=1,
             )
             mock_logger.exception.assert_called()
@@ -2592,8 +2738,11 @@ class TestSubscribeToEventsStoreErrorCallbackRaises:
     async def test_store_error_callback_raises_is_logged(self, mock_transport):
         """error_callback raises in store async-iter subscribe -> logged."""
         client = _make_connected_client(mock_transport)
+        token = AsyncCancellationToken()
         pb_ev = _make_pb_event()
-        mock_transport.subscribe_to_events = MagicMock(return_value=AsyncIteratorMock([pb_ev]))
+        mock_transport.subscribe_to_events = MagicMock(
+            return_value=CancellingAsyncIteratorMock([pb_ev], token)
+        )
 
         def bad_handler(event):
             raise ValueError("handler crash")
@@ -2609,7 +2758,7 @@ class TestSubscribeToEventsStoreErrorCallbackRaises:
         )
 
         events = []
-        async for ev in client.subscribe_to_events_store(sub):
+        async for ev in client.subscribe_to_events_store(sub, cancellation_token=token):
             events.append(ev)
 
         assert len(events) == 1
@@ -2702,9 +2851,10 @@ class TestSubscribeToEventsRetryableAsyncCallback:
     @pytest.mark.asyncio
     async def test_retryable_async_callback(self, mock_transport):
         client = _make_connected_client(mock_transport)
+        token = AsyncCancellationToken()
         retryable = KubeMQConnectionError("events lost", is_retryable=True)
         pb_ev = _make_pb_event()
-        mock_transport.subscribe_to_events = OneShotRetryIterator(retryable, [pb_ev])
+        mock_transport.subscribe_to_events = CancellingOneShotRetryIterator(retryable, [pb_ev], token)
 
         errors = []
 
@@ -2719,7 +2869,7 @@ class TestSubscribeToEventsRetryableAsyncCallback:
 
         events = []
         with patch("kubemq.pubsub.async_client.asyncio.sleep", new_callable=AsyncMock):
-            async for ev in client.subscribe_to_events(sub):
+            async for ev in client.subscribe_to_events(sub, cancellation_token=token):
                 events.append(ev)
 
         assert len(events) == 1
@@ -2762,9 +2912,10 @@ class TestSubscribeToEventsStoreRetryableAsyncCallback:
     @pytest.mark.asyncio
     async def test_retryable_async_callback(self, mock_transport):
         client = _make_connected_client(mock_transport)
+        token = AsyncCancellationToken()
         retryable = KubeMQConnectionError("store lost", is_retryable=True)
         pb_ev = _make_pb_event()
-        mock_transport.subscribe_to_events = OneShotRetryIterator(retryable, [pb_ev])
+        mock_transport.subscribe_to_events = CancellingOneShotRetryIterator(retryable, [pb_ev], token)
 
         errors = []
 
@@ -2780,7 +2931,7 @@ class TestSubscribeToEventsStoreRetryableAsyncCallback:
 
         events = []
         with patch("kubemq.pubsub.async_client.asyncio.sleep", new_callable=AsyncMock):
-            async for ev in client.subscribe_to_events_store(sub):
+            async for ev in client.subscribe_to_events_store(sub, cancellation_token=token):
                 events.append(ev)
 
         assert len(events) == 1
@@ -2816,9 +2967,10 @@ class TestSubscribeWithCallbackRetryableNoErrorCb:
     async def test_retryable_no_callback_retries(self, mock_transport):
         """Retryable KubeMQError without error_callback still retries."""
         client = _make_connected_client(mock_transport)
+        token = AsyncCancellationToken()
         retryable = KubeMQConnectionError("conn lost", is_retryable=True)
         pb_ev = _make_pb_event()
-        mock_transport.subscribe_to_events = OneShotRetryIterator(retryable, [pb_ev])
+        mock_transport.subscribe_to_events = CancellingOneShotRetryIterator(retryable, [pb_ev], token)
 
         received = []
 
@@ -2829,6 +2981,7 @@ class TestSubscribeWithCallbackRetryableNoErrorCb:
             await client.subscribe_with_callback(
                 EventsSubscription(channel="ch", on_receive_event_callback=lambda e: None),
                 cb,
+                cancellation_token=token,
             )
 
         assert len(received) == 1
@@ -2864,9 +3017,10 @@ class TestSubscribeStoreWithCallbackRetryableNoErrorCb:
     async def test_store_retryable_no_callback_retries(self, mock_transport):
         """Retryable KubeMQError without error_callback still retries."""
         client = _make_connected_client(mock_transport)
+        token = AsyncCancellationToken()
         retryable = KubeMQConnectionError("store lost", is_retryable=True)
         pb_ev = _make_pb_event()
-        mock_transport.subscribe_to_events = OneShotRetryIterator(retryable, [pb_ev])
+        mock_transport.subscribe_to_events = CancellingOneShotRetryIterator(retryable, [pb_ev], token)
 
         received = []
 
@@ -2877,6 +3031,7 @@ class TestSubscribeStoreWithCallbackRetryableNoErrorCb:
             await client.subscribe_store_with_callback(
                 EventsStoreSubscription(channel="ch", on_receive_event_callback=lambda e: None, events_store_type=EventStoreStartPosition.StartFromNew),
                 cb,
+                cancellation_token=token,
             )
 
         assert len(received) == 1
@@ -2889,8 +3044,11 @@ class TestSubscribeStoreWithCallbackConcurrentErrorCallbackRaises:
     async def test_concurrent_store_error_callback_raises(self, mock_transport):
         """error_callback raises in concurrent store path -> silently caught."""
         client = _make_connected_client(mock_transport)
+        token = AsyncCancellationToken()
         pb_ev = _make_pb_event()
-        mock_transport.subscribe_to_events = MagicMock(return_value=AsyncIteratorMock([pb_ev]))
+        mock_transport.subscribe_to_events = MagicMock(
+            return_value=CancellingAsyncIteratorMock([pb_ev], token)
+        )
 
         async def bad_cb(event):
             raise ValueError("concurrent store err")
@@ -2902,7 +3060,1413 @@ class TestSubscribeStoreWithCallbackConcurrentErrorCallbackRaises:
             EventsStoreSubscription(channel="ch", on_receive_event_callback=lambda e: None, events_store_type=EventStoreStartPosition.StartFromNew),
             bad_cb,
             error_callback=bad_err_cb,
+            cancellation_token=token,
             max_concurrent_callbacks=3,
         )
 
         await asyncio.sleep(0.05)
+
+
+# ==============================================================================
+# Fast subscribe paths — subscribe_to_events_fast / subscribe_to_events_store_fast
+# ==============================================================================
+
+
+class ErrorThenCancelIterator:
+    """First call raises error, second call returns CancellingAsyncIteratorMock."""
+
+    def __init__(self, error, items, token):
+        self.calls = 0
+        self.error = error
+        self.items = items
+        self.token = token
+
+    def __call__(self, *args, **kwargs):
+        self.calls += 1
+        if self.calls == 1:
+            raise self.error
+        return CancellingAsyncIteratorMock(self.items, self.token)
+
+
+class _CancelAndRaiseIterator:
+    """Cancels token then raises an exception."""
+
+    def __init__(self, token, exc):
+        self._token = token
+        self._exc = exc
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        self._token.cancel()
+        raise self._exc
+
+
+class TestAsyncClientSubscribeToEventsFast:
+    """Tests for subscribe_to_events_fast() — lines ~728-777."""
+
+    @pytest.mark.asyncio
+    async def test_fast_yields_messages(self, mock_transport):
+        """subscribe_to_events_fast yields decoded EventReceived."""
+        client = _make_connected_client(mock_transport)
+        token = AsyncCancellationToken()
+        pb_ev = _make_pb_event(event_id="fast-1")
+        mock_transport.subscribe_to_events = MagicMock(
+            return_value=CancellingAsyncIteratorMock([pb_ev], token)
+        )
+
+        sub = EventsSubscription(channel="ch", on_receive_event_callback=lambda e: None)
+
+        events = []
+        async for ev in client.subscribe_to_events_fast(sub, cancellation_token=token):
+            events.append(ev)
+
+        assert len(events) == 1
+        assert events[0].id == "fast-1"
+
+    @pytest.mark.asyncio
+    async def test_fast_stream_end_retry(self, mock_transport):
+        """Stream ends -> reconnects (lines 740-751)."""
+        client = _make_connected_client(mock_transport)
+        token = AsyncCancellationToken()
+        pb_ev = _make_pb_event(event_id="retry-1")
+
+        call_count = [0]
+
+        def mock_subscribe(*args, **kwargs):
+            call_count[0] += 1
+            if call_count[0] == 1:
+                return AsyncIteratorMock([])
+            return CancellingAsyncIteratorMock([pb_ev], token)
+
+        mock_transport.subscribe_to_events = mock_subscribe
+
+        sub = EventsSubscription(channel="ch", on_receive_event_callback=lambda e: None)
+
+        events = []
+        with patch("kubemq.pubsub.async_client.asyncio.sleep", new_callable=AsyncMock):
+            async for ev in client.subscribe_to_events_fast(sub, cancellation_token=token):
+                events.append(ev)
+
+        assert len(events) == 1
+        assert call_count[0] == 2
+
+    @pytest.mark.asyncio
+    async def test_fast_retryable_kubemq_error(self, mock_transport):
+        """Retryable KubeMQError -> retry (lines 754-766)."""
+        client = _make_connected_client(mock_transport)
+        token = AsyncCancellationToken()
+        retryable = KubeMQConnectionError("conn lost", is_retryable=True)
+        pb_ev = _make_pb_event(event_id="retry-2")
+        mock_transport.subscribe_to_events = CancellingOneShotRetryIterator(retryable, [pb_ev], token)
+
+        sub = EventsSubscription(channel="ch", on_receive_event_callback=lambda e: None)
+
+        events = []
+        with patch("kubemq.pubsub.async_client.asyncio.sleep", new_callable=AsyncMock):
+            async for ev in client.subscribe_to_events_fast(sub, cancellation_token=token):
+                events.append(ev)
+
+        assert len(events) == 1
+
+    @pytest.mark.asyncio
+    async def test_fast_non_retryable_kubemq_error_raises(self, mock_transport):
+        """Non-retryable KubeMQError -> raises (line 757-758)."""
+        client = _make_connected_client(mock_transport)
+
+        non_retryable = KubeMQError("fatal fast", is_retryable=False)
+        mock_transport.subscribe_to_events = MagicMock(
+            return_value=RaisingAsyncIterator([], non_retryable)
+        )
+
+        sub = EventsSubscription(channel="ch", on_receive_event_callback=lambda e: None)
+
+        with pytest.raises(KubeMQError, match="fatal fast"):
+            async for _ in client.subscribe_to_events_fast(sub):
+                pass
+
+    @pytest.mark.asyncio
+    async def test_fast_kubemq_client_closed_error(self, mock_transport):
+        """KubeMQClientClosedError -> propagates (line 752-753)."""
+        from kubemq.core.exceptions import KubeMQClientClosedError
+
+        client = _make_connected_client(mock_transport)
+
+        mock_transport.subscribe_to_events = MagicMock(
+            return_value=RaisingAsyncIterator([], KubeMQClientClosedError("closed"))
+        )
+
+        sub = EventsSubscription(channel="ch", on_receive_event_callback=lambda e: None)
+
+        with pytest.raises(KubeMQClientClosedError):
+            async for _ in client.subscribe_to_events_fast(sub):
+                pass
+
+    @pytest.mark.asyncio
+    async def test_fast_generic_exception_retry(self, mock_transport):
+        """Generic Exception -> retry with backoff (lines 767-777)."""
+        client = _make_connected_client(mock_transport)
+        token = AsyncCancellationToken()
+        pb_ev = _make_pb_event(event_id="gen-retry")
+
+        mock_transport.subscribe_to_events = ErrorThenCancelIterator(
+            RuntimeError("transient"), [pb_ev], token
+        )
+
+        sub = EventsSubscription(channel="ch", on_receive_event_callback=lambda e: None)
+
+        events = []
+        with patch("kubemq.pubsub.async_client.asyncio.sleep", new_callable=AsyncMock):
+            async for ev in client.subscribe_to_events_fast(sub, cancellation_token=token):
+                events.append(ev)
+
+        assert len(events) == 1
+
+    @pytest.mark.asyncio
+    async def test_fast_kubemq_error_cancelled_returns(self, mock_transport):
+        """KubeMQError when token is cancelled -> return (line 755-756)."""
+        client = _make_connected_client(mock_transport)
+        token = AsyncCancellationToken()
+
+        retryable = KubeMQConnectionError("lost", is_retryable=True)
+        mock_transport.subscribe_to_events = MagicMock(
+            return_value=_CancelAndRaiseIterator(token, retryable)
+        )
+
+        sub = EventsSubscription(channel="ch", on_receive_event_callback=lambda e: None)
+
+        events = []
+        async for ev in client.subscribe_to_events_fast(sub, cancellation_token=token):
+            events.append(ev)
+
+        assert len(events) == 0
+
+    @pytest.mark.asyncio
+    async def test_fast_generic_exception_cancelled_returns(self, mock_transport):
+        """Generic exception when token is cancelled -> return (line 768-769)."""
+        client = _make_connected_client(mock_transport)
+        token = AsyncCancellationToken()
+
+        mock_transport.subscribe_to_events = MagicMock(
+            return_value=_CancelAndRaiseIterator(token, RuntimeError("gone"))
+        )
+
+        sub = EventsSubscription(channel="ch", on_receive_event_callback=lambda e: None)
+
+        events = []
+        async for ev in client.subscribe_to_events_fast(sub, cancellation_token=token):
+            events.append(ev)
+
+        assert len(events) == 0
+
+    @pytest.mark.asyncio
+    async def test_fast_creates_token_if_not_provided(self, mock_transport):
+        """subscribe_to_events_fast creates token if none supplied (line 728)."""
+        client = _make_connected_client(mock_transport)
+
+        non_retryable = KubeMQError("fatal", is_retryable=False)
+        mock_transport.subscribe_to_events = MagicMock(
+            return_value=RaisingAsyncIterator([], non_retryable)
+        )
+
+        sub = EventsSubscription(channel="ch", on_receive_event_callback=lambda e: None)
+
+        with pytest.raises(KubeMQError):
+            async for _ in client.subscribe_to_events_fast(sub):
+                pass
+
+
+class TestAsyncClientSubscribeToEventsStoreFast:
+    """Tests for subscribe_to_events_store_fast() — lines ~790-851."""
+
+    @pytest.mark.asyncio
+    async def test_fast_store_yields_messages(self, mock_transport):
+        """subscribe_to_events_store_fast yields decoded EventStoreReceived."""
+        client = _make_connected_client(mock_transport)
+        token = AsyncCancellationToken()
+        pb_ev = _make_pb_event(event_id="sfast-1")
+        mock_transport.subscribe_to_events = MagicMock(
+            return_value=CancellingAsyncIteratorMock([pb_ev], token)
+        )
+
+        sub = EventsStoreSubscription(
+            channel="ch",
+            on_receive_event_callback=lambda e: None,
+            events_store_type=EventStoreStartPosition.StartFromNew,
+        )
+
+        events = []
+        async for ev in client.subscribe_to_events_store_fast(sub, cancellation_token=token):
+            events.append(ev)
+
+        assert len(events) == 1
+        assert events[0].id == "sfast-1"
+
+    @pytest.mark.asyncio
+    async def test_fast_store_stream_end_retry(self, mock_transport):
+        """Store stream ends -> reconnects (lines 815-825)."""
+        client = _make_connected_client(mock_transport)
+        token = AsyncCancellationToken()
+        pb_ev = _make_pb_event(event_id="store-retry")
+
+        call_count = [0]
+
+        def mock_subscribe(*args, **kwargs):
+            call_count[0] += 1
+            if call_count[0] == 1:
+                return AsyncIteratorMock([])
+            return CancellingAsyncIteratorMock([pb_ev], token)
+
+        mock_transport.subscribe_to_events = mock_subscribe
+
+        sub = EventsStoreSubscription(
+            channel="ch",
+            on_receive_event_callback=lambda e: None,
+            events_store_type=EventStoreStartPosition.StartFromNew,
+        )
+
+        events = []
+        with patch("kubemq.pubsub.async_client.asyncio.sleep", new_callable=AsyncMock):
+            async for ev in client.subscribe_to_events_store_fast(sub, cancellation_token=token):
+                events.append(ev)
+
+        assert len(events) == 1
+        assert call_count[0] == 2
+
+    @pytest.mark.asyncio
+    async def test_fast_store_sequence_resumption(self, mock_transport):
+        """On reconnect, resumes from last sequence (lines 800-808)."""
+        client = _make_connected_client(mock_transport)
+        cancel_token = AsyncCancellationToken()
+
+        pb_ev1 = MagicMock()
+        pb_ev1.EventID = "ev-1"
+        pb_ev1.Channel = "ch"
+        pb_ev1.Metadata = ""
+        pb_ev1.Body = b"d1"
+        pb_ev1.Timestamp = 100
+        pb_ev1.Sequence = 42
+        pb_ev1.Tags = {}
+
+        pb_ev2 = MagicMock()
+        pb_ev2.EventID = "ev-2"
+        pb_ev2.Channel = "ch"
+        pb_ev2.Metadata = ""
+        pb_ev2.Body = b"d2"
+        pb_ev2.Timestamp = 101
+        pb_ev2.Sequence = 43
+        pb_ev2.Tags = {}
+
+        retryable = KubeMQConnectionError("lost", is_retryable=True)
+        call_count = [0]
+
+        def mock_subscribe(*args, **kwargs):
+            call_count[0] += 1
+            if call_count[0] == 1:
+                return RaisingAsyncIterator([pb_ev1], retryable)
+            return CancellingAsyncIteratorMock([pb_ev2], cancel_token)
+
+        mock_transport.subscribe_to_events = mock_subscribe
+
+        sub = EventsStoreSubscription(
+            channel="ch",
+            on_receive_event_callback=lambda e: None,
+            events_store_type=EventStoreStartPosition.StartFromNew,
+        )
+
+        events = []
+        with patch("kubemq.pubsub.async_client.asyncio.sleep", new_callable=AsyncMock):
+            async for ev in client.subscribe_to_events_store_fast(sub, cancellation_token=cancel_token):
+                events.append(ev)
+
+        assert len(events) == 2
+        assert events[0].sequence == 42
+        assert events[1].sequence == 43
+        assert call_count[0] == 2
+
+    @pytest.mark.asyncio
+    async def test_fast_store_retryable_kubemq_error(self, mock_transport):
+        """Retryable KubeMQError -> retry (lines 828-840)."""
+        client = _make_connected_client(mock_transport)
+        token = AsyncCancellationToken()
+        retryable = KubeMQConnectionError("store lost", is_retryable=True)
+        pb_ev = _make_pb_event(event_id="store-retry-2")
+        mock_transport.subscribe_to_events = CancellingOneShotRetryIterator(retryable, [pb_ev], token)
+
+        sub = EventsStoreSubscription(
+            channel="ch",
+            on_receive_event_callback=lambda e: None,
+            events_store_type=EventStoreStartPosition.StartFromNew,
+        )
+
+        events = []
+        with patch("kubemq.pubsub.async_client.asyncio.sleep", new_callable=AsyncMock):
+            async for ev in client.subscribe_to_events_store_fast(sub, cancellation_token=token):
+                events.append(ev)
+
+        assert len(events) == 1
+
+    @pytest.mark.asyncio
+    async def test_fast_store_non_retryable_raises(self, mock_transport):
+        """Non-retryable KubeMQError -> raises (lines 831-832)."""
+        client = _make_connected_client(mock_transport)
+
+        non_retryable = KubeMQError("store fatal", is_retryable=False)
+        mock_transport.subscribe_to_events = MagicMock(
+            return_value=RaisingAsyncIterator([], non_retryable)
+        )
+
+        sub = EventsStoreSubscription(
+            channel="ch",
+            on_receive_event_callback=lambda e: None,
+            events_store_type=EventStoreStartPosition.StartFromNew,
+        )
+
+        with pytest.raises(KubeMQError, match="store fatal"):
+            async for _ in client.subscribe_to_events_store_fast(sub):
+                pass
+
+    @pytest.mark.asyncio
+    async def test_fast_store_client_closed_error(self, mock_transport):
+        """KubeMQClientClosedError -> propagates (line 826-827)."""
+        from kubemq.core.exceptions import KubeMQClientClosedError
+
+        client = _make_connected_client(mock_transport)
+
+        mock_transport.subscribe_to_events = MagicMock(
+            return_value=RaisingAsyncIterator([], KubeMQClientClosedError("closed"))
+        )
+
+        sub = EventsStoreSubscription(
+            channel="ch",
+            on_receive_event_callback=lambda e: None,
+            events_store_type=EventStoreStartPosition.StartFromNew,
+        )
+
+        with pytest.raises(KubeMQClientClosedError):
+            async for _ in client.subscribe_to_events_store_fast(sub):
+                pass
+
+    @pytest.mark.asyncio
+    async def test_fast_store_generic_exception_retry(self, mock_transport):
+        """Generic Exception -> retry (lines 841-851)."""
+        client = _make_connected_client(mock_transport)
+        token = AsyncCancellationToken()
+        pb_ev = _make_pb_event(event_id="store-gen-retry")
+
+        mock_transport.subscribe_to_events = ErrorThenCancelIterator(
+            RuntimeError("transient store"), [pb_ev], token
+        )
+
+        sub = EventsStoreSubscription(
+            channel="ch",
+            on_receive_event_callback=lambda e: None,
+            events_store_type=EventStoreStartPosition.StartFromNew,
+        )
+
+        events = []
+        with patch("kubemq.pubsub.async_client.asyncio.sleep", new_callable=AsyncMock):
+            async for ev in client.subscribe_to_events_store_fast(sub, cancellation_token=token):
+                events.append(ev)
+
+        assert len(events) == 1
+
+    @pytest.mark.asyncio
+    async def test_fast_store_kubemq_error_cancelled_returns(self, mock_transport):
+        """KubeMQError when token is cancelled -> return (line 829-830)."""
+        client = _make_connected_client(mock_transport)
+        token = AsyncCancellationToken()
+
+        retryable = KubeMQConnectionError("lost", is_retryable=True)
+        mock_transport.subscribe_to_events = MagicMock(
+            return_value=_CancelAndRaiseIterator(token, retryable)
+        )
+
+        sub = EventsStoreSubscription(
+            channel="ch",
+            on_receive_event_callback=lambda e: None,
+            events_store_type=EventStoreStartPosition.StartFromNew,
+        )
+
+        events = []
+        async for ev in client.subscribe_to_events_store_fast(sub, cancellation_token=token):
+            events.append(ev)
+
+        assert len(events) == 0
+
+    @pytest.mark.asyncio
+    async def test_fast_store_generic_exception_cancelled_returns(self, mock_transport):
+        """Generic exception when token is cancelled -> return (line 842-843)."""
+        client = _make_connected_client(mock_transport)
+        token = AsyncCancellationToken()
+
+        mock_transport.subscribe_to_events = MagicMock(
+            return_value=_CancelAndRaiseIterator(token, RuntimeError("gone"))
+        )
+
+        sub = EventsStoreSubscription(
+            channel="ch",
+            on_receive_event_callback=lambda e: None,
+            events_store_type=EventStoreStartPosition.StartFromNew,
+        )
+
+        events = []
+        async for ev in client.subscribe_to_events_store_fast(sub, cancellation_token=token):
+            events.append(ev)
+
+        assert len(events) == 0
+
+    @pytest.mark.asyncio
+    async def test_fast_store_creates_token_if_not_provided(self, mock_transport):
+        """subscribe_to_events_store_fast creates token if none supplied (line 790)."""
+        client = _make_connected_client(mock_transport)
+
+        non_retryable = KubeMQError("fatal", is_retryable=False)
+        mock_transport.subscribe_to_events = MagicMock(
+            return_value=RaisingAsyncIterator([], non_retryable)
+        )
+
+        sub = EventsStoreSubscription(
+            channel="ch",
+            on_receive_event_callback=lambda e: None,
+            events_store_type=EventStoreStartPosition.StartFromNew,
+        )
+
+        with pytest.raises(KubeMQError):
+            async for _ in client.subscribe_to_events_store_fast(sub):
+                pass
+
+
+# ==============================================================================
+# subscribe_to_events_store error paths — lines ~660-697, 997-1019
+# ==============================================================================
+
+
+class TestAsyncClientSubscribeToEventsStoreErrorPaths:
+    """Additional error path tests for subscribe_to_events_store."""
+
+    @pytest.mark.asyncio
+    async def test_store_stream_end_reconnect(self, mock_transport):
+        """Stream ends without cancel -> reconnects (lines 994-1004)."""
+        client = _make_connected_client(mock_transport)
+        token = AsyncCancellationToken()
+        pb_ev = _make_pb_event(event_id="reconnect-1")
+
+        call_count = [0]
+
+        def mock_subscribe(*args, **kwargs):
+            call_count[0] += 1
+            if call_count[0] == 1:
+                return AsyncIteratorMock([])
+            return CancellingAsyncIteratorMock([pb_ev], token)
+
+        mock_transport.subscribe_to_events = mock_subscribe
+
+        sub = EventsStoreSubscription(
+            channel="ch",
+            on_receive_event_callback=lambda e: None,
+            events_store_type=EventStoreStartPosition.StartFromNew,
+        )
+
+        events = []
+        with patch("kubemq.pubsub.async_client.asyncio.sleep", new_callable=AsyncMock):
+            async for ev in client.subscribe_to_events_store(sub, cancellation_token=token):
+                events.append(ev)
+
+        assert len(events) == 1
+        assert call_count[0] == 2
+
+    @pytest.mark.asyncio
+    async def test_store_client_closed_error_propagates(self, mock_transport):
+        """KubeMQClientClosedError -> re-raised (line 1006-1007)."""
+        from kubemq.core.exceptions import KubeMQClientClosedError
+
+        client = _make_connected_client(mock_transport)
+
+        mock_transport.subscribe_to_events = MagicMock(
+            return_value=RaisingAsyncIterator([], KubeMQClientClosedError("closed"))
+        )
+
+        sub = EventsStoreSubscription(
+            channel="ch",
+            on_receive_event_callback=lambda e: None,
+            events_store_type=EventStoreStartPosition.StartFromNew,
+        )
+
+        with pytest.raises(KubeMQClientClosedError):
+            async for _ in client.subscribe_to_events_store(sub):
+                pass
+
+    @pytest.mark.asyncio
+    async def test_store_kubemq_error_when_cancelled_raises(self, mock_transport):
+        """KubeMQError when token is already cancelled -> raises (line 1010-1011)."""
+        client = _make_connected_client(mock_transport)
+        token = AsyncCancellationToken()
+
+        retryable = KubeMQConnectionError("lost", is_retryable=True)
+        mock_transport.subscribe_to_events = MagicMock(
+            return_value=_CancelAndRaiseIterator(token, retryable)
+        )
+
+        sub = EventsStoreSubscription(
+            channel="ch",
+            on_receive_event_callback=lambda e: None,
+            events_store_type=EventStoreStartPosition.StartFromNew,
+        )
+
+        with pytest.raises(KubeMQConnectionError):
+            async for _ in client.subscribe_to_events_store(sub, cancellation_token=token):
+                pass
+
+    @pytest.mark.asyncio
+    async def test_store_non_retryable_with_sync_error_callback(self, mock_transport):
+        """Non-retryable with sync on_error_callback (lines 1012-1018)."""
+        client = _make_connected_client(mock_transport)
+
+        non_retryable = KubeMQError("fatal sync cb", is_retryable=False)
+        mock_transport.subscribe_to_events = MagicMock(
+            return_value=RaisingAsyncIterator([], non_retryable)
+        )
+
+        errors = []
+
+        def sync_err_cb(msg):
+            errors.append(msg)
+
+        sub = EventsStoreSubscription(
+            channel="ch",
+            on_receive_event_callback=lambda e: None,
+            events_store_type=EventStoreStartPosition.StartFromNew,
+            on_error_callback=sync_err_cb,
+        )
+
+        with pytest.raises(KubeMQError, match="fatal sync cb"):
+            async for _ in client.subscribe_to_events_store(sub):
+                pass
+
+        assert len(errors) == 1
+
+    @pytest.mark.asyncio
+    async def test_store_retryable_sync_error_callback(self, mock_transport):
+        """Retryable error with sync on_error_callback (lines 1027-1032)."""
+        client = _make_connected_client(mock_transport)
+        token = AsyncCancellationToken()
+        retryable = KubeMQConnectionError("lost sync", is_retryable=True)
+        pb_ev = _make_pb_event(event_id="sync-retry")
+
+        mock_transport.subscribe_to_events = CancellingOneShotRetryIterator(retryable, [pb_ev], token)
+
+        errors = []
+
+        def sync_err_cb(msg):
+            errors.append(msg)
+
+        sub = EventsStoreSubscription(
+            channel="ch",
+            on_receive_event_callback=lambda e: None,
+            events_store_type=EventStoreStartPosition.StartFromNew,
+            on_error_callback=sync_err_cb,
+        )
+
+        events = []
+        with patch("kubemq.pubsub.async_client.asyncio.sleep", new_callable=AsyncMock):
+            async for ev in client.subscribe_to_events_store(sub, cancellation_token=token):
+                events.append(ev)
+
+        assert len(events) == 1
+        assert len(errors) == 1
+        assert "Stream broken" in errors[0]
+
+    @pytest.mark.asyncio
+    async def test_store_generic_exception_sync_callback(self, mock_transport):
+        """Generic exception with sync on_error_callback (lines 1043-1049)."""
+        client = _make_connected_client(mock_transport)
+
+        mock_transport.subscribe_to_events = MagicMock(
+            return_value=RaisingAsyncIterator([], RuntimeError("sync generic"))
+        )
+
+        errors = []
+
+        def sync_err_cb(msg):
+            errors.append(msg)
+
+        sub = EventsStoreSubscription(
+            channel="ch",
+            on_receive_event_callback=lambda e: None,
+            events_store_type=EventStoreStartPosition.StartFromNew,
+            on_error_callback=sync_err_cb,
+        )
+
+        with pytest.raises(RuntimeError, match="sync generic"):
+            async for _ in client.subscribe_to_events_store(sub):
+                pass
+
+        assert len(errors) == 1
+
+    @pytest.mark.asyncio
+    async def test_store_generic_exception_async_callback(self, mock_transport):
+        """Generic exception with async on_error_callback (lines 1046-1047)."""
+        client = _make_connected_client(mock_transport)
+
+        mock_transport.subscribe_to_events = MagicMock(
+            return_value=RaisingAsyncIterator([], RuntimeError("async generic store"))
+        )
+
+        errors = []
+
+        async def async_err_cb(msg):
+            errors.append(msg)
+
+        sub = EventsStoreSubscription(
+            channel="ch",
+            on_receive_event_callback=lambda e: None,
+            events_store_type=EventStoreStartPosition.StartFromNew,
+            on_error_callback=async_err_cb,
+        )
+
+        with pytest.raises(RuntimeError, match="async generic store"):
+            async for _ in client.subscribe_to_events_store(sub):
+                pass
+
+        assert len(errors) == 1
+
+
+# ==============================================================================
+# subscribe_with_callback fast event paths — lines ~1220-1268
+# ==============================================================================
+
+
+class TestSubscribeWithCallbackFastPaths:
+    """Cover subscribe_with_callback stream-end / error paths for fast events."""
+
+    @pytest.mark.asyncio
+    async def test_callback_stream_end_reconnect(self, mock_transport):
+        """Stream ends -> reconnect (lines 1220-1230)."""
+        client = _make_connected_client(mock_transport)
+        token = AsyncCancellationToken()
+        pb_ev = _make_pb_event(event_id="cb-reconnect")
+
+        call_count = [0]
+
+        def mock_subscribe(*args, **kwargs):
+            call_count[0] += 1
+            if call_count[0] == 1:
+                return AsyncIteratorMock([])
+            return CancellingAsyncIteratorMock([pb_ev], token)
+
+        mock_transport.subscribe_to_events = mock_subscribe
+
+        received = []
+
+        async def cb(event):
+            received.append(event)
+
+        with patch("kubemq.pubsub.async_client.asyncio.sleep", new_callable=AsyncMock):
+            await client.subscribe_with_callback(
+                EventsSubscription(channel="ch", on_receive_event_callback=lambda e: None),
+                cb,
+                cancellation_token=token,
+            )
+
+        assert len(received) == 1
+        assert call_count[0] == 2
+
+    @pytest.mark.asyncio
+    async def test_callback_client_closed_error(self, mock_transport):
+        """KubeMQClientClosedError -> propagates (line 1232-1233)."""
+        from kubemq.core.exceptions import KubeMQClientClosedError
+
+        client = _make_connected_client(mock_transport)
+
+        mock_transport.subscribe_to_events = MagicMock(
+            return_value=RaisingAsyncIterator([], KubeMQClientClosedError("closed"))
+        )
+
+        with pytest.raises(KubeMQClientClosedError):
+            await client.subscribe_with_callback(
+                EventsSubscription(channel="ch", on_receive_event_callback=lambda e: None),
+                AsyncMock(),
+            )
+
+    @pytest.mark.asyncio
+    async def test_callback_kubemq_error_cancelled_returns(self, mock_transport):
+        """KubeMQError when token cancelled -> return (line 1236-1237)."""
+        client = _make_connected_client(mock_transport)
+        token = AsyncCancellationToken()
+
+        retryable = KubeMQConnectionError("lost", is_retryable=True)
+        mock_transport.subscribe_to_events = MagicMock(
+            return_value=_CancelAndRaiseIterator(token, retryable)
+        )
+
+        await client.subscribe_with_callback(
+            EventsSubscription(channel="ch", on_receive_event_callback=lambda e: None),
+            AsyncMock(),
+            cancellation_token=token,
+        )
+
+
+# ==============================================================================
+# subscribe_store_with_callback fast event paths — lines ~1336-1493
+# ==============================================================================
+
+
+class TestSubscribeStoreWithCallbackFastPaths:
+    """Cover subscribe_store_with_callback stream-end / error / resume paths."""
+
+    @pytest.mark.asyncio
+    async def test_store_callback_stream_end_reconnect(self, mock_transport):
+        """Stream ends -> reconnect (lines 1443-1453)."""
+        client = _make_connected_client(mock_transport)
+        token = AsyncCancellationToken()
+        pb_ev = _make_pb_event(event_id="scb-reconnect")
+
+        call_count = [0]
+
+        def mock_subscribe(*args, **kwargs):
+            call_count[0] += 1
+            if call_count[0] == 1:
+                return AsyncIteratorMock([])
+            return CancellingAsyncIteratorMock([pb_ev], token)
+
+        mock_transport.subscribe_to_events = mock_subscribe
+
+        received = []
+
+        async def cb(event):
+            received.append(event)
+
+        with patch("kubemq.pubsub.async_client.asyncio.sleep", new_callable=AsyncMock):
+            await client.subscribe_store_with_callback(
+                EventsStoreSubscription(channel="ch", on_receive_event_callback=lambda e: None, events_store_type=EventStoreStartPosition.StartFromNew),
+                cb,
+                cancellation_token=token,
+            )
+
+        assert len(received) == 1
+        assert call_count[0] == 2
+
+    @pytest.mark.asyncio
+    async def test_store_callback_client_closed_error(self, mock_transport):
+        """KubeMQClientClosedError -> propagates (line 1455-1456)."""
+        from kubemq.core.exceptions import KubeMQClientClosedError
+
+        client = _make_connected_client(mock_transport)
+
+        mock_transport.subscribe_to_events = MagicMock(
+            return_value=RaisingAsyncIterator([], KubeMQClientClosedError("closed"))
+        )
+
+        with pytest.raises(KubeMQClientClosedError):
+            await client.subscribe_store_with_callback(
+                EventsStoreSubscription(channel="ch", on_receive_event_callback=lambda e: None, events_store_type=EventStoreStartPosition.StartFromNew),
+                AsyncMock(),
+            )
+
+    @pytest.mark.asyncio
+    async def test_store_callback_kubemq_error_cancelled_returns(self, mock_transport):
+        """KubeMQError when token cancelled -> return (line 1459-1460)."""
+        client = _make_connected_client(mock_transport)
+        token = AsyncCancellationToken()
+
+        retryable = KubeMQConnectionError("lost", is_retryable=True)
+        mock_transport.subscribe_to_events = MagicMock(
+            return_value=_CancelAndRaiseIterator(token, retryable)
+        )
+
+        await client.subscribe_store_with_callback(
+            EventsStoreSubscription(channel="ch", on_receive_event_callback=lambda e: None, events_store_type=EventStoreStartPosition.StartFromNew),
+            AsyncMock(),
+            cancellation_token=token,
+        )
+
+    @pytest.mark.asyncio
+    async def test_store_callback_concurrent_path(self, mock_transport):
+        """Concurrent store callback path with sequence tracking (lines 1409-1441)."""
+        client = _make_connected_client(mock_transport)
+        token = AsyncCancellationToken()
+
+        pb_ev = MagicMock()
+        pb_ev.EventID = "scb-conc"
+        pb_ev.Channel = "ch"
+        pb_ev.Metadata = ""
+        pb_ev.Body = b"data"
+        pb_ev.Timestamp = 100
+        pb_ev.Sequence = 5
+        pb_ev.Tags = {}
+
+        mock_transport.subscribe_to_events = MagicMock(
+            return_value=CancellingAsyncIteratorMock([pb_ev], token)
+        )
+
+        received = []
+
+        async def cb(event):
+            received.append(event)
+
+        await client.subscribe_store_with_callback(
+            EventsStoreSubscription(channel="ch", on_receive_event_callback=lambda e: None, events_store_type=EventStoreStartPosition.StartFromNew),
+            cb,
+            cancellation_token=token,
+            max_concurrent_callbacks=3,
+        )
+
+        await asyncio.sleep(0.05)
+        assert len(received) == 1
+
+    @pytest.mark.asyncio
+    async def test_store_callback_concurrent_resume_from_sequence(self, mock_transport):
+        """Concurrent store callback resumes from sequence on reconnect (lines 1349-1357)."""
+        client = _make_connected_client(mock_transport)
+        cancel_token = AsyncCancellationToken()
+
+        pb_ev1 = MagicMock()
+        pb_ev1.EventID = "scb-1"
+        pb_ev1.Channel = "ch"
+        pb_ev1.Metadata = ""
+        pb_ev1.Body = b"d1"
+        pb_ev1.Timestamp = 100
+        pb_ev1.Sequence = 10
+        pb_ev1.Tags = {}
+
+        retryable = KubeMQConnectionError("lost", is_retryable=True)
+
+        pb_ev2 = MagicMock()
+        pb_ev2.EventID = "scb-2"
+        pb_ev2.Channel = "ch"
+        pb_ev2.Metadata = ""
+        pb_ev2.Body = b"d2"
+        pb_ev2.Timestamp = 101
+        pb_ev2.Sequence = 11
+        pb_ev2.Tags = {}
+
+        call_count = [0]
+
+        def mock_subscribe(*args, **kwargs):
+            call_count[0] += 1
+            if call_count[0] == 1:
+                return RaisingAsyncIterator([pb_ev1], retryable)
+            return CancellingAsyncIteratorMock([pb_ev2], cancel_token)
+
+        mock_transport.subscribe_to_events = mock_subscribe
+
+        received = []
+        errors = []
+
+        async def cb(event):
+            received.append(event)
+
+        async def err_cb(error):
+            errors.append(error)
+
+        with patch("kubemq.pubsub.async_client.asyncio.sleep", new_callable=AsyncMock):
+            await client.subscribe_store_with_callback(
+                EventsStoreSubscription(channel="ch", on_receive_event_callback=lambda e: None, events_store_type=EventStoreStartPosition.StartFromNew),
+                cb,
+                error_callback=err_cb,
+                cancellation_token=cancel_token,
+            )
+
+        assert len(received) == 2
+        assert call_count[0] == 2
+
+
+# ==============================================================================
+# Additional targeted coverage — fast paths, deprecated methods, close branches
+# ==============================================================================
+
+
+class TestAsyncClientPublishEventFast:
+    """Cover lines 201-205: publish_event_fast()."""
+
+    @pytest.mark.asyncio
+    async def test_publish_event_fast_sends(self, mock_transport):
+        """publish_event_fast encodes and sends via bidi sender."""
+        client = _make_connected_client(mock_transport)
+        msg = EventMessage(channel="ch", body=b"fast-data")
+
+        await client.publish_event_fast(msg)
+
+        client._event_sender.send.assert_called_once()
+        pb_event = client._event_sender.send.call_args[0][0]
+        assert pb_event.Channel == "ch"
+        assert pb_event.Body == b"fast-data"
+
+
+class TestAsyncClientSendEventStoreFast:
+    """Cover lines 207-212: send_event_store_fast()."""
+
+    @pytest.mark.asyncio
+    async def test_send_event_store_fast_returns_result(self, mock_transport):
+        """send_event_store_fast decodes Result into EventStoreResult."""
+        client = _make_connected_client(mock_transport)
+
+        mock_result = pb.Result()
+        mock_result.Sent = True
+        mock_result.EventID = "fast-store-1"
+        mock_result.Error = ""
+        client._event_sender.send = AsyncMock(return_value=mock_result)
+
+        msg = EventStoreMessage(channel="ch", body=b"fast-store")
+        result = await client.send_event_store_fast(msg)
+
+        assert result.sent is True
+        assert result.id == "fast-store-1"
+
+    @pytest.mark.asyncio
+    async def test_send_event_store_fast_none_result(self, mock_transport):
+        """send_event_store_fast with None result returns empty EventStoreResult."""
+        client = _make_connected_client(mock_transport)
+        client._event_sender.send = AsyncMock(return_value=None)
+
+        msg = EventStoreMessage(channel="ch", body=b"x")
+        result = await client.send_event_store_fast(msg)
+
+        assert result.sent is False
+
+
+class TestAsyncClientDeprecatedSendEventsStoreMessage:
+    """Cover line 392: send_events_store_message() deprecated delegate."""
+
+    @pytest.mark.asyncio
+    async def test_send_events_store_message_delegates(self, mock_transport):
+        """send_events_store_message delegates to send_event_store."""
+        import warnings
+
+        client = _make_connected_client(mock_transport)
+
+        mock_result = pb.Result()
+        mock_result.Sent = True
+        mock_result.EventID = "deprecated-1"
+        mock_result.Error = ""
+        client._event_sender.send = AsyncMock(return_value=mock_result)
+
+        msg = EventStoreMessage(channel="ch", body=b"deprecated")
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            result = await client.send_events_store_message(msg)
+
+        assert result.sent is True
+
+
+class TestAsyncClientCloseWithoutEventSender:
+    """Cover branch 131->134: close() when _event_sender is None."""
+
+    @pytest.mark.asyncio
+    async def test_close_when_no_event_sender(self, mock_transport):
+        """close() skips event sender close when None."""
+        client = AsyncClient(address="localhost:50000")
+        client._transport = mock_transport
+        client._connected = True
+        assert client._event_sender is None
+
+        with patch.object(type(client).__bases__[0], "close", new_callable=AsyncMock):
+            await client.close()
+
+        # No error and event sender still None
+        assert client._event_sender is None
+
+
+class TestSubscribeToEventsStreamEndReconnect:
+    """Cover lines 660-667: stream ends without cancel -> reconnect in subscribe_to_events."""
+
+    @pytest.mark.asyncio
+    async def test_stream_end_reconnect(self, mock_transport):
+        """Stream ends (no cancel) -> reconnects with backoff (lines 657-667)."""
+        client = _make_connected_client(mock_transport)
+        token = AsyncCancellationToken()
+        pb_ev = _make_pb_event(event_id="reconnect-ev")
+
+        call_count = [0]
+
+        def mock_subscribe(*args, **kwargs):
+            call_count[0] += 1
+            if call_count[0] == 1:
+                return AsyncIteratorMock([])  # Stream ends immediately
+            return CancellingAsyncIteratorMock([pb_ev], token)
+
+        mock_transport.subscribe_to_events = mock_subscribe
+
+        sub = EventsSubscription(
+            channel="ch",
+            on_receive_event_callback=lambda e: None,
+        )
+
+        events = []
+        with patch("kubemq.pubsub.async_client.asyncio.sleep", new_callable=AsyncMock):
+            async for ev in client.subscribe_to_events(sub, cancellation_token=token):
+                events.append(ev)
+
+        assert len(events) == 1
+        assert call_count[0] == 2
+
+
+class TestSubscribeToEventsClientClosedError:
+    """Cover line 670: KubeMQClientClosedError in subscribe_to_events."""
+
+    @pytest.mark.asyncio
+    async def test_client_closed_error_propagates(self, mock_transport):
+        """KubeMQClientClosedError -> re-raised (line 669-670)."""
+        from kubemq.core.exceptions import KubeMQClientClosedError
+
+        client = _make_connected_client(mock_transport)
+
+        mock_transport.subscribe_to_events = MagicMock(
+            return_value=RaisingAsyncIterator([], KubeMQClientClosedError("closed"))
+        )
+
+        sub = EventsSubscription(
+            channel="ch",
+            on_receive_event_callback=lambda e: None,
+        )
+
+        with pytest.raises(KubeMQClientClosedError):
+            async for _ in client.subscribe_to_events(sub):
+                pass
+
+
+class TestSubscribeToEventsKubeMQErrorWhenCancelled:
+    """Cover line 674: KubeMQError when token is already cancelled."""
+
+    @pytest.mark.asyncio
+    async def test_kubemq_error_cancelled_raises(self, mock_transport):
+        """KubeMQError raised when token is cancelled -> re-raises (line 673-674)."""
+        client = _make_connected_client(mock_transport)
+        token = AsyncCancellationToken()
+
+        retryable = KubeMQConnectionError("lost", is_retryable=True)
+        mock_transport.subscribe_to_events = MagicMock(
+            return_value=_CancelAndRaiseIterator(token, retryable)
+        )
+
+        sub = EventsSubscription(
+            channel="ch",
+            on_receive_event_callback=lambda e: None,
+        )
+
+        with pytest.raises(KubeMQConnectionError):
+            async for _ in client.subscribe_to_events(sub, cancellation_token=token):
+                pass
+
+
+class TestSubscribeToEventsStoreStreamEndWithEvents:
+    """Cover the stream end reconnect in subscribe_to_events_store with events."""
+
+    @pytest.mark.asyncio
+    async def test_store_stream_end_with_events(self, mock_transport):
+        """Stream yields events then ends -> reconnects (lines 994-1004)."""
+        client = _make_connected_client(mock_transport)
+        token = AsyncCancellationToken()
+        pb_ev1 = _make_pb_event(event_id="se-1")
+        pb_ev2 = _make_pb_event(event_id="se-2")
+
+        call_count = [0]
+
+        def mock_subscribe(*args, **kwargs):
+            call_count[0] += 1
+            if call_count[0] == 1:
+                return AsyncIteratorMock([pb_ev1])  # Yields one, then stream ends
+            return CancellingAsyncIteratorMock([pb_ev2], token)
+
+        mock_transport.subscribe_to_events = mock_subscribe
+
+        sub = EventsStoreSubscription(
+            channel="ch",
+            on_receive_event_callback=lambda e: None,
+            events_store_type=EventStoreStartPosition.StartFromNew,
+        )
+
+        events = []
+        with patch("kubemq.pubsub.async_client.asyncio.sleep", new_callable=AsyncMock):
+            async for ev in client.subscribe_to_events_store(sub, cancellation_token=token):
+                events.append(ev)
+
+        assert len(events) == 2
+        assert call_count[0] == 2
+
+
+class TestSubscribeWithCallbackStreamEndConcurrent:
+    """Cover lines 1220-1230 in concurrent mode: stream ends -> reconnect."""
+
+    @pytest.mark.asyncio
+    async def test_callback_concurrent_stream_end_reconnect(self, mock_transport):
+        """Concurrent callback: stream ends -> reconnect (lines 1220-1230)."""
+        client = _make_connected_client(mock_transport)
+        token = AsyncCancellationToken()
+        pb_ev = _make_pb_event(event_id="conc-reconnect")
+
+        call_count = [0]
+
+        def mock_subscribe(*args, **kwargs):
+            call_count[0] += 1
+            if call_count[0] == 1:
+                return AsyncIteratorMock([])
+            return CancellingAsyncIteratorMock([pb_ev], token)
+
+        mock_transport.subscribe_to_events = mock_subscribe
+
+        received = []
+
+        async def cb(event):
+            received.append(event)
+
+        with patch("kubemq.pubsub.async_client.asyncio.sleep", new_callable=AsyncMock):
+            await client.subscribe_with_callback(
+                EventsSubscription(channel="ch", on_receive_event_callback=lambda e: None),
+                cb,
+                cancellation_token=token,
+                max_concurrent_callbacks=3,
+            )
+
+        await asyncio.sleep(0.05)
+        assert len(received) == 1
+        assert call_count[0] == 2
+
+
+class TestSubscribeStoreWithCallbackStreamEndConcurrent:
+    """Cover lines 1443-1453 in concurrent mode: stream ends -> reconnect."""
+
+    @pytest.mark.asyncio
+    async def test_store_callback_concurrent_stream_end_reconnect(self, mock_transport):
+        """Concurrent store callback: stream ends -> reconnect (lines 1443-1453)."""
+        client = _make_connected_client(mock_transport)
+        token = AsyncCancellationToken()
+        pb_ev = _make_pb_event(event_id="sconc-reconnect")
+
+        call_count = [0]
+
+        def mock_subscribe(*args, **kwargs):
+            call_count[0] += 1
+            if call_count[0] == 1:
+                return AsyncIteratorMock([])
+            return CancellingAsyncIteratorMock([pb_ev], token)
+
+        mock_transport.subscribe_to_events = mock_subscribe
+
+        received = []
+
+        async def cb(event):
+            received.append(event)
+
+        with patch("kubemq.pubsub.async_client.asyncio.sleep", new_callable=AsyncMock):
+            await client.subscribe_store_with_callback(
+                EventsStoreSubscription(channel="ch", on_receive_event_callback=lambda e: None, events_store_type=EventStoreStartPosition.StartFromNew),
+                cb,
+                cancellation_token=token,
+                max_concurrent_callbacks=3,
+            )
+
+        await asyncio.sleep(0.05)
+        assert len(received) == 1
+        assert call_count[0] == 2
+
+
+class TestSubscribeToEventsRetryableWithSyncCallback:
+    """Cover lines 690-695: retryable error with sync on_error_callback."""
+
+    @pytest.mark.asyncio
+    async def test_retryable_sync_callback(self, mock_transport):
+        """Retryable error with sync on_error_callback (lines 690-695)."""
+        client = _make_connected_client(mock_transport)
+        token = AsyncCancellationToken()
+        retryable = KubeMQConnectionError("lost", is_retryable=True)
+        pb_ev = _make_pb_event()
+
+        mock_transport.subscribe_to_events = CancellingOneShotRetryIterator(retryable, [pb_ev], token)
+
+        errors = []
+
+        def sync_err_cb(msg):
+            errors.append(msg)
+
+        sub = EventsSubscription(
+            channel="ch",
+            on_receive_event_callback=lambda e: None,
+            on_error_callback=sync_err_cb,
+        )
+
+        events = []
+        with patch("kubemq.pubsub.async_client.asyncio.sleep", new_callable=AsyncMock):
+            async for ev in client.subscribe_to_events(sub, cancellation_token=token):
+                events.append(ev)
+
+        assert len(events) == 1
+        assert len(errors) == 1
+        assert "Stream broken" in errors[0]
+
+
+class TestSubscribeToEventsNonRetryableSyncCallback:
+    """Cover line 680-681: non-retryable with sync on_error_callback."""
+
+    @pytest.mark.asyncio
+    async def test_non_retryable_sync_callback(self, mock_transport):
+        """Non-retryable KubeMQError with sync on_error_callback (lines 676-681)."""
+        client = _make_connected_client(mock_transport)
+
+        non_retryable = KubeMQError("fatal sync", is_retryable=False)
+        mock_transport.subscribe_to_events = MagicMock(
+            return_value=RaisingAsyncIterator([], non_retryable)
+        )
+
+        errors = []
+
+        def sync_err_cb(msg):
+            errors.append(msg)
+
+        sub = EventsSubscription(
+            channel="ch",
+            on_receive_event_callback=lambda e: None,
+            on_error_callback=sync_err_cb,
+        )
+
+        with pytest.raises(KubeMQError, match="fatal sync"):
+            async for _ in client.subscribe_to_events(sub):
+                pass
+
+        assert len(errors) == 1
+
+
+class TestSubscribeToEventsGenericExceptionSyncCallback:
+    """Cover lines 708-712: generic exception with sync on_error_callback."""
+
+    @pytest.mark.asyncio
+    async def test_generic_sync_callback(self, mock_transport):
+        """Generic exception with sync on_error_callback (lines 706-712)."""
+        client = _make_connected_client(mock_transport)
+
+        mock_transport.subscribe_to_events = MagicMock(
+            return_value=RaisingAsyncIterator([], RuntimeError("sync gen err"))
+        )
+
+        errors = []
+
+        def sync_err_cb(msg):
+            errors.append(msg)
+
+        sub = EventsSubscription(
+            channel="ch",
+            on_receive_event_callback=lambda e: None,
+            on_error_callback=sync_err_cb,
+        )
+
+        with pytest.raises(RuntimeError, match="sync gen err"):
+            async for _ in client.subscribe_to_events(sub):
+                pass
+
+        assert len(errors) == 1
+
+
+# ==============================================================================
+# Cover link-append branch: create_link_from_context returns non-None
+# ==============================================================================
+
+
+class TestSubscribeToEventsLinkBranch:
+    """Cover line 595: links.append(link) when create_link_from_context returns non-None."""
+
+    @pytest.mark.asyncio
+    async def test_link_appended_in_subscribe_to_events(self, mock_transport):
+        """create_link_from_context returns a link -> appended (line 595)."""
+        client = _make_connected_client(mock_transport)
+        token = AsyncCancellationToken()
+        pb_ev = _make_pb_event()
+        mock_transport.subscribe_to_events = MagicMock(
+            return_value=CancellingAsyncIteratorMock([pb_ev], token)
+        )
+
+        sub = EventsSubscription(
+            channel="ch",
+            on_receive_event_callback=lambda e: None,
+        )
+
+        with patch("kubemq.pubsub.async_client.create_link_from_context", return_value=MagicMock()):
+            events = []
+            async for ev in client.subscribe_to_events(sub, cancellation_token=token):
+                events.append(ev)
+
+        assert len(events) == 1
+
+
+class TestSubscribeToEventsStoreLinkBranch:
+    """Cover line 929: links.append(link) when create_link_from_context returns non-None."""
+
+    @pytest.mark.asyncio
+    async def test_link_appended_in_subscribe_to_events_store(self, mock_transport):
+        """create_link_from_context returns a link -> appended (line 929)."""
+        client = _make_connected_client(mock_transport)
+        token = AsyncCancellationToken()
+        pb_ev = _make_pb_event()
+        mock_transport.subscribe_to_events = MagicMock(
+            return_value=CancellingAsyncIteratorMock([pb_ev], token)
+        )
+
+        sub = EventsStoreSubscription(
+            channel="ch",
+            on_receive_event_callback=lambda e: None,
+            events_store_type=EventStoreStartPosition.StartFromNew,
+        )
+
+        with patch("kubemq.pubsub.async_client.create_link_from_context", return_value=MagicMock()):
+            events = []
+            async for ev in client.subscribe_to_events_store(sub, cancellation_token=token):
+                events.append(ev)
+
+        assert len(events) == 1
+
+
+class TestSubscribeWithCallbackLinkBranch:
+    """Cover line 1150: links.append(link) in subscribe_with_callback."""
+
+    @pytest.mark.asyncio
+    async def test_link_appended_in_subscribe_with_callback(self, mock_transport):
+        """create_link_from_context returns a link -> appended (line 1150)."""
+        client = _make_connected_client(mock_transport)
+        token = AsyncCancellationToken()
+        pb_ev = _make_pb_event()
+        mock_transport.subscribe_to_events = MagicMock(
+            return_value=CancellingAsyncIteratorMock([pb_ev], token)
+        )
+
+        received = []
+
+        async def cb(event):
+            received.append(event)
+
+        with patch("kubemq.pubsub.async_client.create_link_from_context", return_value=MagicMock()):
+            await client.subscribe_with_callback(
+                EventsSubscription(channel="ch", on_receive_event_callback=lambda e: None),
+                cb,
+                cancellation_token=token,
+            )
+
+        assert len(received) == 1
+
+
+class TestSubscribeStoreWithCallbackLinkBranch:
+    """Cover line 1370: links.append(link) in subscribe_store_with_callback."""
+
+    @pytest.mark.asyncio
+    async def test_link_appended_in_subscribe_store_with_callback(self, mock_transport):
+        """create_link_from_context returns a link -> appended (line 1370)."""
+        client = _make_connected_client(mock_transport)
+        token = AsyncCancellationToken()
+        pb_ev = _make_pb_event()
+        mock_transport.subscribe_to_events = MagicMock(
+            return_value=CancellingAsyncIteratorMock([pb_ev], token)
+        )
+
+        received = []
+
+        async def cb(event):
+            received.append(event)
+
+        with patch("kubemq.pubsub.async_client.create_link_from_context", return_value=MagicMock()):
+            await client.subscribe_store_with_callback(
+                EventsStoreSubscription(channel="ch", on_receive_event_callback=lambda e: None, events_store_type=EventStoreStartPosition.StartFromNew),
+                cb,
+                cancellation_token=token,
+            )
+
+        assert len(received) == 1

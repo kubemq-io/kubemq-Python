@@ -5,12 +5,13 @@ from __future__ import annotations
 import time
 import threading
 
-from kubemq import Client, QueueMessage
+from kubemq.queues import Client as QueuesClient
+from kubemq import QueueMessage
 
 
 def worker(worker_id: int) -> None:
     """Worker that pulls and processes tasks from the queue."""
-    with Client(
+    with QueuesClient(
         address="localhost:50000",
         client_id=f"python-patterns-work-queue-worker-{worker_id}",
     ) as client:
@@ -29,7 +30,7 @@ def worker(worker_id: int) -> None:
 
 def main() -> None:
     # Producer: enqueue tasks
-    with Client(
+    with QueuesClient(
         address="localhost:50000",
         client_id="python-patterns-work-queue-producer",
     ) as client:
