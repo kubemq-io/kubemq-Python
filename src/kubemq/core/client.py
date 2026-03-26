@@ -26,7 +26,7 @@ if TYPE_CHECKING:
     from kubemq.common.async_cancellation_token import AsyncCancellationToken
     from kubemq.core.types import ConnectionState
     from kubemq.transport.async_transport import AsyncTransport
-    from kubemq.transport.transport import Transport
+    from kubemq.transport.transport import SyncTransport
 
 T = TypeVar("T", bound="BaseClient")
 AT = TypeVar("AT", bound="AsyncBaseClient")
@@ -121,7 +121,7 @@ class BaseClient(ABC):  # noqa: B024
                 **kwargs,
             )
 
-        self._transport: Transport | None = None
+        self._transport: SyncTransport | None = None
         self._logger: Any = _resolve_logger(self._config, self.__class__.__name__)
         self._instrumentor = _create_instrumentor(self._config, self._logger)
         self._lock = threading.RLock()
@@ -135,11 +135,10 @@ class BaseClient(ABC):  # noqa: B024
 
     def _initialize(self) -> None:
         """Initialize the transport and establish connection."""
-        from kubemq.transport.transport import Transport
+        from kubemq.transport.transport import SyncTransport
 
         try:
-            connection = self._config.to_legacy_connection()
-            self._transport = Transport(connection).initialize()
+            self._transport = SyncTransport(self._config).initialize()
             self._logger.debug(f"Connected to {self._config.address}")
         except Exception as e:
             self._logger.error(f"Failed to connect: {e}")
@@ -341,7 +340,7 @@ class AsyncBaseClient(ABC):  # noqa: B024
                 **kwargs,
             )
 
-        self._transport: Transport | None = None
+        self._transport: SyncTransport | None = None
         self._logger: Any = _resolve_logger(self._config, self.__class__.__name__)
         self._instrumentor = _create_instrumentor(self._config, self._logger)
         self._closed = False
@@ -356,12 +355,11 @@ class AsyncBaseClient(ABC):  # noqa: B024
         Raises:
             KubeMQConnectionError: If connection fails
         """
-        from kubemq.transport.transport import Transport
+        from kubemq.transport.transport import SyncTransport
 
         try:
-            connection = self._config.to_legacy_connection()
             # Use thread wrapper for blocking initialization
-            self._transport = await run_in_thread(lambda: Transport(connection).initialize())
+            self._transport = await run_in_thread(lambda: SyncTransport(self._config).initialize())
             self._logger.debug(f"Connected to {self._config.address}")
         except Exception as e:
             self._logger.error(f"Failed to connect: {e}")

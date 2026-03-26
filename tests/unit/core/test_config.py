@@ -281,54 +281,6 @@ KUBEMQ_CLIENT_ID=dotenv-client
             finally:
                 os.unlink(f.name)
 
-    def test_to_legacy_connection(self):
-        """Test conversion to legacy Connection object."""
-        # Create temp files for TLS
-        with tempfile.NamedTemporaryFile(suffix=".pem", delete=False) as cert_file:
-            cert_path = Path(cert_file.name)
-        with tempfile.NamedTemporaryFile(suffix=".pem", delete=False) as key_file:
-            key_path = Path(key_file.name)
-        with tempfile.NamedTemporaryFile(suffix=".pem", delete=False) as ca_file:
-            ca_path = Path(ca_file.name)
-
-        try:
-            tls = TLSConfig(
-                enabled=True,
-                cert_file=cert_path,
-                key_file=key_path,
-                ca_file=ca_path,
-            )
-            keep_alive = KeepAliveConfig(
-                enabled=True,
-                ping_interval_in_seconds=45,
-                ping_timeout_in_seconds=15,
-            )
-            config = ClientConfig(
-                address="localhost:50000",
-                client_id="test-client",
-                auth_token="test-token",
-                tls=tls,
-                keep_alive=keep_alive,
-                max_send_size=2097152,
-                max_receive_size=4194304,
-                auto_reconnect=False,
-                reconnect_interval_seconds=5,
-            )
-
-            connection = config.to_legacy_connection()
-
-            assert connection.address == "localhost:50000"
-            assert connection.client_id == "test-client"
-            assert connection.auth_token == "test-token"
-            assert connection.disable_auto_reconnect is True
-            assert connection.reconnect_interval_seconds == 5
-            assert connection.max_send_size == 2097152
-            assert connection.max_receive_size == 4194304
-        finally:
-            os.unlink(cert_path)
-            os.unlink(key_path)
-            os.unlink(ca_path)
-
     def test_default_max_message_size(self):
         """Test the default max message size constant."""
         assert ClientConfig.DEFAULT_MAX_MESSAGE_SIZE == 4 * 1024 * 1024  # 4MB (spec default)

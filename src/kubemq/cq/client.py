@@ -156,8 +156,6 @@ class Client(BaseClient):
 
         super().__init__(config=config)
 
-        # Legacy attribute for backward compatibility
-        self.connection = self._config.to_legacy_connection()
 
     async def __aenter__(self) -> Client:
         """Async context manager entry."""

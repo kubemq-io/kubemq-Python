@@ -7,8 +7,9 @@ from collections.abc import Generator
 import grpc
 
 from kubemq.common import decode_grpc_error
+from kubemq.core.config import ClientConfig
 from kubemq.grpc import Event, Result
-from kubemq.transport import Connection, Transport
+from kubemq.transport import SyncTransport
 
 DEFAULT_SEND_QUEUE_SIZE = 10_000
 
@@ -18,7 +19,7 @@ class EventSender:
 
     Attributes:
     - clientStub: A client stub object for communicating with the server.
-    - connection: A Connection object containing connection information.
+    - _config: A ClientConfig object containing configuration.
     - shutdown_event: A threading.Event object to signal whether the sender should shutdown.
     - logger: A logging.Logger object for logging messages.
     - lock: A threading.Lock object for thread safety.
@@ -27,8 +28,8 @@ class EventSender:
     - allow_new_messages: A flag indicating whether new messages are allowed to be sent.
 
     Methods:
-    - __init__(transport: Transport, shutdown_event: threading.Event, logger: logging.Logger,
-             connection: Connection): Initializes the EventSender object with the given transport, shutdown event, logger, and connection. Starts a new thread to send events.
+    - __init__(transport: SyncTransport, shutdown_event: threading.Event, logger: logging.Logger,
+             config: ClientConfig): Initializes the EventSender object with the given transport, shutdown event, logger, and config. Starts a new thread to send events.
     - send(event: Event) -> Optional[Result]: Sends an event to the server. If the event is not set to be stored, it queues the event. If it is set to be stored, it waits for the response
     * and returns it. Raises a ConnectionError if the client is not connected.
     - handle_disconnection(): Handles the disconnection from the server. Clears the sending queue and sets an error on all response containers.
@@ -37,15 +38,15 @@ class EventSender:
 
     def __init__(
         self,
-        transport: Transport,
+        transport: SyncTransport,
         shutdown_event: threading.Event,
         logger: logging.Logger,
-        connection: Connection,
+        config: ClientConfig,
         *,
         max_queue_size: int = DEFAULT_SEND_QUEUE_SIZE,
     ):
         self.clientStub = transport.kubemq_client()
-        self.connection = connection
+        self._config = config
         self.shutdown_event = shutdown_event
         self.logger = logger
         self.lock = threading.Lock()
@@ -150,10 +151,10 @@ class EventSender:
             except grpc.RpcError as e:
                 self.logger.debug(decode_grpc_error(e))
                 self.handle_disconnection()
-                time.sleep(self.connection.reconnect_interval_seconds)
+                time.sleep(self._config.reconnect_interval_seconds)
                 continue
             except Exception as e:
                 self.logger.debug(f"Error: {str(e)}")
                 self.handle_disconnection()
-                time.sleep(self.connection.reconnect_interval_seconds)
+                time.sleep(self._config.reconnect_interval_seconds)
                 continue

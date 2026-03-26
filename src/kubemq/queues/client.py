@@ -166,8 +166,6 @@ class Client(BaseClient):
         self._upstream_sender_lock = threading.Lock()
         self._downstream_receiver_lock = threading.Lock()
 
-        # Legacy attribute for backward compatibility
-        self.connection = self._config.to_legacy_connection()
 
         # Start connection monitor
         connection_monitor = threading.Thread(target=self._monitor_connection, daemon=True)
@@ -243,7 +241,7 @@ class Client(BaseClient):
                 self._upstream_sender = UpstreamSender(
                     self._transport,
                     self._logger,
-                    self.connection,
+                    self._config,
                     send_timeout=self.send_timeout,
                     max_queue_size=self._config.max_send_queue_size,
                 )
@@ -258,7 +256,7 @@ class Client(BaseClient):
                 self._downstream_receiver = DownstreamReceiver(
                     self._transport,
                     self._logger,
-                    self.connection,
+                    self._config,
                     max_queue_size=self._config.max_send_queue_size,
                 )
             return self._downstream_receiver

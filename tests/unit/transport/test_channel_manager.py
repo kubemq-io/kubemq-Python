@@ -10,8 +10,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from kubemq.core.config import ClientConfig
 from kubemq.transport.channel_manager import ChannelManager, ConnectionState
-from kubemq.transport.connection import Connection
 
 
 class TestConnectionState:
@@ -73,13 +73,10 @@ class TestChannelManagerInit:
         mock_client.Ping.return_value = MagicMock()
         mock_stub.return_value = mock_client
 
-        connection = Connection(
-            address="localhost:50000",
-            client_id="test-client",
-        )
+        config = ClientConfig(address="localhost:50000")
         logger = logging.getLogger("test")
 
-        manager = ChannelManager(connection, logger)
+        manager = ChannelManager(config, logger)
 
         assert manager._client is not None
         assert manager._channel is not None
@@ -92,14 +89,11 @@ class TestChannelManagerInit:
         """Test that initialization fails on connection error."""
         mock_insecure.side_effect = Exception("Connection failed")
 
-        connection = Connection(
-            address="localhost:50000",
-            client_id="test-client",
-        )
+        config = ClientConfig(address="localhost:50000")
         logger = logging.getLogger("test")
 
         with pytest.raises(Exception, match="Connection failed"):
-            ChannelManager(connection, logger)
+            ChannelManager(config, logger)
 
 
 class TestChannelManagerOperations:
@@ -117,13 +111,10 @@ class TestChannelManagerOperations:
         mock_client = MagicMock()
         mock_stub.return_value = mock_client
 
-        connection = Connection(
-            address="localhost:50000",
-            client_id="test-client",
-        )
+        config = ClientConfig(address="localhost:50000")
         logger = logging.getLogger("test")
 
-        manager = ChannelManager(connection, logger)
+        manager = ChannelManager(config, logger)
         client = manager.get_client()
 
         assert client is not None
@@ -138,13 +129,10 @@ class TestChannelManagerOperations:
         mock_intercept.return_value = mock_channel
         mock_stub.return_value = MagicMock()
 
-        connection = Connection(
-            address="localhost:50000",
-            client_id="test-client",
-        )
+        config = ClientConfig(address="localhost:50000")
         logger = logging.getLogger("test")
 
-        manager = ChannelManager(connection, logger)
+        manager = ChannelManager(config, logger)
         client_ref = MagicMock()
 
         manager.register_client(client_ref)
@@ -164,13 +152,10 @@ class TestChannelManagerOperations:
         mock_client.Ping.return_value = MagicMock()
         mock_stub.return_value = mock_client
 
-        connection = Connection(
-            address="localhost:50000",
-            client_id="test-client",
-        )
+        config = ClientConfig(address="localhost:50000")
         logger = logging.getLogger("test")
 
-        manager = ChannelManager(connection, logger)
+        manager = ChannelManager(config, logger)
 
         assert manager.is_channel_healthy() is True
 
@@ -190,13 +175,10 @@ class TestChannelManagerOperations:
         mock_client.Ping.side_effect = [MagicMock(), Exception("Connection lost")]
         mock_stub.return_value = mock_client
 
-        connection = Connection(
-            address="localhost:50000",
-            client_id="test-client",
-        )
+        config = ClientConfig(address="localhost:50000")
         logger = logging.getLogger("test")
 
-        manager = ChannelManager(connection, logger)
+        manager = ChannelManager(config, logger)
 
         assert manager.is_channel_healthy() is False
 
@@ -214,13 +196,10 @@ class TestChannelManagerClose:
         mock_intercept.return_value = mock_channel
         mock_stub.return_value = MagicMock()
 
-        connection = Connection(
-            address="localhost:50000",
-            client_id="test-client",
-        )
+        config = ClientConfig(address="localhost:50000")
         logger = logging.getLogger("test")
 
-        manager = ChannelManager(connection, logger)
+        manager = ChannelManager(config, logger)
         manager.close()
 
         mock_channel.close.assert_called()
@@ -239,13 +218,10 @@ class TestChannelManagerClose:
         mock_intercept.return_value = mock_channel
         mock_stub.return_value = MagicMock()
 
-        connection = Connection(
-            address="localhost:50000",
-            client_id="test-client",
-        )
+        config = ClientConfig(address="localhost:50000")
         logger = logging.getLogger("test")
 
-        manager = ChannelManager(connection, logger)
+        manager = ChannelManager(config, logger)
 
         # Should not raise
         manager.close()
@@ -270,14 +246,10 @@ class TestChannelManagerRecreate:
         mock_intercept.return_value = mock_channel
         mock_stub.return_value = MagicMock()
 
-        connection = Connection(
-            address="localhost:50000",
-            client_id="test-client",
-            disable_auto_reconnect=True,
-        )
+        config = ClientConfig(address="localhost:50000", auto_reconnect=False)
         logger = logging.getLogger("test")
 
-        manager = ChannelManager(connection, logger)
+        manager = ChannelManager(config, logger)
 
         with pytest.raises(ConnectionError, match="Auto-reconnect is disabled"):
             manager.recreate_channel()
@@ -296,15 +268,10 @@ class TestChannelManagerRecreate:
         mock_client.Ping.return_value = MagicMock()
         mock_stub.return_value = mock_client
 
-        connection = Connection(
-            address="localhost:50000",
-            client_id="test-client",
-            disable_auto_reconnect=False,
-            reconnect_interval_seconds=0,
-        )
+        config = ClientConfig(address="localhost:50000", auto_reconnect=True, reconnect_interval_seconds=0)
         logger = logging.getLogger("test")
 
-        manager = ChannelManager(connection, logger)
+        manager = ChannelManager(config, logger)
         new_client = manager.recreate_channel()
 
         assert new_client is not None
@@ -325,9 +292,9 @@ class TestChannelManagerTestConnection:
         mock_intercept.return_value = mock_channel
         mock_stub.return_value = MagicMock()
 
-        connection = Connection(address="localhost:50000", client_id="test")
+        config = ClientConfig(address="localhost:50000")
         logger = logging.getLogger("test")
-        manager = ChannelManager(connection, logger)
+        manager = ChannelManager(config, logger)
         manager._client = None
         assert manager._test_connection() is False
 
@@ -350,13 +317,9 @@ class TestChannelManagerRecreateEdge:
         mock_client.Ping.return_value = MagicMock()
         mock_stub.return_value = mock_client
 
-        connection = Connection(
-            address="localhost:50000",
-            client_id="test",
-            reconnect_interval_seconds=0,
-        )
+        config = ClientConfig(address="localhost:50000", reconnect_interval_seconds=0)
         logger = logging.getLogger("test")
-        manager = ChannelManager(connection, logger)
+        manager = ChannelManager(config, logger)
         new_client = manager.recreate_channel()
         assert new_client is not None
 
@@ -374,13 +337,9 @@ class TestChannelManagerRecreateEdge:
         mock_client.Ping.side_effect = [MagicMock(), Exception("ping fail")]
         mock_stub.return_value = mock_client
 
-        connection = Connection(
-            address="localhost:50000",
-            client_id="test",
-            reconnect_interval_seconds=0,
-        )
+        config = ClientConfig(address="localhost:50000", reconnect_interval_seconds=0)
         logger = logging.getLogger("test")
-        manager = ChannelManager(connection, logger)
+        manager = ChannelManager(config, logger)
         manager.recreate_channel()
         assert manager.connection_state.is_connected is False
 
@@ -396,9 +355,9 @@ class TestChannelManagerCloseEdge:
         mock_intercept.return_value = MagicMock()
         mock_stub.return_value = MagicMock()
 
-        connection = Connection(address="localhost:50000", client_id="test")
+        config = ClientConfig(address="localhost:50000")
         logger = logging.getLogger("test")
-        manager = ChannelManager(connection, logger)
+        manager = ChannelManager(config, logger)
         manager._channel = None
         manager._client = None
         manager.close()
@@ -424,9 +383,9 @@ class TestChannelManagerIsChannelHealthyException:
         mock_intercept.return_value = mock_channel
         mock_stub.return_value = MagicMock()
 
-        connection = Connection(address="localhost:50000", client_id="test")
+        config = ClientConfig(address="localhost:50000")
         logger = logging.getLogger("test")
-        manager = ChannelManager(connection, logger)
+        manager = ChannelManager(config, logger)
 
         with patch.object(manager, "_test_connection", side_effect=RuntimeError("boom")):
             assert manager.is_channel_healthy() is False
@@ -449,13 +408,9 @@ class TestChannelManagerRecreateNoExistingChannel:
         mock_client.Ping.return_value = MagicMock()
         mock_stub.return_value = mock_client
 
-        connection = Connection(
-            address="localhost:50000",
-            client_id="test",
-            reconnect_interval_seconds=0,
-        )
+        config = ClientConfig(address="localhost:50000", reconnect_interval_seconds=0)
         logger = logging.getLogger("test")
-        manager = ChannelManager(connection, logger)
+        manager = ChannelManager(config, logger)
 
         manager._channel = None
         manager._client = None
@@ -480,13 +435,9 @@ class TestChannelManagerRecreateGenericException:
         mock_intercept.return_value = mock_channel
         mock_stub.return_value = MagicMock()
 
-        connection = Connection(
-            address="localhost:50000",
-            client_id="test",
-            reconnect_interval_seconds=0,
-        )
+        config = ClientConfig(address="localhost:50000", reconnect_interval_seconds=0)
         logger = logging.getLogger("test")
-        manager = ChannelManager(connection, logger)
+        manager = ChannelManager(config, logger)
 
         mock_intercept.side_effect = RuntimeError("DNS resolution failed")
 

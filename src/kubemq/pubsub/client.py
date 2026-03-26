@@ -166,8 +166,6 @@ class Client(BaseClient):
         self._event_sender: EventSender | None = None
         self._sender_lock = threading.Lock()
 
-        # Legacy attribute for backward compatibility
-        self.connection = self._config.to_legacy_connection()
 
     async def __aenter__(self) -> Client:
         """Async context manager entry."""
@@ -218,7 +216,7 @@ class Client(BaseClient):
                     self._transport,
                     self._shutdown_event,
                     self._logger,
-                    self.connection,
+                    self._config,
                     max_queue_size=self._config.max_send_queue_size,
                 )
             return self._event_sender

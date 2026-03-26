@@ -12,7 +12,8 @@ from kubemq.grpc import (
     QueuesDownstreamRequestType,
     QueuesDownstreamResponse,
 )
-from kubemq.transport import Connection, Transport
+from kubemq.core.config import ClientConfig
+from kubemq.transport import SyncTransport
 
 DEFAULT_RECEIVE_QUEUE_SIZE = 10_000
 
@@ -35,8 +36,8 @@ class DownstreamReceiver:
         - Errors in send_without_response() are raised as exceptions
 
     Attributes:
-        transport (Transport): The transport object for channel management.
-        clientStub (Transport): The transport client stub.
+        transport (SyncTransport): The transport object for channel management.
+        clientStub: The transport client stub.
         connection (Connection): The connection to the server.
         shutdown_event (threading.Event): The event used to indicate shutdown.
         logger (logging.Logger): The logger for logging messages.
@@ -50,9 +51,9 @@ class DownstreamReceiver:
 
     def __init__(
         self,
-        transport: Transport,
+        transport: SyncTransport,
         logger: logging.Logger,
-        connection: Connection,
+        config: ClientConfig,
         timeout_buffer: float = 0.5,
         *,
         max_queue_size: int = DEFAULT_RECEIVE_QUEUE_SIZE,
@@ -62,13 +63,13 @@ class DownstreamReceiver:
         Args:
             transport: The transport object for channel management
             logger: The logger for logging messages
-            connection: The connection to the server
+            config: The client configuration
             timeout_buffer: Timeout buffer in seconds for request timeouts
             max_queue_size: Maximum size of the request queue.
         """
         self.transport = transport
         self.clientStub = transport.kubemq_client()
-        self.connection = connection
+        self._config = config
         self.shutdown_event = threading.Event()
         self.logger = logger
         self.lock = threading.Lock()
@@ -252,7 +253,7 @@ class DownstreamReceiver:
                 self.allow_new_requests = True
             return True
         except ConnectionError as conn_ex:
-            if self.connection.disable_auto_reconnect:
+            if not self._config.auto_reconnect:
                 self.logger.warning("Auto-reconnect is disabled, not attempting to reconnect")
                 with self.lock:
                     self.allow_new_requests = False
@@ -295,12 +296,12 @@ class DownstreamReceiver:
         self._handle_disconnection()
 
         if is_grpc_error or is_channel_error(error):
-            if not self._recreate_channel() and self.connection.disable_auto_reconnect:
+            if not self._recreate_channel() and not self._config.auto_reconnect:
                 return False  # Exit thread
         else:
             self.logger.error("Non-channel error detected, clearing affected requests only")
 
-        time.sleep(self.connection.get_reconnect_delay())
+        time.sleep(self._config.reconnect_interval_seconds)
         return True  # Continue processing
 
     def _send_queue_stream(self) -> None:
