@@ -9,24 +9,23 @@ import grpc
 
 import kubemq.grpc.kubemq_pb2_grpc as kubemq_pb2_grpc
 from kubemq.grpc import Empty
-from kubemq.transport.connection import Connection
 from kubemq.transport.interceptors import AuthInterceptors
-from kubemq.transport.tls_config import TlsConfig
 
 if TYPE_CHECKING:
     from kubemq._internal.auth import TokenHolder
+    from kubemq.core.config import ClientConfig
 
 
-def _get_ssl_credentials(tls_config: TlsConfig) -> grpc.ChannelCredentials:
+def _get_ssl_credentials(config: ClientConfig) -> grpc.ChannelCredentials:
     from kubemq.transport.transport import _get_ssl_credentials as get_creds
 
-    return get_creds(tls_config)
+    return get_creds(config)
 
 
-def _get_call_options(connection: Connection) -> list[tuple[str, Any]]:
+def _get_call_options(config: ClientConfig) -> list[tuple[str, Any]]:
     from kubemq.transport.transport import _get_call_options as get_opts
 
-    return list(get_opts(connection))
+    return list(get_opts(config))
 
 
 class ConnectionState:
@@ -57,12 +56,11 @@ class ChannelManager:
 
     def __init__(
         self,
-        connection: Connection,
+        config: ClientConfig,
         logger: logging.Logger,
         token_holder: TokenHolder | None = None,
     ) -> None:
-        self._opts = connection.complete()
-        self._connection = connection
+        self._config = config
         self._channel: grpc.Channel | None = None
         self._client: kubemq_pb2_grpc.kubemqStub | None = None
         self._channel_lock = threading.Lock()
@@ -78,7 +76,7 @@ class ChannelManager:
             return AuthInterceptors(self._token_holder)
         from kubemq._internal.auth import TokenHolder as _TH
 
-        holder = _TH(self._opts.auth_token or None)
+        holder = _TH(self._config.auth_token or None)
         self._token_holder = holder
         return AuthInterceptors(holder)
 
@@ -88,18 +86,19 @@ class ChannelManager:
             try:
                 auth_interceptor = self._build_auth_interceptor()
                 interceptors = [auth_interceptor]
+                tls_enabled = self._config._resolve_tls_enabled()
                 credentials = (
-                    _get_ssl_credentials(self._opts.tls) if self._opts.tls.enabled else None
+                    _get_ssl_credentials(self._config) if tls_enabled else None
                 )
                 self._channel = (
                     grpc.secure_channel(
-                        self._opts.address,
+                        self._config.address,
                         credentials,
-                        options=_get_call_options(self._opts),
+                        options=_get_call_options(self._config),
                     )
                     if credentials
                     else grpc.insecure_channel(
-                        self._opts.address, options=_get_call_options(self._opts)
+                        self._config.address, options=_get_call_options(self._config)
                     )
                 )
                 self._channel = grpc.intercept_channel(self._channel, *interceptors)
@@ -150,7 +149,7 @@ class ChannelManager:
         self.connection_state.set_connected(False)
 
         # Check if auto-reconnect is disabled
-        if self._connection.disable_auto_reconnect:
+        if not self._config.auto_reconnect:
             self.logger.warning(
                 "Auto-reconnect is disabled, not attempting to recreate channel"
             )
@@ -158,7 +157,7 @@ class ChannelManager:
 
         # PY-3: Sleep OUTSIDE the lock to avoid blocking other components
         # (e.g., senders and receivers) that share the same channel lock.
-        reconnect_seconds = self._connection.reconnect_interval_seconds
+        reconnect_seconds = self._config.reconnect_interval_seconds
         self.logger.info(f"Waiting {reconnect_seconds} seconds before reconnection")
         time.sleep(reconnect_seconds)
 
@@ -176,19 +175,20 @@ class ChannelManager:
             try:
                 auth_interceptor = self._build_auth_interceptor()
                 interceptors = [auth_interceptor]
+                tls_enabled = self._config._resolve_tls_enabled()
                 credentials = (
-                    _get_ssl_credentials(self._opts.tls) if self._opts.tls.enabled else None
+                    _get_ssl_credentials(self._config) if tls_enabled else None
                 )
 
                 self._channel = (
                     grpc.secure_channel(
-                        self._opts.address,
+                        self._config.address,
                         credentials,
-                        options=_get_call_options(self._opts),
+                        options=_get_call_options(self._config),
                     )
                     if credentials
                     else grpc.insecure_channel(
-                        self._opts.address, options=_get_call_options(self._opts)
+                        self._config.address, options=_get_call_options(self._config)
                     )
                 )
                 self._channel = grpc.intercept_channel(self._channel, *interceptors)

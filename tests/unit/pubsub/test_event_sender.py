@@ -17,14 +17,14 @@ def _make_sender(*, max_queue_size: int = 10_000) -> tuple[EventSender, MagicMoc
     mock_transport = MagicMock()
     shutdown_event = threading.Event()
     mock_logger = MagicMock()
-    mock_connection = MagicMock()
+    mock_config = MagicMock()
 
     with patch("kubemq.pubsub.event_sender.threading.Thread"):
         sender = EventSender(
             mock_transport,
             shutdown_event,
             mock_logger,
-            mock_connection,
+            mock_config,
             max_queue_size=max_queue_size,
         )
 
@@ -166,7 +166,7 @@ class TestEventSenderSendEventsStream:
     def test_stream_processes_responses(self):
         """Test that responses from the stream resolve tracked events."""
         sender, mock_transport, shutdown_event = _make_sender()
-        sender.connection.reconnect_interval_seconds = 0.01
+        sender._config.reconnect_interval_seconds = 0.01
 
         container, evt = {}, threading.Event()
         sender.response_tracking["e1"] = (container, evt)
@@ -192,7 +192,7 @@ class TestEventSenderSendEventsStream:
     def test_stream_handles_grpc_error(self):
         """Test gRPC error triggers handle_disconnection and retry."""
         sender, mock_transport, shutdown_event = _make_sender()
-        sender.connection.reconnect_interval_seconds = 0.01
+        sender._config.reconnect_interval_seconds = 0.01
 
         call_count = 0
 
@@ -216,7 +216,7 @@ class TestEventSenderSendEventsStream:
     def test_stream_handles_generic_exception(self):
         """Test generic exception triggers handle_disconnection and retry."""
         sender, mock_transport, shutdown_event = _make_sender()
-        sender.connection.reconnect_interval_seconds = 0.01
+        sender._config.reconnect_interval_seconds = 0.01
 
         call_count = 0
 
@@ -268,7 +268,7 @@ class TestEventSenderStreamResponseEdgeCases:
 
     def test_stream_untracked_response_ignored(self):
         sender, _, shutdown_event = _make_sender()
-        sender.connection.reconnect_interval_seconds = 0.01
+        sender._config.reconnect_interval_seconds = 0.01
 
         untracked = Result(EventID="no-such-id", Sent=True, Error="")
         call_count = 0
@@ -288,7 +288,7 @@ class TestEventSenderStreamResponseEdgeCases:
 
     def test_stream_shutdown_breaks_response_loop(self):
         sender, _, shutdown_event = _make_sender()
-        sender.connection.reconnect_interval_seconds = 0.01
+        sender._config.reconnect_interval_seconds = 0.01
 
         container, evt = {}, threading.Event()
         sender.response_tracking["e2"] = (container, evt)
@@ -315,7 +315,7 @@ class TestEventSenderSendRequestsGenerator:
 
     def test_generator_yields_queued_items(self):
         sender, _, shutdown_event = _make_sender()
-        sender.connection.reconnect_interval_seconds = 0.01
+        sender._config.reconnect_interval_seconds = 0.01
 
         event = Event(EventID="e1", Store=False)
         sender.sending_queue.put(event)
@@ -336,7 +336,7 @@ class TestEventSenderSendRequestsGenerator:
 
     def test_generator_handles_empty_queue_timeout(self):
         sender, _, shutdown_event = _make_sender()
-        sender.connection.reconnect_interval_seconds = 0.01
+        sender._config.reconnect_interval_seconds = 0.01
 
         empty_count = 0
 

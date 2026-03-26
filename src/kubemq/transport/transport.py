@@ -2,6 +2,8 @@ import asyncio
 import logging
 import threading
 from collections.abc import Sequence
+from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
 import grpc
 from grpc import Channel
@@ -12,18 +14,34 @@ from kubemq._internal.auth import TokenHolder
 from kubemq._internal.compat import check_server_compatibility
 from kubemq.grpc import Empty
 from kubemq.transport.channel_manager import ChannelManager
-from kubemq.transport.connection import Connection
 from kubemq.transport.interceptors import AuthInterceptorsAsync
-from kubemq.transport.keep_alive import KeepAliveConfig
 from kubemq.transport.server_info import ServerInfo
-from kubemq.transport.tls_config import TlsConfig
+
+if TYPE_CHECKING:
+    from kubemq.core.config import ClientConfig
 
 
-def _get_ssl_credentials(tls_config: TlsConfig) -> ChannelCredentials:
-    certificate_chain = _read_file(tls_config.cert_file) if tls_config.cert_file else None
-    private_key = _read_file(tls_config.key_file) if tls_config.key_file else None
-    root_certificates = _read_file(tls_config.ca_file) if tls_config.ca_file else None
-    return grpc.ssl_channel_credentials(root_certificates, private_key, certificate_chain)
+def _get_ssl_credentials(config: "ClientConfig") -> ChannelCredentials:
+    """Build SSL credentials from ClientConfig.tls, supporting PEM bytes and file paths."""
+    tls = config.tls
+
+    root_certs = tls.ca_pem
+    if root_certs is None and tls.ca_file:
+        root_certs = Path(tls.ca_file).read_bytes()
+
+    private_key = tls.key_pem
+    if private_key is None and tls.key_file:
+        private_key = Path(tls.key_file).read_bytes()
+
+    certificate_chain = tls.cert_pem
+    if certificate_chain is None and tls.cert_file:
+        certificate_chain = Path(tls.cert_file).read_bytes()
+
+    return grpc.ssl_channel_credentials(
+        root_certificates=root_certs,
+        private_key=private_key,
+        certificate_chain=certificate_chain,
+    )
 
 
 def _read_file(file_path: str) -> bytes:
@@ -31,40 +49,40 @@ def _read_file(file_path: str) -> bytes:
         return f.read()
 
 
-def _get_call_options(connection: Connection) -> Sequence[tuple[str, int]]:
-    options = [
-        ("grpc.max_send_message_length", connection.max_send_size),
-        ("grpc.max_receive_message_length", connection.max_receive_size),
+def _get_call_options(config: "ClientConfig") -> Sequence[tuple[str, Any]]:
+    """Build gRPC channel options from ClientConfig."""
+    options: list[tuple[str, Any]] = [
+        ("grpc.max_send_message_length", config.max_send_size),
+        ("grpc.max_receive_message_length", config.max_receive_size),
     ]
-    if (
-        connection.keep_alive
-        and isinstance(connection.keep_alive, KeepAliveConfig)
-        and connection.keep_alive.enabled
-    ):
-        options.append(
-            (
-                "grpc.keepalive_time_ms",
-                connection.keep_alive.ping_interval_in_seconds * 1000,
-            )
-        )
-        options.append(
-            (
-                "grpc.keepalive_timeout_ms",
-                connection.keep_alive.ping_timeout_in_seconds * 1000,
-            )
-        )
-        options.append(("grpc.keepalive_permit_without_calls", 1))
-        options.append(
-            (
-                "grpc.http2.min_time_between_pings_ms",
-                connection.keep_alive.ping_interval_in_seconds * 1000,
-            )
-        )
-        options.append(
-            (
-                "grpc.http2.min_ping_interval_without_data_ms",
-                connection.keep_alive.ping_interval_in_seconds * 1000,
-            )
+
+    if config.tls.server_name_override:
+        options.append(("grpc.ssl_target_name_override", config.tls.server_name_override))
+
+    if config.keep_alive.enabled:
+        options.extend(
+            [
+                (
+                    "grpc.keepalive_time_ms",
+                    config.keep_alive.ping_interval_in_seconds * 1000,
+                ),
+                (
+                    "grpc.keepalive_timeout_ms",
+                    config.keep_alive.ping_timeout_in_seconds * 1000,
+                ),
+                (
+                    "grpc.keepalive_permit_without_calls",
+                    1 if config.keep_alive.permit_without_calls else 0,
+                ),
+                (
+                    "grpc.http2.min_time_between_pings_ms",
+                    config.keep_alive.ping_interval_in_seconds * 1000,
+                ),
+                (
+                    "grpc.http2.min_ping_interval_without_data_ms",
+                    config.keep_alive.ping_interval_in_seconds * 1000,
+                ),
+            ]
         )
     return options
 
@@ -75,9 +93,6 @@ class SyncTransport:
     This is the sync/thread-based transport implementation.
     For native async operations, use AsyncTransport from async_transport module.
 
-    Note: The alias `Transport` is provided for backward compatibility
-    and will be deprecated in future versions.
-
     TODO(PY-5): Wire ReconnectionManager to this sync transport path.
     Currently, ReconnectionManager (with subscription recovery) is only
     wired to the async transport. Sync-path users get inferior reconnection
@@ -86,8 +101,10 @@ class SyncTransport:
     the two transport paths.
     """
 
-    def __init__(self, connection: Connection) -> None:
-        self._opts: Connection = connection.complete()
+    def __init__(self, config: "ClientConfig") -> None:
+        from kubemq.core.config import ClientConfig
+
+        self._config: ClientConfig = config
         self._channel: Channel | None = None
         self._client: kubemq_pb2_grpc.kubemqStub | None = None
         self._async_channel: Channel | None = None
@@ -96,20 +113,20 @@ class SyncTransport:
         self._is_connected: bool = False
         self._logger = logging.getLogger("KubeMQ")
         self._channel_manager: ChannelManager | None = None
-        self._token_holder = TokenHolder(self._opts.auth_token or None)
+        self._token_holder = TokenHolder(self._config.auth_token or None)
 
     def initialize(self) -> "SyncTransport":
         """Initialize the transport by creating the gRPC channel and verifying connectivity."""
         try:
-            if not self._opts.tls.enabled:
+            if not self._config._resolve_tls_enabled():
                 self._logger.warning(
                     "Using insecure connection to %s — TLS is disabled. "
                     "Set tls=TLSConfig(enabled=True, ...) for encrypted communication.",
-                    self._opts.address,
+                    self._config.address,
                 )
             # Initialize the channel manager
             self._channel_manager = ChannelManager(
-                self._opts, self._logger, token_holder=self._token_holder
+                self._config, self._logger, token_holder=self._token_holder
             )
             self._client = self._channel_manager.get_client()
             with self._is_connected_lock:
@@ -128,21 +145,21 @@ class SyncTransport:
     def _initialize_async(self) -> None:
         auth_interceptor_async: AuthInterceptorsAsync = AuthInterceptorsAsync(self._token_holder)
         interceptors_async: Sequence[grpc.aio.ClientInterceptor] = [auth_interceptor_async]
-        if self._opts.tls.enabled:
+        if self._config._resolve_tls_enabled():
             try:
-                credentials: ChannelCredentials = _get_ssl_credentials(self._opts.tls)
+                credentials: ChannelCredentials = _get_ssl_credentials(self._config)
                 self._async_channel = grpc.aio.secure_channel(
-                    self._opts.address,
+                    self._config.address,
                     credentials,
-                    options=_get_call_options(self._opts),
+                    options=_get_call_options(self._config),
                     interceptors=interceptors_async,
                 )
             except Exception as e:
                 raise e
         else:
             self._async_channel = grpc.aio.insecure_channel(
-                self._opts.address,
-                options=_get_call_options(self._opts),
+                self._config.address,
+                options=_get_call_options(self._config),
                 interceptors=interceptors_async,
             )
 
@@ -240,7 +257,3 @@ class SyncTransport:
                     loop.close()
                 self._async_channel = None
                 self._async_client = None
-
-
-# Backward compatibility alias
-Transport = SyncTransport

@@ -15,7 +15,8 @@ from kubemq.grpc import (
     SendQueueMessageResult,
 )
 from kubemq.queues.queues_send_result import QueueSendResult
-from kubemq.transport import Connection, Transport
+from kubemq.core.config import ClientConfig
+from kubemq.transport import SyncTransport
 
 DEFAULT_SEND_QUEUE_SIZE = 10_000
 
@@ -37,8 +38,8 @@ class UpstreamSender:
         - Errors in send() are returned as error responses
 
     Attributes:
-        transport (Transport): The transport object for channel management.
-        clientStub (Transport): The transport client stub.
+        transport (SyncTransport): The transport object for channel management.
+        clientStub: The transport client stub.
         connection (Connection): The connection to the server.
         shutdown_event (threading.Event): The event used to indicate shutdown.
         logger (logging.Logger): The logger for logging messages.
@@ -53,9 +54,9 @@ class UpstreamSender:
 
     def __init__(
         self,
-        transport: Transport,
+        transport: SyncTransport,
         logger: logging.Logger,
-        connection: Connection,
+        config: ClientConfig,
         send_timeout: float = 2.0,
         *,
         max_queue_size: int = DEFAULT_SEND_QUEUE_SIZE,
@@ -65,13 +66,13 @@ class UpstreamSender:
         Args:
             transport: The transport object for channel management
             logger: The logger for logging messages
-            connection: The connection to the server
+            config: The client configuration
             send_timeout: Timeout in seconds for waiting for a send response
             max_queue_size: Maximum size of the sending queue.
         """
         self.transport = transport
         self.clientStub = transport.kubemq_client()
-        self.connection = connection
+        self._config = config
         self.shutdown_event = threading.Event()
         self.logger = logger
         self.lock = threading.Lock()
@@ -231,7 +232,7 @@ class UpstreamSender:
                 self.allow_new_messages = True
             return True
         except ConnectionError as conn_ex:
-            if self.connection.disable_auto_reconnect:
+            if not self._config.auto_reconnect:
                 self.logger.warning("Auto-reconnect is disabled, not attempting to reconnect")
                 with self.lock:
                     self.allow_new_messages = False
@@ -275,12 +276,12 @@ class UpstreamSender:
         self._handle_disconnection()
 
         if is_grpc_error or is_channel_error(error):
-            if not self._recreate_channel() and self.connection.disable_auto_reconnect:
+            if not self._recreate_channel() and not self._config.auto_reconnect:
                 return False  # Exit thread
         else:
             self.logger.error("Non-channel error detected, clearing affected messages only")
 
-        time.sleep(self.connection.get_reconnect_delay())
+        time.sleep(self._config.reconnect_interval_seconds)
         return True  # Continue processing
 
     def _send_queue_stream(self) -> None:

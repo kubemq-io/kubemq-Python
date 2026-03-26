@@ -28,10 +28,10 @@ def _make_mocks():
     mock_transport = MagicMock()
     mock_transport.is_connected.return_value = True
     mock_logger = MagicMock()
-    mock_connection = MagicMock()
-    mock_connection.disable_auto_reconnect = False
-    mock_connection.get_reconnect_delay.return_value = 0.01
-    return mock_transport, mock_logger, mock_connection
+    mock_config = MagicMock()
+    mock_config.auto_reconnect = True
+    mock_config.reconnect_interval_seconds = 0.01
+    return mock_transport, mock_logger, mock_config
 
 
 def _make_sender(mock_transport, mock_logger, mock_connection, **kwargs):
@@ -178,7 +178,7 @@ class TestUpstreamSenderRecreateChannel:
 
     def test_auto_reconnect_disabled(self):
         mock_transport, mock_logger, mock_connection = _make_mocks()
-        mock_connection.disable_auto_reconnect = True
+        mock_connection.auto_reconnect = False
         mock_transport.recreate_channel.side_effect = ConnectionError("refused")
         sender = _make_sender(mock_transport, mock_logger, mock_connection)
 
@@ -234,7 +234,7 @@ class TestUpstreamSenderHandleError:
 
     def test_returns_false_when_unreconnectable(self):
         mock_transport, mock_logger, mock_connection = _make_mocks()
-        mock_connection.disable_auto_reconnect = True
+        mock_connection.auto_reconnect = False
         sender = _make_sender(mock_transport, mock_logger, mock_connection)
 
         error = FakeRpcError()
@@ -461,7 +461,7 @@ class TestUpstreamSenderRecreateChannelConnectionErrorEnabled:
 
     def test_connection_error_auto_reconnect_enabled(self):
         mock_transport, mock_logger, mock_connection = _make_mocks()
-        mock_connection.disable_auto_reconnect = False
+        mock_connection.auto_reconnect = True
         mock_transport.recreate_channel.side_effect = ConnectionError("refused")
         sender = _make_sender(mock_transport, mock_logger, mock_connection)
 

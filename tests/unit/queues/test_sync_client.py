@@ -29,7 +29,7 @@ class TestQueuesClientInit:
 
     def test_init_with_address(self):
         """Test initialization with address parameter."""
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport.is_connected.return_value = True
@@ -46,7 +46,7 @@ class TestQueuesClientInit:
             client_id="test-client",
         )
 
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport.is_connected.return_value = True
@@ -59,7 +59,7 @@ class TestQueuesClientInit:
 
     def test_init_with_client_id(self):
         """Test initialization with client_id parameter."""
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport.is_connected.return_value = True
@@ -71,7 +71,7 @@ class TestQueuesClientInit:
 
     def test_init_with_auth_token(self):
         """Test initialization with auth_token parameter."""
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport.is_connected.return_value = True
@@ -86,7 +86,7 @@ class TestQueuesClientInit:
 
     def test_init_with_queues_specific_params(self):
         """Test initialization with queues-specific parameters."""
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport.is_connected.return_value = True
@@ -112,7 +112,7 @@ class TestQueuesClientContextManager:
 
     def test_sync_context_manager(self):
         """Test sync context manager (__enter__/__exit__)."""
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport.is_connected.return_value = True
@@ -127,7 +127,7 @@ class TestQueuesClientContextManager:
     @pytest.mark.asyncio
     async def test_async_context_manager(self):
         """Test async context manager (__aenter__/__aexit__)."""
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport.is_connected.return_value = True
@@ -151,7 +151,7 @@ class TestQueuesClientSendMessage:
 
     def test_send_queues_message_returns_result(self):
         """Test send_queues_message returns QueueSendResult."""
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport.is_connected.return_value = True
@@ -189,7 +189,7 @@ class TestQueuesClientSendMessage:
 
     def test_send_queues_message_with_error(self):
         """Test send_queues_message handles errors."""
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport.is_connected.return_value = True
@@ -231,7 +231,7 @@ class TestQueuesClientChannelManagement:
 
     def test_create_queues_channel(self):
         """Test create_queues_channel creates a channel."""
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport.is_connected.return_value = True
@@ -254,7 +254,7 @@ class TestQueuesClientChannelManagement:
 
     def test_delete_queues_channel(self):
         """Test delete_queues_channel deletes a channel."""
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport.is_connected.return_value = True
@@ -277,7 +277,7 @@ class TestQueuesClientChannelManagement:
 
     def test_list_queues_channels(self):
         """Test list_queues_channels returns channel list."""
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport.is_connected.return_value = True
@@ -302,7 +302,7 @@ class TestQueuesClientChannelManagement:
 
     def test_list_queues_channels_with_search(self):
         """Test list_queues_channels with search filter."""
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport.is_connected.return_value = True
@@ -332,7 +332,7 @@ class TestQueuesClientReceiveMessages:
 
     def test_receive_queues_messages(self):
         """Test receive_queues_messages receives messages."""
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport.is_connected.return_value = True
@@ -362,7 +362,7 @@ class TestQueuesClientReceiveMessages:
 
     def test_receive_queues_messages_with_auto_ack(self):
         """Test receive_queues_messages with auto_ack enabled."""
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport.is_connected.return_value = True
@@ -404,7 +404,7 @@ class TestQueuesClientWaiting:
 
     def test_peek_queue_messages_returns_messages(self):
         """Test waiting returns waiting messages."""
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport.is_connected.return_value = True
@@ -432,7 +432,7 @@ class TestQueuesClientWaiting:
 
     def test_peek_queue_messages_raises_on_none_channel(self):
         """Test waiting raises ValueError when channel is None."""
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport.is_connected.return_value = True
@@ -449,7 +449,7 @@ class TestQueuesClientWaiting:
 
     def test_peek_queue_messages_raises_on_invalid_max_messages(self):
         """Test waiting raises ValueError when max_messages < 1."""
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport.is_connected.return_value = True
@@ -466,7 +466,7 @@ class TestQueuesClientWaiting:
 
     def test_peek_queue_messages_raises_on_invalid_timeout(self):
         """Test waiting raises ValueError when wait_timeout < 1."""
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport.is_connected.return_value = True
@@ -494,7 +494,7 @@ class TestQueuesClientPull:
 
     def test_pull_returns_messages(self):
         """Test pull returns pulled messages."""
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport.is_connected.return_value = True
@@ -522,7 +522,7 @@ class TestQueuesClientPull:
 
     def test_pull_raises_on_none_channel(self):
         """Test pull raises ValueError when channel is None."""
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport.is_connected.return_value = True
@@ -539,7 +539,7 @@ class TestQueuesClientPull:
 
     def test_pull_raises_on_invalid_max_messages(self):
         """Test pull raises ValueError when max_messages < 1."""
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport.is_connected.return_value = True
@@ -556,7 +556,7 @@ class TestQueuesClientPull:
 
     def test_pull_raises_on_invalid_timeout(self):
         """Test pull raises ValueError when wait_timeout < 1."""
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport.is_connected.return_value = True
@@ -584,7 +584,7 @@ class TestQueuesClientGetters:
 
     def test_get_upstream_sender_creates_sender(self):
         """Test _get_upstream_sender creates UpstreamSender lazily."""
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport.is_connected.return_value = True
@@ -604,7 +604,7 @@ class TestQueuesClientGetters:
 
     def test_get_downstream_receiver_creates_receiver(self):
         """Test _get_downstream_receiver creates DownstreamReceiver lazily."""
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport.is_connected.return_value = True
@@ -633,7 +633,7 @@ class TestQueuesClientCleanup:
 
     def test_cleanup_resources_closes_senders(self):
         """Test _cleanup_resources closes upstream and downstream."""
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport.is_connected.return_value = True
@@ -657,7 +657,7 @@ class TestQueuesClientCleanup:
     @pytest.mark.asyncio
     async def test_close_async_closes_resources(self):
         """Test close_async closes all resources."""
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport.is_connected.return_value = True
@@ -706,7 +706,7 @@ class TestQueuesClientCloseAsyncAdditional:
     @pytest.mark.asyncio
     async def test_close_async_sets_shutdown_event(self):
         """Test close_async sets shutdown event."""
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport.is_connected.return_value = True
@@ -724,7 +724,7 @@ class TestQueuesClientCloseAsyncAdditional:
     @pytest.mark.asyncio
     async def test_close_async_no_transport(self):
         """Test close_async handles None transport gracefully."""
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport.is_connected.return_value = True
@@ -742,7 +742,7 @@ class TestQueuesClientCloseAsyncAdditional:
     @pytest.mark.asyncio
     async def test_close_async_without_senders(self):
         """Test close_async when upstream/downstream are None."""
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport.is_connected.return_value = True
@@ -764,7 +764,7 @@ class TestQueuesClientMonitorConnection:
 
     def test_monitor_connection_detects_status_change(self):
         """Test _monitor_connection logs status changes."""
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport.is_connected.return_value = True
@@ -788,7 +788,7 @@ class TestQueuesClientMonitorConnection:
 
     def test_monitor_connection_exits_on_shutdown(self):
         """Test _monitor_connection exits when shutdown event is set."""
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport.is_connected.return_value = True
@@ -806,7 +806,7 @@ class TestQueuesClientPingAsync:
     @pytest.mark.asyncio
     async def test_ping_async_delegates_to_sync(self):
         """Test ping_async calls sync ping via run_in_thread."""
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport.is_connected.return_value = True
@@ -835,7 +835,7 @@ class TestQueuesClientChannelManagementAdditional:
     @pytest.mark.asyncio
     async def test_create_queues_channel_async(self):
         """Test create_queues_channel_async delegates to sync."""
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport.is_connected.return_value = True
@@ -852,7 +852,7 @@ class TestQueuesClientChannelManagementAdditional:
     @pytest.mark.asyncio
     async def test_delete_queues_channel_async(self):
         """Test delete_queues_channel_async delegates to sync."""
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport.is_connected.return_value = True
@@ -869,7 +869,7 @@ class TestQueuesClientChannelManagementAdditional:
     @pytest.mark.asyncio
     async def test_list_queues_channels_async(self):
         """Test list_queues_channels_async delegates to sync."""
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport.is_connected.return_value = True
@@ -889,7 +889,7 @@ class TestQueuesClientPullAdditional:
 
     def test_pull_returns_empty_when_no_messages(self):
         """Test pull returns empty QueueMessagesPulled when response.Messages is empty."""
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport.is_connected.return_value = True
@@ -917,7 +917,7 @@ class TestQueuesClientPullAdditional:
 
     def test_pull_returns_messages_when_present(self):
         """Test pull returns decoded messages when response has messages (lines 649-653)."""
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport.is_connected.return_value = True
@@ -965,7 +965,7 @@ class TestQueuesClientPullAsync:
     @pytest.mark.asyncio
     async def test_pull_async_delegates_to_sync(self):
         """Test pull_async delegates to sync pull."""
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport.is_connected.return_value = True
@@ -995,7 +995,7 @@ class TestQueuesClientWaitingAdditional:
 
     def test_peek_queue_messages_returns_empty_messages(self):
         """Test waiting returns empty QueueMessagesWaiting when no messages."""
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport.is_connected.return_value = True
@@ -1022,7 +1022,7 @@ class TestQueuesClientWaitingAdditional:
 
     def test_peek_queue_messages_returns_messages_when_present(self):
         """Test waiting returns decoded messages when response has messages."""
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport.is_connected.return_value = True
@@ -1066,7 +1066,7 @@ class TestQueuesClientWaitingAdditional:
     @pytest.mark.asyncio
     async def test_peek_queue_messages_async_delegates_to_sync(self):
         """Test peek_queue_messages_async delegates to sync waiting (line 604)."""
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport.is_connected.return_value = True
@@ -1096,7 +1096,7 @@ class TestQueuesClientDeprecatedMethods:
 
     def test_send_queues_message_emits_deprecation_warning(self):
         """Test send_queues_message emits deprecation warning (line 405)."""
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport.is_connected.return_value = True
@@ -1129,7 +1129,7 @@ class TestQueuesClientDeprecatedMethods:
 
     def test_receive_queues_messages_emits_deprecation_warning(self):
         """Test receive_queues_messages emits deprecation warning (line 434)."""
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport.is_connected.return_value = True
@@ -1160,7 +1160,7 @@ class TestQueuesClientDeprecatedMethods:
     @pytest.mark.asyncio
     async def test_receive_queues_messages_async_delegates(self):
         """Test receive_queues_messages_async delegates to sync (lines 445-448)."""
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport.is_connected.return_value = True
@@ -1185,7 +1185,7 @@ class TestQueuesClientDeprecatedMethods:
 
     def test_send_queue_message_returns_error_on_none_result(self):
         """Test send_queue_message returns error result when sender returns None (line 284)."""
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport.is_connected.return_value = True
@@ -1205,7 +1205,7 @@ class TestQueuesClientDeprecatedMethods:
 
     def test_send_queue_message_validation_error(self):
         """Test send_queue_message wraps ValueError in KubeMQValidationError."""
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport.is_connected.return_value = True
@@ -1227,7 +1227,7 @@ class TestQueuesClientDeprecatedMethods:
     @pytest.mark.asyncio
     async def test_send_queues_message_async_emits_deprecation(self):
         """Test send_queues_message_async emits deprecation warning (line 530)."""
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport.is_connected.return_value = True
@@ -1258,7 +1258,7 @@ class TestQueuesClientDeprecatedMethods:
 
     def test_receive_queue_messages_none_response(self):
         """Test receive_queue_messages returns empty when receiver returns None."""
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport.is_connected.return_value = True
@@ -1279,7 +1279,7 @@ class TestSyncClientAckAllQueueMessages:
     """GAP-H10: Tests for ack_all_queue_messages on sync client."""
 
     def test_ack_all_queue_messages_calls_transport(self):
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport.is_connected.return_value = True
@@ -1298,7 +1298,7 @@ class TestSyncClientAckAllQueueMessages:
             mock_stub.AckAllQueueMessages.assert_called_once()
 
     def test_ack_all_queue_messages_returns_affected_count(self):
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport.is_connected.return_value = True
@@ -1327,7 +1327,7 @@ class TestSendQueueMessageSimple:
     """Tests for send_queue_message_simple() unary RPC path (lines 300-344)."""
 
     def test_send_queue_message_simple_success(self):
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport.is_connected.return_value = True
@@ -1353,7 +1353,7 @@ class TestSendQueueMessageSimple:
             mock_grpc_client.SendQueueMessage.assert_called_once()
 
     def test_send_queue_message_simple_validation_error(self):
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport.is_connected.return_value = True
@@ -1369,7 +1369,7 @@ class TestSendQueueMessageSimple:
                 assert exc_info.value.__cause__ is validation_err
 
     def test_send_queue_message_simple_transport_error(self):
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport.is_connected.return_value = True
@@ -1390,7 +1390,7 @@ class TestSendQueueMessagesBatch:
     """Tests for send_queue_messages_batch() (lines 387-427)."""
 
     def test_send_queue_messages_batch_success(self):
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport.is_connected.return_value = True
@@ -1434,7 +1434,7 @@ class TestSendQueueMessagesBatch:
             mock_grpc_client.SendQueueMessagesBatch.assert_called_once()
 
     def test_send_queue_messages_batch_with_errors(self):
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport.is_connected.return_value = True
@@ -1480,7 +1480,7 @@ class TestReceiveQueueMessagesMetadata:
     """Tests for receive_queue_messages with metadata (lines 527-529)."""
 
     def test_receive_with_metadata_sets_metadata_on_request(self):
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport.is_connected.return_value = True
@@ -1514,7 +1514,7 @@ class TestReceiveQueueMessagesExceptionPath:
     """Tests for receive exception/finally (lines 543-546)."""
 
     def test_receive_transport_error_propagates(self):
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport.is_connected.return_value = True
@@ -1530,7 +1530,7 @@ class TestReceiveQueueMessagesExceptionPath:
                 client.receive_queue_messages(channel="test-queue")
 
     def test_receive_invalid_max_messages_raises(self):
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport.is_connected.return_value = True
@@ -1545,7 +1545,7 @@ class TestReceiveQueueMessagesExceptionPath:
                 client.receive_queue_messages(channel="q", max_messages=1025)
 
     def test_receive_invalid_timeout_raises(self):
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport.is_connected.return_value = True
@@ -1559,7 +1559,7 @@ class TestReceiveQueueMessagesExceptionPath:
                 client.receive_queue_messages(channel="q", wait_timeout_in_seconds=-1)
 
     def test_receive_no_client_id_raises(self):
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport.is_connected.return_value = True
@@ -1576,7 +1576,7 @@ class TestSendQueueMessageTransportError:
     """Tests for send_queue_message general exception path (lines 290-293)."""
 
     def test_send_queue_message_grpc_error_propagates(self):
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport.is_connected.return_value = True
@@ -1600,7 +1600,7 @@ class TestAckAllQueueMessagesErrorPath:
     def test_ack_all_queue_messages_error_raises(self):
         from kubemq.core.exceptions import KubeMQMessageError
 
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport.is_connected.return_value = True

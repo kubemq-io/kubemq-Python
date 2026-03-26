@@ -9,13 +9,10 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from kubemq.transport.connection import Connection
-from kubemq.transport.keep_alive import KeepAliveConfig
+from kubemq.core.config import ClientConfig, KeepAliveConfig, TLSConfig
 from kubemq.transport.server_info import ServerInfo
-from kubemq.transport.tls_config import TlsConfig
 from kubemq.transport.transport import (
     SyncTransport,
-    Transport,
     _get_call_options,
     _get_ssl_credentials,
     _read_file,
@@ -51,9 +48,9 @@ class TestGetCallOptions:
     def test_basic_options_without_keepalive(self):
         """Test basic options are set without keep-alive."""
         keep_alive = KeepAliveConfig(enabled=False)
-        connection = Connection(address="localhost:50000", keep_alive=keep_alive)
+        config = ClientConfig(address="localhost:50000", keep_alive=keep_alive)
 
-        options = _get_call_options(connection)
+        options = _get_call_options(config)
 
         # Check that basic options are present
         options_dict = dict(options)
@@ -69,12 +66,12 @@ class TestGetCallOptions:
             ping_interval_in_seconds=30,
             ping_timeout_in_seconds=10,
         )
-        connection = Connection(
+        config = ClientConfig(
             address="localhost:50000",
             keep_alive=keep_alive,
         )
 
-        options = _get_call_options(connection)
+        options = _get_call_options(config)
 
         options_dict = dict(options)
         assert options_dict.get("grpc.keepalive_time_ms") == 30000
@@ -88,12 +85,12 @@ class TestGetCallOptions:
             ping_interval_in_seconds=30,
             ping_timeout_in_seconds=10,
         )
-        connection = Connection(
+        config = ClientConfig(
             address="localhost:50000",
             keep_alive=keep_alive,
         )
 
-        options = _get_call_options(connection)
+        options = _get_call_options(config)
 
         options_dict = dict(options)
         assert "grpc.keepalive_time_ms" not in options_dict
@@ -113,23 +110,24 @@ class TestGetSslCredentials:
         key_file = tmp_path / "key.pem"
         key_file.write_bytes(b"-----BEGIN PRIVATE KEY-----\nkey content\n-----END PRIVATE KEY-----")
 
-        tls_config = TlsConfig(
+        tls_config = TLSConfig(
             enabled=True,
-            ca_file=str(ca_file),
-            cert_file=str(cert_file),
-            key_file=str(key_file),
+            ca_file=ca_file,
+            cert_file=cert_file,
+            key_file=key_file,
         )
+        config = ClientConfig(address="localhost:50000", tls=tls_config)
 
         with patch("kubemq.transport.transport.grpc.ssl_channel_credentials") as mock_ssl:
             mock_ssl.return_value = MagicMock()
-            _get_ssl_credentials(tls_config)
+            _get_ssl_credentials(config)
 
             mock_ssl.assert_called_once()
-            # All certs should be passed
+            # All certs should be passed as keyword args
             call_args = mock_ssl.call_args
-            assert call_args[0][0] is not None  # root_certificates
-            assert call_args[0][1] is not None  # private_key
-            assert call_args[0][2] is not None  # certificate_chain
+            assert call_args.kwargs["root_certificates"] is not None
+            assert call_args.kwargs["private_key"] is not None
+            assert call_args.kwargs["certificate_chain"] is not None
 
 
 # ==============================================================================
@@ -140,21 +138,21 @@ class TestGetSslCredentials:
 class TestSyncTransportInit:
     """Tests for SyncTransport initialization."""
 
-    def test_init_stores_connection(self):
-        """Test __init__ stores connection options."""
-        connection = Connection(address="localhost:50000")
+    def test_init_stores_config(self):
+        """Test __init__ stores config options."""
+        config = ClientConfig(address="localhost:50000")
 
-        transport = SyncTransport(connection)
+        transport = SyncTransport(config)
 
-        assert transport._opts is not None
-        assert transport._opts.address == "localhost:50000"
+        assert transport._config is not None
+        assert transport._config.address == "localhost:50000"
         assert transport._is_connected is False
 
     def test_init_creates_logger(self):
         """Test __init__ creates a logger."""
-        connection = Connection(address="localhost:50000")
+        config = ClientConfig(address="localhost:50000")
 
-        transport = SyncTransport(connection)
+        transport = SyncTransport(config)
 
         assert transport._logger is not None
 
@@ -169,8 +167,8 @@ class TestSyncTransportInitialize:
         mock_channel_manager.get_client.return_value = MagicMock()
         mock_channel_manager_class.return_value = mock_channel_manager
 
-        connection = Connection(address="localhost:50000")
-        transport = SyncTransport(connection)
+        config = ClientConfig(address="localhost:50000")
+        transport = SyncTransport(config)
 
         with patch.object(transport, "_initialize_async"):
             result = transport.initialize()
@@ -184,8 +182,8 @@ class TestSyncTransportInitialize:
         """Test initialize() sets _is_connected to False on error."""
         mock_channel_manager_class.side_effect = Exception("Connection failed")
 
-        connection = Connection(address="localhost:50000")
-        transport = SyncTransport(connection)
+        config = ClientConfig(address="localhost:50000")
+        transport = SyncTransport(config)
 
         with pytest.raises(Exception, match="Connection failed"):
             transport.initialize()
@@ -198,8 +196,8 @@ class TestSyncTransportConnection:
 
     def test_is_connected_returns_channel_manager_state(self):
         """Test is_connected returns state from channel manager."""
-        connection = Connection(address="localhost:50000")
-        transport = SyncTransport(connection)
+        config = ClientConfig(address="localhost:50000")
+        transport = SyncTransport(config)
 
         mock_channel_manager = MagicMock()
         mock_channel_manager.connection_state.is_accepting_requests.return_value = True
@@ -209,16 +207,16 @@ class TestSyncTransportConnection:
 
     def test_is_connected_without_channel_manager(self):
         """Test is_connected returns internal state without channel manager."""
-        connection = Connection(address="localhost:50000")
-        transport = SyncTransport(connection)
+        config = ClientConfig(address="localhost:50000")
+        transport = SyncTransport(config)
         transport._is_connected = True
 
         assert transport.is_connected() is True
 
     def test_close_closes_channel_manager(self):
         """Test close() closes the channel manager."""
-        connection = Connection(address="localhost:50000")
-        transport = SyncTransport(connection)
+        config = ClientConfig(address="localhost:50000")
+        transport = SyncTransport(config)
 
         mock_channel_manager = MagicMock()
         transport._channel_manager = mock_channel_manager
@@ -235,8 +233,8 @@ class TestSyncTransportConnection:
         """Test close_async() closes the async channel."""
         from unittest.mock import AsyncMock
 
-        connection = Connection(address="localhost:50000")
-        transport = SyncTransport(connection)
+        config = ClientConfig(address="localhost:50000")
+        transport = SyncTransport(config)
 
         mock_async_channel = MagicMock()
         mock_async_channel.close = AsyncMock()
@@ -254,8 +252,8 @@ class TestSyncTransportPing:
 
     def test_ping_returns_server_info(self):
         """Test ping() returns ServerInfo from response."""
-        connection = Connection(address="localhost:50000")
-        transport = SyncTransport(connection)
+        config = ClientConfig(address="localhost:50000")
+        transport = SyncTransport(config)
 
         mock_response = MagicMock()
         mock_response.Host = "localhost"
@@ -281,8 +279,8 @@ class TestSyncTransportClients:
 
     def test_kubemq_client_returns_from_channel_manager(self):
         """Test kubemq_client() returns client from channel manager."""
-        connection = Connection(address="localhost:50000")
-        transport = SyncTransport(connection)
+        config = ClientConfig(address="localhost:50000")
+        transport = SyncTransport(config)
 
         mock_client = MagicMock()
         mock_channel_manager = MagicMock()
@@ -295,8 +293,8 @@ class TestSyncTransportClients:
 
     def test_kubemq_client_returns_fallback_client(self):
         """Test kubemq_client() returns _client when no channel manager."""
-        connection = Connection(address="localhost:50000")
-        transport = SyncTransport(connection)
+        config = ClientConfig(address="localhost:50000")
+        transport = SyncTransport(config)
 
         mock_client = MagicMock()
         transport._client = mock_client
@@ -308,8 +306,8 @@ class TestSyncTransportClients:
 
     def test_kubemq_async_client_returns_async_client(self):
         """Test kubemq_async_client() returns the async client."""
-        connection = Connection(address="localhost:50000")
-        transport = SyncTransport(connection)
+        config = ClientConfig(address="localhost:50000")
+        transport = SyncTransport(config)
 
         mock_async_client = MagicMock()
         transport._async_client = mock_async_client
@@ -324,8 +322,8 @@ class TestSyncTransportRecreateChannel:
 
     def test_recreate_channel_uses_channel_manager(self):
         """Test recreate_channel() uses channel manager."""
-        connection = Connection(address="localhost:50000")
-        transport = SyncTransport(connection)
+        config = ClientConfig(address="localhost:50000")
+        transport = SyncTransport(config)
 
         mock_client = MagicMock()
         mock_channel_manager = MagicMock()
@@ -339,20 +337,12 @@ class TestSyncTransportRecreateChannel:
 
     def test_recreate_channel_raises_without_channel_manager(self):
         """Test recreate_channel() raises when no channel manager."""
-        connection = Connection(address="localhost:50000")
-        transport = SyncTransport(connection)
+        config = ClientConfig(address="localhost:50000")
+        transport = SyncTransport(config)
         transport._channel_manager = None
 
         with pytest.raises(ConnectionError, match="Channel manager not initialized"):
             transport.recreate_channel()
-
-
-class TestTransportAlias:
-    """Tests for Transport backward compatibility alias."""
-
-    def test_transport_is_sync_transport(self):
-        """Test Transport alias points to SyncTransport."""
-        assert Transport is SyncTransport
 
 
 # ==============================================================================
@@ -365,8 +355,8 @@ class TestSyncTransportAsyncClientLazy:
 
     def test_kubemq_async_client_lazy_init(self):
         """Verify kubemq_async_client() calls _initialize_async() when _async_client is None."""
-        connection = Connection(address="localhost:50000")
-        transport = SyncTransport(connection)
+        config = ClientConfig(address="localhost:50000")
+        transport = SyncTransport(config)
 
         mock_async_client = MagicMock()
 
@@ -381,8 +371,8 @@ class TestSyncTransportAsyncClientLazy:
 
     def test_kubemq_async_client_returns_existing(self):
         """Set _async_client to a mock, verify returned without calling _initialize_async."""
-        connection = Connection(address="localhost:50000")
-        transport = SyncTransport(connection)
+        config = ClientConfig(address="localhost:50000")
+        transport = SyncTransport(config)
 
         mock_async_client = MagicMock()
         transport._async_client = mock_async_client
@@ -399,8 +389,8 @@ class TestSyncTransportPingNotInitialized:
 
     def test_ping_when_not_initialized(self):
         """_client is None, verify RuntimeError raised."""
-        connection = Connection(address="localhost:50000")
-        transport = SyncTransport(connection)
+        config = ClientConfig(address="localhost:50000")
+        transport = SyncTransport(config)
         transport._client = None
 
         with pytest.raises(RuntimeError, match="Transport not initialized"):
@@ -412,8 +402,8 @@ class TestSyncTransportCloseEdgeCases:
 
     def test_close_with_channel_manager(self):
         """Set _channel_manager to mock, verify close() calls it."""
-        connection = Connection(address="localhost:50000")
-        transport = SyncTransport(connection)
+        config = ClientConfig(address="localhost:50000")
+        transport = SyncTransport(config)
 
         mock_channel_manager = MagicMock()
         transport._channel_manager = mock_channel_manager
@@ -427,8 +417,8 @@ class TestSyncTransportCloseEdgeCases:
 
     def test_close_with_async_channel_in_sync_context(self):
         """Set _async_channel to mock, verify it's cleaned up via new event loop."""
-        connection = Connection(address="localhost:50000")
-        transport = SyncTransport(connection)
+        config = ClientConfig(address="localhost:50000")
+        transport = SyncTransport(config)
 
         mock_async_channel = MagicMock()
         mock_async_channel.close = MagicMock(return_value=MagicMock())
@@ -448,8 +438,8 @@ class TestSyncTransportCloseEdgeCases:
 
     def test_close_without_anything(self):
         """No channel_manager, no async_channel, verify no errors."""
-        connection = Connection(address="localhost:50000")
-        transport = SyncTransport(connection)
+        config = ClientConfig(address="localhost:50000")
+        transport = SyncTransport(config)
         transport._channel_manager = None
         transport._async_channel = None
 
@@ -464,8 +454,8 @@ class TestSyncTransportCloseAsyncEdgeCases:
     @pytest.mark.asyncio
     async def test_close_async_with_channel_manager(self):
         """Verify close_async closes channel_manager and sets _is_connected False."""
-        connection = Connection(address="localhost:50000")
-        transport = SyncTransport(connection)
+        config = ClientConfig(address="localhost:50000")
+        transport = SyncTransport(config)
 
         mock_channel_manager = MagicMock()
         transport._channel_manager = mock_channel_manager
@@ -482,8 +472,8 @@ class TestSyncTransportCloseAsyncEdgeCases:
         """Verify close_async handles both channel_manager and async_channel."""
         from unittest.mock import AsyncMock
 
-        connection = Connection(address="localhost:50000")
-        transport = SyncTransport(connection)
+        config = ClientConfig(address="localhost:50000")
+        transport = SyncTransport(config)
 
         mock_channel_manager = MagicMock()
         transport._channel_manager = mock_channel_manager
@@ -510,8 +500,8 @@ class TestSyncTransportInitializeAsync:
     @patch("kubemq.transport.transport.grpc.aio.insecure_channel")
     def test_initialize_async_non_tls(self, mock_insecure_channel, mock_stub):
         """Verify _initialize_async creates insecure async channel when TLS disabled."""
-        connection = Connection(address="localhost:50000")
-        transport = SyncTransport(connection)
+        config = ClientConfig(address="localhost:50000")
+        transport = SyncTransport(config)
 
         mock_channel = MagicMock()
         mock_insecure_channel.return_value = mock_channel
@@ -535,16 +525,16 @@ class TestSyncTransportInitializeAsync:
         key_file = tmp_path / "key.pem"
         key_file.write_bytes(b"key-data")
 
-        connection = Connection(
+        config = ClientConfig(
             address="localhost:50000",
-            tls=TlsConfig(
+            tls=TLSConfig(
                 enabled=True,
-                ca_file=str(ca_file),
-                cert_file=str(cert_file),
-                key_file=str(key_file),
+                ca_file=ca_file,
+                cert_file=cert_file,
+                key_file=key_file,
             ),
         )
-        transport = SyncTransport(connection)
+        transport = SyncTransport(config)
 
         mock_channel = MagicMock()
         mock_secure_channel.return_value = mock_channel

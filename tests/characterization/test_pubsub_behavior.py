@@ -218,25 +218,3 @@ class TestClientInitializationBehavior:
         # This is captured in the API signature
 
 
-@pytest.mark.characterization
-class TestConnectionConfigBehavior:
-    """Characterization tests for Connection configuration."""
-
-    def test_connection_default_max_send_size(self):
-        """Capture: Connection has default max_send_size of 100MB."""
-        from kubemq.transport import Connection
-
-        # Default is 100MB (100 * 1024 * 1024)
-        assert Connection.DEFAULT_MAX_SEND_SIZE == 104857600
-
-    def test_connection_default_max_receive_size(self):
-        """Capture: Connection has default max_receive_size of 100MB."""
-        from kubemq.transport import Connection
-
-        assert Connection.DEFAULT_MAX_RCV_SIZE == 104857600
-
-    def test_connection_default_reconnect_interval(self):
-        """Capture: Connection has default reconnect_interval of 1 second."""
-        from kubemq.transport import Connection
-
-        assert Connection.DEFAULT_RECONNECT_INTERVAL_SECONDS == 1
