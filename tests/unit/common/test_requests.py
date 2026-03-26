@@ -3,18 +3,12 @@
 from __future__ import annotations
 
 import unittest.mock
-import warnings
 from unittest.mock import MagicMock, patch
 
 import grpc
 import pytest
 
-from kubemq.common.exceptions import (
-    CreateChannelError,
-    DeleteChannelError,
-    GRPCError,
-    ListChannelsError,
-)
+from kubemq.core.exceptions import KubeMQChannelError, KubeMQError
 from kubemq.common.requests import (
     create_channel_request,
     delete_channel_request,
@@ -54,72 +48,44 @@ def _make_response(executed=True, error="", body=b""):
 class TestCreateChannelRequest:
     def test_success_returns_true(self):
         transport = _make_transport(response=_make_response(executed=True))
-
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", DeprecationWarning)
-            result = create_channel_request(transport, "client-1", "my-channel", "queues")
-
+        result = create_channel_request(transport, "client-1", "my-channel", "queues")
         assert result is True
 
-    def test_executed_false_raises_create_channel_error(self):
+    def test_executed_false_raises_channel_error(self):
         transport = _make_transport(response=_make_response(executed=False, error="channel exists"))
+        with pytest.raises(KubeMQChannelError):
+            create_channel_request(transport, "client-1", "my-channel", "queues")
 
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", DeprecationWarning)
-            with pytest.raises(CreateChannelError):
-                create_channel_request(transport, "client-1", "my-channel", "queues")
-
-    def test_grpc_error_raises_grpc_error(self):
+    def test_grpc_error_raises_kubemq_error(self):
         transport = _make_transport(side_effect=FakeRpcError())
-
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", DeprecationWarning)
-            with pytest.raises(GRPCError):
-                create_channel_request(transport, "client-1", "my-channel", "queues")
+        with pytest.raises(KubeMQError):
+            create_channel_request(transport, "client-1", "my-channel", "queues")
 
     def test_none_response_returns_false(self):
         transport = _make_transport(response=None)
-
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", DeprecationWarning)
-            result = create_channel_request(transport, "client-1", "my-channel", "queues")
-
+        result = create_channel_request(transport, "client-1", "my-channel", "queues")
         assert result is False
 
 
 class TestDeleteChannelRequest:
     def test_success_returns_true(self):
         transport = _make_transport(response=_make_response(executed=True))
-
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", DeprecationWarning)
-            result = delete_channel_request(transport, "client-1", "my-channel", "queues")
-
+        result = delete_channel_request(transport, "client-1", "my-channel", "queues")
         assert result is True
 
-    def test_executed_false_raises_delete_channel_error(self):
+    def test_executed_false_raises_channel_error(self):
         transport = _make_transport(response=_make_response(executed=False, error="not found"))
+        with pytest.raises(KubeMQChannelError):
+            delete_channel_request(transport, "client-1", "my-channel", "queues")
 
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", DeprecationWarning)
-            with pytest.raises(DeleteChannelError):
-                delete_channel_request(transport, "client-1", "my-channel", "queues")
-
-    def test_grpc_error_raises_grpc_error(self):
+    def test_grpc_error_raises_kubemq_error(self):
         transport = _make_transport(side_effect=FakeRpcError())
-
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", DeprecationWarning)
-            with pytest.raises(GRPCError):
-                delete_channel_request(transport, "client-1", "my-channel", "queues")
+        with pytest.raises(KubeMQError):
+            delete_channel_request(transport, "client-1", "my-channel", "queues")
 
     def test_none_response_returns_false(self):
         transport = _make_transport(response=None)
-
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", DeprecationWarning)
-            result = delete_channel_request(transport, "client-1", "my-channel", "queues")
-
+        result = delete_channel_request(transport, "client-1", "my-channel", "queues")
         assert result is False
 
 
@@ -129,38 +95,24 @@ class TestListQueuesChannels:
         sentinel = [MagicMock()]
         mock_decode.return_value = sentinel
         transport = _make_transport(response=_make_response(executed=True, body=b"some-body"))
-
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", DeprecationWarning)
-            result = list_queues_channels(transport, "client-1", "*")
-
+        result = list_queues_channels(transport, "client-1", "*")
         assert result is sentinel
         mock_decode.assert_called_once_with(b"some-body")
 
     def test_none_response_returns_empty_list(self):
         transport = _make_transport(response=None)
-
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", DeprecationWarning)
-            result = list_queues_channels(transport, "client-1", "*")
-
+        result = list_queues_channels(transport, "client-1", "*")
         assert result == []
 
-    def test_executed_false_raises_list_channels_error(self):
+    def test_executed_false_raises_channel_error(self):
         transport = _make_transport(response=_make_response(executed=False, error="access denied"))
+        with pytest.raises(KubeMQChannelError):
+            list_queues_channels(transport, "client-1", "*")
 
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", DeprecationWarning)
-            with pytest.raises(ListChannelsError):
-                list_queues_channels(transport, "client-1", "*")
-
-    def test_grpc_error_raises_grpc_error(self):
+    def test_grpc_error_raises_kubemq_error(self):
         transport = _make_transport(side_effect=FakeRpcError())
-
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", DeprecationWarning)
-            with pytest.raises(GRPCError):
-                list_queues_channels(transport, "client-1", "*")
+        with pytest.raises(KubeMQError):
+            list_queues_channels(transport, "client-1", "*")
 
 
 class TestListPubsubChannels:
@@ -169,38 +121,24 @@ class TestListPubsubChannels:
         sentinel = [MagicMock()]
         mock_decode.return_value = sentinel
         transport = _make_transport(response=_make_response(executed=True, body=b"body-data"))
-
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", DeprecationWarning)
-            result = list_pubsub_channels(transport, "client-1", "events", "*")
-
+        result = list_pubsub_channels(transport, "client-1", "events", "*")
         assert result is sentinel
         mock_decode.assert_called_once_with(b"body-data")
 
     def test_none_response_returns_empty_list(self):
         transport = _make_transport(response=None)
-
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", DeprecationWarning)
-            result = list_pubsub_channels(transport, "client-1", "events", "*")
-
+        result = list_pubsub_channels(transport, "client-1", "events", "*")
         assert result == []
 
-    def test_executed_false_raises_list_channels_error(self):
+    def test_executed_false_raises_channel_error(self):
         transport = _make_transport(response=_make_response(executed=False, error="bad request"))
+        with pytest.raises(KubeMQChannelError):
+            list_pubsub_channels(transport, "client-1", "events", "*")
 
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", DeprecationWarning)
-            with pytest.raises(ListChannelsError):
-                list_pubsub_channels(transport, "client-1", "events", "*")
-
-    def test_grpc_error_raises_grpc_error(self):
+    def test_grpc_error_raises_kubemq_error(self):
         transport = _make_transport(side_effect=FakeRpcError())
-
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", DeprecationWarning)
-            with pytest.raises(GRPCError):
-                list_pubsub_channels(transport, "client-1", "events", "*")
+        with pytest.raises(KubeMQError):
+            list_pubsub_channels(transport, "client-1", "events", "*")
 
 
 class TestListCQChannels:
@@ -209,42 +147,28 @@ class TestListCQChannels:
         sentinel = [MagicMock()]
         mock_decode.return_value = sentinel
         transport = _make_transport(response=_make_response(executed=True, body=b"cq-body"))
-
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", DeprecationWarning)
-            result = list_cq_channels(transport, "client-1", "commands", "*")
-
+        result = list_cq_channels(transport, "client-1", "commands", "*")
         assert result is sentinel
         mock_decode.assert_called_once_with(b"cq-body")
 
     def test_none_response_returns_empty_list(self):
         transport = _make_transport(response=None)
-
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", DeprecationWarning)
-            result = list_cq_channels(transport, "client-1", "commands", "*")
-
+        result = list_cq_channels(transport, "client-1", "commands", "*")
         assert result == []
 
-    def test_executed_false_raises_list_channels_error(self):
+    def test_executed_false_raises_channel_error(self):
         transport = _make_transport(response=_make_response(executed=False, error="timeout"))
+        with pytest.raises(KubeMQChannelError):
+            list_cq_channels(transport, "client-1", "commands", "*")
 
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", DeprecationWarning)
-            with pytest.raises(ListChannelsError):
-                list_cq_channels(transport, "client-1", "commands", "*")
-
-    def test_grpc_error_raises_grpc_error(self):
+    def test_grpc_error_raises_kubemq_error(self):
         transport = _make_transport(side_effect=FakeRpcError())
-
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", DeprecationWarning)
-            with pytest.raises(GRPCError):
-                list_cq_channels(transport, "client-1", "commands", "*")
+        with pytest.raises(KubeMQError):
+            list_cq_channels(transport, "client-1", "commands", "*")
 
 
 class TestListChannelsRetry:
-    """GAP-M12: Tests for list channels retry logic."""
+    """Tests for list channels retry logic."""
 
     def test_list_channels_retries_on_snapshot_not_ready(self):
         snapshot_resp = _make_response(executed=False, error="cluster snapshot not ready yet")
@@ -255,10 +179,8 @@ class TestListChannelsRetry:
             success_resp,
         ]
 
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", DeprecationWarning)
-            with unittest.mock.patch("kubemq.common.requests.time.sleep"):
-                result = list_queues_channels(transport, "client-1", "")
+        with unittest.mock.patch("kubemq.common.requests.time.sleep"):
+            result = list_queues_channels(transport, "client-1", "")
 
         assert result == []
         assert transport.kubemq_client.return_value.SendRequest.call_count == 2
@@ -278,10 +200,8 @@ class TestListChannelsRetry:
             success_resp,
         ]
 
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", DeprecationWarning)
-            with unittest.mock.patch("kubemq.common.requests.time.sleep"):
-                result = list_queues_channels(transport, "client-1", "")
+        with unittest.mock.patch("kubemq.common.requests.time.sleep"):
+            result = list_queues_channels(transport, "client-1", "")
 
         assert result == []
         assert transport.kubemq_client.return_value.SendRequest.call_count == 2
@@ -296,10 +216,8 @@ class TestListChannelsRetry:
             success_resp,
         ]
 
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", DeprecationWarning)
-            with unittest.mock.patch("kubemq.common.requests.time.sleep"):
-                result = list_queues_channels(transport, "client-1", "")
+        with unittest.mock.patch("kubemq.common.requests.time.sleep"):
+            result = list_queues_channels(transport, "client-1", "")
 
         assert result == []
         assert transport.kubemq_client.return_value.SendRequest.call_count == 3
@@ -327,10 +245,8 @@ class TestListChannelsRetryGrpcRetryable:
 
         from kubemq.common.requests import _list_channels_with_retry
 
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", DeprecationWarning)
-            with unittest.mock.patch("kubemq.common.requests.time.sleep"):
-                result = _list_channels_with_retry(transport, "client-1", "queues", "", decode_fn)
+        with unittest.mock.patch("kubemq.common.requests.time.sleep"):
+            result = _list_channels_with_retry(transport, "client-1", "queues", "", decode_fn)
 
         assert result == ["channel-a"]
         decode_fn.assert_called_once_with(b"decoded")
@@ -343,7 +259,7 @@ class TestListChannelsRetryGrpcRetryable:
 
 
 class TestListChannelsRetryExhausted:
-    """Cover lines 165-167: loop exhaustion paths in _list_channels_with_retry."""
+    """Cover loop exhaustion paths in _list_channels_with_retry."""
 
     def test_returns_empty_when_max_retries_is_zero(self):
         from kubemq.common.requests import _list_channels_with_retry

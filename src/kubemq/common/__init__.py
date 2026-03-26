@@ -19,18 +19,11 @@ from .channel_stats import (
 )
 from .exceptions import (
     BaseError,
-    ConnectionError,
-    CreateChannelError,
-    DeleteChannelError,
-    GRPCError,
     KubeMQChannelError,
     KubeMQConnectionError,
     KubeMQMessageError,
     KubeMQTransactionError,
     KubeMQValidationError,
-    ListChannelsError,
-    SendEventError,
-    ValidationError,
     from_grpc_error,
 )
 from .helpers import decode_grpc_error, is_channel_error
@@ -55,18 +48,11 @@ __all__ = [
     "decode_queues_channel_list",
     # Exceptions
     "BaseError",
-    "ConnectionError",
-    "CreateChannelError",
-    "DeleteChannelError",
-    "GRPCError",
     "KubeMQChannelError",
     "KubeMQConnectionError",
     "KubeMQMessageError",
     "KubeMQTransactionError",
     "KubeMQValidationError",
-    "ListChannelsError",
-    "SendEventError",
-    "ValidationError",
     "from_grpc_error",
     # Helpers
     "decode_grpc_error",

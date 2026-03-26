@@ -41,7 +41,7 @@ class TestSyncCQClientInit:
 
     def test_init_with_address(self):
         """Test initialization with address."""
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport_class.return_value = mock_transport
@@ -52,7 +52,7 @@ class TestSyncCQClientInit:
 
     def test_init_with_config(self, mock_config):
         """Test initialization with config object."""
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport_class.return_value = mock_transport
@@ -63,7 +63,7 @@ class TestSyncCQClientInit:
 
     def test_init_generates_client_id(self):
         """Test that client_id is generated if not provided."""
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport_class.return_value = mock_transport
@@ -75,7 +75,7 @@ class TestSyncCQClientInit:
 
     def test_init_with_auth_token(self):
         """Test initialization with auth token."""
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport_class.return_value = mock_transport
@@ -83,18 +83,6 @@ class TestSyncCQClientInit:
             client = Client(address="localhost:50000", auth_token="my-token")
 
             assert client._config.auth_token == "my-token"
-
-    def test_init_creates_legacy_connection_attribute(self):
-        """Test that legacy connection attribute is created."""
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
-            mock_transport = MagicMock()
-            mock_transport.initialize.return_value = mock_transport
-            mock_transport_class.return_value = mock_transport
-
-            client = Client(address="localhost:50000")
-
-            assert hasattr(client, "connection")
-            assert client.connection is not None
 
 
 # ==============================================================================
@@ -107,7 +95,7 @@ class TestSyncCQClientCommands:
 
     def test_send_command_request_returns_response(self):
         """Test send_command_request returns CommandResponse."""
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport_class.return_value = mock_transport
@@ -135,7 +123,7 @@ class TestSyncCQClientCommands:
 
     def test_send_command_request_async_emits_deprecation_warning(self):
         """Test send_command_request_async emits deprecation warning."""
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport_class.return_value = mock_transport
@@ -175,7 +163,7 @@ class TestSyncCQClientQueries:
 
     def test_send_query_request_returns_response(self):
         """Test send_query_request returns QueryResponse."""
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport_class.return_value = mock_transport
@@ -203,7 +191,7 @@ class TestSyncCQClientQueries:
 
     def test_send_query_request_async_emits_deprecation_warning(self):
         """Test send_query_request_async emits deprecation warning."""
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport_class.return_value = mock_transport
@@ -245,7 +233,7 @@ class TestSyncCQClientResponses:
         """Test send_response_message for command response."""
         from kubemq.cq.command_message_received import CommandReceived
 
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport_class.return_value = mock_transport
@@ -276,7 +264,7 @@ class TestSyncCQClientResponses:
         """Test send_response_message for query response."""
         from kubemq.cq.query_message_received import QueryReceived
 
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport_class.return_value = mock_transport
@@ -308,7 +296,7 @@ class TestSyncCQClientResponses:
         """Test send_response_message_async emits deprecation warning."""
         from kubemq.cq.command_message_received import CommandReceived
 
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport_class.return_value = mock_transport
@@ -352,7 +340,7 @@ class TestSyncCQClientChannelManagement:
     def test_create_commands_channel(self):
         """Test create_commands_channel calls request helper."""
         with (
-            patch("kubemq.transport.transport.Transport") as mock_transport_class,
+            patch("kubemq.transport.transport.SyncTransport") as mock_transport_class,
             patch("kubemq.cq.client.create_channel_request") as mock_create,
         ):
             mock_transport = MagicMock()
@@ -372,7 +360,7 @@ class TestSyncCQClientChannelManagement:
     def test_create_queries_channel(self):
         """Test create_queries_channel calls request helper."""
         with (
-            patch("kubemq.transport.transport.Transport") as mock_transport_class,
+            patch("kubemq.transport.transport.SyncTransport") as mock_transport_class,
             patch("kubemq.cq.client.create_channel_request") as mock_create,
         ):
             mock_transport = MagicMock()
@@ -391,7 +379,7 @@ class TestSyncCQClientChannelManagement:
     def test_delete_commands_channel(self):
         """Test delete_commands_channel calls request helper."""
         with (
-            patch("kubemq.transport.transport.Transport") as mock_transport_class,
+            patch("kubemq.transport.transport.SyncTransport") as mock_transport_class,
             patch("kubemq.cq.client.delete_channel_request") as mock_delete,
         ):
             mock_transport = MagicMock()
@@ -410,7 +398,7 @@ class TestSyncCQClientChannelManagement:
     def test_delete_queries_channel(self):
         """Test delete_queries_channel calls request helper."""
         with (
-            patch("kubemq.transport.transport.Transport") as mock_transport_class,
+            patch("kubemq.transport.transport.SyncTransport") as mock_transport_class,
             patch("kubemq.cq.client.delete_channel_request") as mock_delete,
         ):
             mock_transport = MagicMock()
@@ -429,7 +417,7 @@ class TestSyncCQClientChannelManagement:
     def test_list_commands_channels(self):
         """Test list_commands_channels calls request helper."""
         with (
-            patch("kubemq.transport.transport.Transport") as mock_transport_class,
+            patch("kubemq.transport.transport.SyncTransport") as mock_transport_class,
             patch("kubemq.cq.client.list_cq_channels") as mock_list,
         ):
             mock_transport = MagicMock()
@@ -447,7 +435,7 @@ class TestSyncCQClientChannelManagement:
     def test_list_queries_channels(self):
         """Test list_queries_channels calls request helper."""
         with (
-            patch("kubemq.transport.transport.Transport") as mock_transport_class,
+            patch("kubemq.transport.transport.SyncTransport") as mock_transport_class,
             patch("kubemq.cq.client.list_cq_channels") as mock_list,
         ):
             mock_transport = MagicMock()
@@ -473,7 +461,7 @@ class TestSyncCQClientSubscriptions:
 
     def test_subscribe_to_commands_starts_thread(self):
         """Test subscribe_to_commands starts subscription thread."""
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport_class.return_value = mock_transport
@@ -499,7 +487,7 @@ class TestSyncCQClientSubscriptions:
 
     def test_subscribe_to_commands_with_cancellation_token(self):
         """Test subscribe_to_commands uses provided cancellation token."""
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport_class.return_value = mock_transport
@@ -522,7 +510,7 @@ class TestSyncCQClientSubscriptions:
 
     def test_subscribe_to_queries_starts_thread(self):
         """Test subscribe_to_queries starts subscription thread."""
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport_class.return_value = mock_transport
@@ -545,7 +533,7 @@ class TestSyncCQClientSubscriptions:
 
     def test_subscribe_creates_cancellation_token_if_none(self):
         """Test _subscribe creates cancellation token if not provided."""
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport_class.return_value = mock_transport
@@ -577,7 +565,7 @@ class TestSyncCQClientContextManager:
 
     def test_context_manager_enters_and_exits(self):
         """Test sync context manager properly enters and exits."""
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport_class.return_value = mock_transport
@@ -590,7 +578,7 @@ class TestSyncCQClientContextManager:
     @pytest.mark.asyncio
     async def test_async_context_manager_enters_and_exits(self):
         """Test async context manager on sync client."""
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport.close_async = AsyncMock()
@@ -611,7 +599,7 @@ class TestSyncCQClientAsyncMethods:
     @pytest.mark.asyncio
     async def test_ping_async_emits_deprecation_warning(self):
         """Test ping_async emits deprecation warning."""
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport.ping.return_value = MagicMock(
@@ -635,7 +623,7 @@ class TestSyncCQClientAsyncMethods:
     async def test_create_commands_channel_async(self):
         """Test create_commands_channel_async calls sync method."""
         with (
-            patch("kubemq.transport.transport.Transport") as mock_transport_class,
+            patch("kubemq.transport.transport.SyncTransport") as mock_transport_class,
             patch("kubemq.cq.client.create_channel_request") as mock_create,
         ):
             mock_transport = MagicMock()
@@ -675,7 +663,7 @@ class TestSyncCQClientCommandErrors:
 
     def test_send_command_grpc_error_propagates(self):
         """Test that a gRPC RpcError from the transport propagates."""
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport_class.return_value = mock_transport
@@ -697,7 +685,7 @@ class TestSyncCQClientCommandErrors:
 
     def test_send_command_validation_error_raises_kubemq_validation_error(self):
         """Test that a ValueError is wrapped in KubeMQValidationError."""
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport_class.return_value = mock_transport
@@ -729,7 +717,7 @@ class TestSyncCQClientQueryErrors:
 
     def test_send_query_grpc_error_propagates(self):
         """Test that a gRPC RpcError from the transport propagates."""
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport_class.return_value = mock_transport
@@ -751,7 +739,7 @@ class TestSyncCQClientQueryErrors:
 
     def test_send_query_validation_error_raises_kubemq_validation_error(self):
         """Test that a ValueError is wrapped in KubeMQValidationError."""
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport_class.return_value = mock_transport
@@ -783,7 +771,7 @@ class TestSyncCQClientSubscriptionTask:
 
     def test_stream_delivers_messages_to_decode_callable(self):
         """Test that messages from the stream are forwarded to decode_callable."""
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport_class.return_value = mock_transport
@@ -819,7 +807,7 @@ class TestSyncCQClientSubscriptionTask:
 
     def test_stream_grpc_error_calls_error_callable(self):
         """Test that a gRPC RpcError from the stream calls error_callable."""
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport_class.return_value = mock_transport
@@ -853,7 +841,7 @@ class TestSyncCQClientSubscriptionTask:
 
     def test_cancel_token_stops_loop(self):
         """Test that setting the cancel token stops the subscription loop."""
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport_class.return_value = mock_transport
@@ -890,7 +878,7 @@ class TestSyncCQClientNewVerbs:
 
     def test_send_command_returns_command_response_message(self):
         """Test send_command (non-deprecated) returns CommandResponse."""
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport_class.return_value = mock_transport
@@ -917,7 +905,7 @@ class TestSyncCQClientNewVerbs:
 
     def test_send_command_does_not_emit_deprecation_warning(self):
         """Test send_command does NOT emit a deprecation warning."""
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport_class.return_value = mock_transport
@@ -946,7 +934,7 @@ class TestSyncCQClientNewVerbs:
 
     def test_send_query_returns_query_response_message(self):
         """Test send_query (non-deprecated) returns QueryResponse."""
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport_class.return_value = mock_transport
@@ -974,7 +962,7 @@ class TestSyncCQClientNewVerbs:
 
     def test_send_query_does_not_emit_deprecation_warning(self):
         """Test send_query does NOT emit a deprecation warning."""
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport_class.return_value = mock_transport
@@ -1011,7 +999,7 @@ class TestSyncCQClientSubscribeTaskAsync:
     """Tests for _subscribe_task_async method."""
 
     def _make_client(self):
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport_class.return_value = mock_transport
@@ -1167,7 +1155,7 @@ class TestSyncCQClientCloseAsync:
     @pytest.mark.asyncio
     async def test_close_async_calls_transport_close_async(self):
         """Test close_async calls transport.close_async when transport exists."""
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport.close_async = AsyncMock()
@@ -1182,7 +1170,7 @@ class TestSyncCQClientCloseAsync:
     @pytest.mark.asyncio
     async def test_close_async_no_transport(self):
         """Test close_async handles None transport gracefully."""
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport_class.return_value = mock_transport
@@ -1200,7 +1188,7 @@ class TestSyncCQClientSendCommandValidationError:
 
     def test_send_command_validation_error_wraps_value_error(self):
         """Test that ValueError from encode is wrapped in KubeMQValidationError."""
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport_class.return_value = mock_transport
@@ -1228,7 +1216,7 @@ class TestSyncCQClientSendQueryValidationError:
 
     def test_send_query_validation_error_wraps_value_error(self):
         """Test that ValueError from encode is wrapped in KubeMQValidationError."""
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport_class.return_value = mock_transport
@@ -1258,7 +1246,7 @@ class TestSyncCQClientSendResponseException:
         """Test that exception from transport.SendResponse is re-raised."""
         from kubemq.cq.command_message_received import CommandReceived
 
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport_class.return_value = mock_transport
@@ -1288,7 +1276,7 @@ class TestSyncCQClientSendResponseException:
         """Test that gRPC error from transport.SendResponse is re-raised."""
         from kubemq.cq.command_message_received import CommandReceived
 
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport_class.return_value = mock_transport
@@ -1319,7 +1307,7 @@ class TestSyncCQClientChannelManagementAsync:
     """Tests for async channel management methods covering lines 437-525."""
 
     def _make_client(self):
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport_class.return_value = mock_transport
@@ -1330,7 +1318,7 @@ class TestSyncCQClientChannelManagementAsync:
     async def test_create_queries_channel_async(self):
         """Test create_queries_channel_async delegates to sync."""
         with (
-            patch("kubemq.transport.transport.Transport") as mock_transport_class,
+            patch("kubemq.transport.transport.SyncTransport") as mock_transport_class,
             patch("kubemq.cq.client.create_channel_request") as mock_create,
         ):
             mock_transport = MagicMock()
@@ -1350,7 +1338,7 @@ class TestSyncCQClientChannelManagementAsync:
     async def test_delete_commands_channel_async(self):
         """Test delete_commands_channel_async delegates to sync."""
         with (
-            patch("kubemq.transport.transport.Transport") as mock_transport_class,
+            patch("kubemq.transport.transport.SyncTransport") as mock_transport_class,
             patch("kubemq.cq.client.delete_channel_request") as mock_delete,
         ):
             mock_transport = MagicMock()
@@ -1370,7 +1358,7 @@ class TestSyncCQClientChannelManagementAsync:
     async def test_delete_queries_channel_async(self):
         """Test delete_queries_channel_async delegates to sync."""
         with (
-            patch("kubemq.transport.transport.Transport") as mock_transport_class,
+            patch("kubemq.transport.transport.SyncTransport") as mock_transport_class,
             patch("kubemq.cq.client.delete_channel_request") as mock_delete,
         ):
             mock_transport = MagicMock()
@@ -1390,7 +1378,7 @@ class TestSyncCQClientChannelManagementAsync:
     async def test_list_commands_channels_async(self):
         """Test list_commands_channels_async delegates to sync."""
         with (
-            patch("kubemq.transport.transport.Transport") as mock_transport_class,
+            patch("kubemq.transport.transport.SyncTransport") as mock_transport_class,
             patch("kubemq.cq.client.list_cq_channels") as mock_list,
         ):
             mock_transport = MagicMock()
@@ -1410,7 +1398,7 @@ class TestSyncCQClientChannelManagementAsync:
     async def test_list_queries_channels_async(self):
         """Test list_queries_channels_async delegates to sync."""
         with (
-            patch("kubemq.transport.transport.Transport") as mock_transport_class,
+            patch("kubemq.transport.transport.SyncTransport") as mock_transport_class,
             patch("kubemq.cq.client.list_cq_channels") as mock_list,
         ):
             mock_transport = MagicMock()
@@ -1430,7 +1418,7 @@ class TestSyncCQClientSubscribeTaskCommands:
     """Tests for _subscribe_task with Commands covering lines 627-664."""
 
     def _make_client(self):
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport_class.return_value = mock_transport
@@ -1554,7 +1542,7 @@ class TestSyncCQClientSubscribeTaskAsyncAdditional:
     """Additional tests for _subscribe_task_async covering lines 705-738, 764, 773-777, 786."""
 
     def _make_client(self):
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport_class.return_value = mock_transport
@@ -1636,7 +1624,7 @@ class TestSyncCQClientSubscribeTaskAsyncAdditional:
     @pytest.mark.asyncio
     async def test_subscribe_async_commands_builds_args(self):
         """Test _subscribe_async with CommandsSubscription builds correct args (lines 705-738)."""
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport_class.return_value = mock_transport
@@ -1670,7 +1658,7 @@ class TestSyncCQClientSubscribeTaskAsyncAdditional:
     @pytest.mark.asyncio
     async def test_subscribe_async_queries_builds_args(self):
         """Test _subscribe_async with QueriesSubscription builds correct args (lines 726-737)."""
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport_class.return_value = mock_transport
@@ -1706,7 +1694,7 @@ class TestSyncCQClientSubscribeToCommandsAsync:
     @pytest.mark.asyncio
     async def test_subscribe_to_commands_async_returns_task(self):
         """Test subscribe_to_commands_async delegates to _subscribe_async."""
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport_class.return_value = mock_transport
@@ -1725,7 +1713,7 @@ class TestSyncCQClientSubscribeToCommandsAsync:
     @pytest.mark.asyncio
     async def test_subscribe_to_queries_async_returns_task(self):
         """Test subscribe_to_queries_async delegates to _subscribe_async."""
-        with patch("kubemq.transport.transport.Transport") as mock_transport_class:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_transport_class:
             mock_transport = MagicMock()
             mock_transport.initialize.return_value = mock_transport
             mock_transport_class.return_value = mock_transport

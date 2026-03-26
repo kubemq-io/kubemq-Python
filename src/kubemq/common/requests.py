@@ -14,13 +14,7 @@ from kubemq.common.channel_stats import (
     decode_pub_sub_channel_list,
     decode_queues_channel_list,
 )
-from kubemq.common.exceptions import (
-    CreateChannelError,
-    DeleteChannelError,
-    GRPCError,
-    ListChannelsError,
-)
-from kubemq.common.helpers import decode_grpc_error
+from kubemq.core.exceptions import KubeMQChannelError, from_grpc_error
 from kubemq.grpc import Request
 
 requests_channel = "kubemq.cluster.internal.requests"
@@ -42,8 +36,8 @@ def create_channel_request(
     - None: If an error occurred during the channel creation.
 
     Raises:
-    - CreateChannelError: If the channel creation request was executed but with an error response from the server.
-    - GRPCError: If there was an error with the gRPC communication with the Kubemq server.
+    - KubeMQChannelError: If the channel creation request was executed but with an error response from the server.
+    - KubeMQError: If there was an error with the gRPC communication with the Kubemq server.
 
     """
     try:
@@ -65,10 +59,10 @@ def create_channel_request(
             if response.Executed:
                 return True
             else:
-                raise CreateChannelError(response.Error)
+                raise KubeMQChannelError(f"Create Channel Error: {response.Error}")
         return False
     except grpc.RpcError as e:
-        raise GRPCError(decode_grpc_error(e)) from e
+        raise from_grpc_error(e) from e
 
 
 def delete_channel_request(
@@ -84,10 +78,10 @@ def delete_channel_request(
 
     Returns:
     - If the delete channel request is executed successfully, it returns True.
-    - If there is an error during the execution of the delete channel request, it raises a DeleteChannelError with the corresponding error message.
+    - If there is an error during the execution of the delete channel request, it raises a KubeMQChannelError with the corresponding error message.
 
     Raises:
-    - GRPCError: If there is a GRPC error during the process.
+    - KubeMQError: If there is a GRPC error during the process.
 
     """
     try:
@@ -109,10 +103,10 @@ def delete_channel_request(
             if response.Executed:
                 return True
             else:
-                raise DeleteChannelError(response.Error)
+                raise KubeMQChannelError(f"Delete Channel Error: {response.Error}")
         return False
     except grpc.RpcError as e:
-        raise GRPCError(decode_grpc_error(e)) from e
+        raise from_grpc_error(e) from e
 
 
 _LIST_MAX_RETRIES = 3
@@ -172,7 +166,7 @@ def _list_channels_with_retry(
                         )
                         time.sleep(_LIST_RETRY_DELAY)
                         continue
-                    raise ListChannelsError(response.Error)
+                    raise KubeMQChannelError(f"List Channels Error: {response.Error}")
             return []
         except grpc.RpcError as e:
             if _is_retryable_list_error(None, e) and attempt < _LIST_MAX_RETRIES - 1:
@@ -180,9 +174,9 @@ def _list_channels_with_retry(
                 last_error = e
                 time.sleep(_LIST_RETRY_DELAY)
                 continue
-            raise GRPCError(decode_grpc_error(e)) from e
+            raise from_grpc_error(e) from e
     if last_error:
-        raise GRPCError(decode_grpc_error(last_error)) from last_error
+        raise from_grpc_error(last_error) from last_error
     return []
 
 

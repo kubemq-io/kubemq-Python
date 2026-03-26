@@ -13,7 +13,6 @@ from typing import TYPE_CHECKING, Any, ClassVar
 
 if TYPE_CHECKING:
     from kubemq.core.types import AsyncCredentialProvider, CredentialProvider
-    from kubemq.transport.connection import Connection
 
 
 @dataclass(frozen=True)
@@ -691,34 +690,3 @@ class ClientConfig:
         load_dotenv(path)
         return cls.from_env(prefix)
 
-    def to_legacy_connection(self) -> Connection:
-        """Convert to legacy Connection object for backward compatibility.
-
-        Returns:
-            A Connection instance compatible with existing transport layer
-        """
-        from kubemq.transport.connection import Connection
-        from kubemq.transport.keep_alive import KeepAliveConfig as LegacyKeepAlive
-        from kubemq.transport.tls_config import TlsConfig as LegacyTls
-
-        return Connection(
-            address=self.address,
-            client_id=self.client_id or socket.gethostname(),
-            auth_token=self.auth_token or "",
-            max_send_size=self.max_send_size,
-            max_receive_size=self.max_receive_size,
-            disable_auto_reconnect=not self.auto_reconnect,
-            reconnect_interval_seconds=self.reconnect_interval_seconds,
-            tls=LegacyTls(
-                enabled=self.tls.enabled,
-                cert_file=str(self.tls.cert_file) if self.tls.cert_file else "",
-                key_file=str(self.tls.key_file) if self.tls.key_file else "",
-                ca_file=str(self.tls.ca_file) if self.tls.ca_file else "",
-            ),
-            keep_alive=LegacyKeepAlive(
-                enabled=self.keep_alive.enabled,
-                ping_interval_in_seconds=self.keep_alive.ping_interval_in_seconds,
-                ping_timeout_in_seconds=self.keep_alive.ping_timeout_in_seconds,
-            ),
-            log_level=self.log_level,
-        )

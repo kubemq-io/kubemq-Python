@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import re
 import secrets
 from dataclasses import dataclass, field
@@ -496,6 +497,11 @@ def load_config(cli_path: str = "") -> Config:
     else:
         cfg = Config()
 
+    # Environment variable override for broker address
+    env_addr = os.environ.get("KUBEMQ_BROKER_ADDRESS", "")
+    if env_addr:
+        cfg.broker.address = env_addr
+
     # Fallback: if api.port is still the default (8080) and metrics.port differs,
     # use metrics.port as the authoritative HTTP server port.
     if cfg.api.port == 8080 and cfg.metrics.port != 8080:
@@ -611,8 +617,13 @@ def translate_api_config(
         errors.append(f"unsupported config version: {version}")
 
     cfg = Config()
+    # Broker: default from startup, allow API override
+    broker_body = body.get("broker", {})
+    broker_address = startup_cfg.broker.address
+    if isinstance(broker_body, dict) and broker_body.get("address"):
+        broker_address = str(broker_body["address"])
     cfg.broker = BrokerConfig(
-        address=startup_cfg.broker.address,
+        address=broker_address,
         client_id_prefix=startup_cfg.broker.client_id_prefix,
     )
     cfg.recovery = startup_cfg.recovery

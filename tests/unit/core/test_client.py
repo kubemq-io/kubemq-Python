@@ -45,7 +45,7 @@ class ConcreteNativeAsyncBaseClient(NativeAsyncBaseClient):
 class TestBaseClientInit:
     """Tests for BaseClient initialization."""
 
-    @patch("kubemq.transport.transport.Transport")
+    @patch("kubemq.transport.transport.SyncTransport")
     def test_init_with_address(self, mock_transport_class):
         """Test initialization with address parameter."""
         mock_transport = MagicMock()
@@ -58,7 +58,7 @@ class TestBaseClientInit:
         assert client._config.address == "localhost:50000"
         assert client._transport is not None
 
-    @patch("kubemq.transport.transport.Transport")
+    @patch("kubemq.transport.transport.SyncTransport")
     def test_init_with_config(self, mock_transport_class):
         """Test initialization with ClientConfig object."""
         mock_transport = MagicMock()
@@ -71,7 +71,7 @@ class TestBaseClientInit:
         assert client._config == config
         assert client._config.client_id == "test-client"
 
-    @patch("kubemq.transport.transport.Transport")
+    @patch("kubemq.transport.transport.SyncTransport")
     def test_init_generates_client_id_if_not_provided(self, mock_transport_class):
         """Test that client_id is generated if not provided."""
         mock_transport = MagicMock()
@@ -84,7 +84,7 @@ class TestBaseClientInit:
         assert client._config.client_id is not None
         assert len(client._config.client_id) > 0
 
-    @patch("kubemq.transport.transport.Transport")
+    @patch("kubemq.transport.transport.SyncTransport")
     def test_init_with_auth_token(self, mock_transport_class):
         """Test initialization with auth_token."""
         mock_transport = MagicMock()
@@ -99,7 +99,7 @@ class TestBaseClientInit:
 class TestBaseClientConnection:
     """Tests for BaseClient connection management."""
 
-    @patch("kubemq.transport.transport.Transport")
+    @patch("kubemq.transport.transport.SyncTransport")
     def test_is_connected_returns_true_when_connected(self, mock_transport_class):
         """Test is_connected property returns True when transport is connected."""
         mock_transport = MagicMock()
@@ -111,7 +111,7 @@ class TestBaseClientConnection:
 
         assert client.is_connected is True
 
-    @patch("kubemq.transport.transport.Transport")
+    @patch("kubemq.transport.transport.SyncTransport")
     def test_is_connected_returns_false_when_disconnected(self, mock_transport_class):
         """Test is_connected property returns False when transport is disconnected."""
         mock_transport = MagicMock()
@@ -123,7 +123,7 @@ class TestBaseClientConnection:
 
         assert client.is_connected is False
 
-    @patch("kubemq.transport.transport.Transport")
+    @patch("kubemq.transport.transport.SyncTransport")
     def test_close_disconnects_transport(self, mock_transport_class):
         """Test close() disconnects the transport."""
         mock_transport = MagicMock()
@@ -137,7 +137,7 @@ class TestBaseClientConnection:
         assert client._transport is None
         assert client._closed is True
 
-    @patch("kubemq.transport.transport.Transport")
+    @patch("kubemq.transport.transport.SyncTransport")
     def test_close_is_idempotent(self, mock_transport_class):
         """Test multiple close calls are safe."""
         mock_transport = MagicMock()
@@ -151,7 +151,7 @@ class TestBaseClientConnection:
         # Should only be called once
         mock_transport.close.assert_called_once()
 
-    @patch("kubemq.transport.transport.Transport")
+    @patch("kubemq.transport.transport.SyncTransport")
     def test_ensure_connected_raises_when_closed(self, mock_transport_class):
         """Test _ensure_connected raises RuntimeError when client is closed."""
         mock_transport = MagicMock()
@@ -164,7 +164,7 @@ class TestBaseClientConnection:
         with pytest.raises(KubeMQClientClosedError, match="Client is closed"):
             client._ensure_connected()
 
-    @patch("kubemq.transport.transport.Transport")
+    @patch("kubemq.transport.transport.SyncTransport")
     def test_ensure_connected_raises_when_not_connected(self, mock_transport_class):
         """Test _ensure_connected raises KubeMQConnectionError when disconnected."""
         mock_transport = MagicMock()
@@ -181,7 +181,7 @@ class TestBaseClientConnection:
 class TestBaseClientPing:
     """Tests for BaseClient ping operations."""
 
-    @patch("kubemq.transport.transport.Transport")
+    @patch("kubemq.transport.transport.SyncTransport")
     def test_ping_returns_server_info(self, mock_transport_class):
         """Test ping returns ServerInfo object."""
         mock_server_info = ServerInfo(
@@ -203,7 +203,7 @@ class TestBaseClientPing:
         assert result.version == "2.3.0"
         mock_transport.ping.assert_called_once()
 
-    @patch("kubemq.transport.transport.Transport")
+    @patch("kubemq.transport.transport.SyncTransport")
     def test_ping_when_not_connected_raises(self, mock_transport_class):
         """Test ping raises error when not connected."""
         mock_transport = MagicMock()
@@ -220,7 +220,7 @@ class TestBaseClientPing:
 class TestBaseClientContextManager:
     """Tests for BaseClient context manager."""
 
-    @patch("kubemq.transport.transport.Transport")
+    @patch("kubemq.transport.transport.SyncTransport")
     def test_context_manager_basic(self, mock_transport_class):
         """Test basic context manager usage."""
         mock_transport = MagicMock()
@@ -232,7 +232,7 @@ class TestBaseClientContextManager:
 
         mock_transport.close.assert_called_once()
 
-    @patch("kubemq.transport.transport.Transport")
+    @patch("kubemq.transport.transport.SyncTransport")
     def test_context_manager_closes_on_exception(self, mock_transport_class):
         """Test context manager closes client even when exception occurs."""
         mock_transport = MagicMock()
@@ -696,7 +696,7 @@ class TestNativeAsyncBaseClientEnsureConnected:
 class TestClientLifecycle:
     """Tests for client lifecycle edge cases."""
 
-    @patch("kubemq.transport.transport.Transport")
+    @patch("kubemq.transport.transport.SyncTransport")
     def test_config_property(self, mock_transport_class):
         """Test config property returns the configuration."""
         mock_transport = MagicMock()
@@ -709,7 +709,7 @@ class TestClientLifecycle:
         assert client.config == config
         assert client.config.client_id == "test-client"
 
-    @patch("kubemq.transport.transport.Transport")
+    @patch("kubemq.transport.transport.SyncTransport")
     def test_close_handles_transport_close_error(self, mock_transport_class):
         """Test close() handles errors from transport.close() gracefully."""
         mock_transport = MagicMock()
@@ -733,7 +733,7 @@ class TestClientLifecycle:
 class TestBaseClientCloseEdgeCases:
     """Tests for BaseClient.close() uncovered paths."""
 
-    @patch("kubemq.transport.transport.Transport")
+    @patch("kubemq.transport.transport.SyncTransport")
     def test_close_when_transport_none(self, mock_transport_class):
         """Verify close() doesn't error when _transport is already None."""
         mock_transport = MagicMock()
@@ -748,7 +748,7 @@ class TestBaseClientCloseEdgeCases:
         assert client._closed is True
         assert client._transport is None
 
-    @patch("kubemq.transport.transport.Transport")
+    @patch("kubemq.transport.transport.SyncTransport")
     def test_close_calls_transport_close(self, mock_transport_class):
         """Verify transport.close() is called during close()."""
         mock_transport = MagicMock()
@@ -766,7 +766,7 @@ class TestBaseClientCloseEdgeCases:
 class TestBaseClientEnsureConnectedEdgeCases:
     """Tests for BaseClient._ensure_connected() uncovered paths."""
 
-    @patch("kubemq.transport.transport.Transport")
+    @patch("kubemq.transport.transport.SyncTransport")
     def test_ensure_connected_when_transport_none(self, mock_transport_class):
         """Verify _ensure_connected raises when transport is None (not initialized)."""
         mock_transport = MagicMock()
@@ -815,7 +815,7 @@ class TestBaseClientInitializeError:
     """Tests for BaseClient._initialize error path (lines 144-146)."""
 
     def test_initialize_raises_maps_error(self):
-        with patch("kubemq.transport.transport.Transport") as mock_cls:
+        with patch("kubemq.transport.transport.SyncTransport") as mock_cls:
             mock_transport = MagicMock()
             mock_transport.initialize.side_effect = RuntimeError("connect failed")
             mock_cls.return_value = mock_transport
@@ -827,7 +827,7 @@ class TestBaseClientInitializeError:
 class TestBaseClientPingError:
     """Tests for BaseClient.ping() error path (lines 172-174)."""
 
-    @patch("kubemq.transport.transport.Transport")
+    @patch("kubemq.transport.transport.SyncTransport")
     def test_ping_error_maps_exception(self, mock_transport_class):
         mock_transport = MagicMock()
         mock_transport.initialize.return_value = mock_transport
@@ -844,7 +844,7 @@ class TestBaseClientPingError:
 class TestBaseClientSetToken:
     """Tests for BaseClient.set_token() (lines 185-186)."""
 
-    @patch("kubemq.transport.transport.Transport")
+    @patch("kubemq.transport.transport.SyncTransport")
     def test_set_token_delegates_to_transport(self, mock_transport_class):
         mock_transport = MagicMock()
         mock_transport.initialize.return_value = mock_transport
@@ -855,7 +855,7 @@ class TestBaseClientSetToken:
 
         mock_transport.set_token.assert_called_once_with("new-token-123")
 
-    @patch("kubemq.transport.transport.Transport")
+    @patch("kubemq.transport.transport.SyncTransport")
     def test_set_token_noop_when_transport_none(self, mock_transport_class):
         mock_transport = MagicMock()
         mock_transport.initialize.return_value = mock_transport
@@ -869,7 +869,7 @@ class TestBaseClientSetToken:
 class TestBaseClientCloseThreadDrain:
     """Tests for BaseClient.close() subscription thread drain (lines 226-235)."""
 
-    @patch("kubemq.transport.transport.Transport")
+    @patch("kubemq.transport.transport.SyncTransport")
     def test_close_joins_subscription_threads(self, mock_transport_class):
         mock_transport = MagicMock()
         mock_transport.initialize.return_value = mock_transport
@@ -889,7 +889,7 @@ class TestBaseClientCloseThreadDrain:
         _, kwargs = mock_thread.join.call_args
         assert kwargs.get("timeout") is not None
 
-    @patch("kubemq.transport.transport.Transport")
+    @patch("kubemq.transport.transport.SyncTransport")
     def test_close_timeout_breaks_thread_drain_loop(self, mock_transport_class):
         mock_transport = MagicMock()
         mock_transport.initialize.return_value = mock_transport
