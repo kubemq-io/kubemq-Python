@@ -1,18 +1,19 @@
 import logging
 import time
-from kubemq.client import Client
+
+from kubemq.queues import Client as QueuesClient
 
 
 def main():
     try:
-        client = Client(
+        client = QueuesClient(
             address="localhost:50000",
-            client_id="events_example",
+            client_id="python-client-test-client",
             log_level=logging.DEBUG,
         )
         # client._run_events_upstream_sender(CancellationToken())
 
-        # def on_receive_event(event: EventMessageReceived):
+        # def on_receive_event(event: EventReceived):
         #     print(
         #         f"Id:{event.id}, Timestamp:{event.timestamp} From: {event.from_client_id},  Body:{event.body.decode('utf-8')}")
         #
@@ -20,7 +21,7 @@ def main():
         #     print(f"Error: {err}")
         # client.subscribe(
         #     subscription=EventsSubscription(
-        #         channel="e1",
+        #         channel="python-e1",
         #         group="",
         #         on_receive_event_callback=on_receive_event,
         #         on_error_callback=on_error_handler,
@@ -28,7 +29,7 @@ def main():
         #     , cancellation_token=CancellationToken())
         # time.sleep(1)
         # client.send(EventMessage(
-        #     channel="e1",
+        #     channel="python-e1",
         #     body=b"hello kubemq"
         # ))
         time.sleep(10)
