@@ -1,0 +1,30 @@
+repos:
+  - repo: local
+    hooks:
+      - id: format
+        name: format (auto-fix)
+        entry: make format
+        language: system
+        types: [python]
+        pass_filenames: false
+
+      - id: lint
+        name: lint
+        entry: make lint
+        language: system
+        types: [python]
+        pass_filenames: false
+
+      - id: typecheck-fast
+        name: typecheck (pyrefly + ty)
+        entry: make typecheck-fast
+        language: system
+        types: [python]
+        pass_filenames: false
+
+      - id: security-check
+        name: security (bandit)
+        entry: make security-check
+        language: system
+        types: [python]
+        pass_filenames: false

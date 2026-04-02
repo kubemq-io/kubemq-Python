@@ -1,0 +1,1097 @@
+"""Commands and Queries client for KubeMQ."""
+
+from __future__ import annotations
+
+import asyncio
+import threading
+import time
+from pathlib import Path
+from typing import Any
+
+import grpc
+
+from kubemq._internal.deprecation import deprecated, deprecated_async
+from kubemq._internal.telemetry import (
+    KubeMQTagsCarrier,
+    create_link_from_context,
+    error_code_to_error_type,
+    serialize_span_to_bytes,
+)
+from kubemq.common.cancellation_token import CancellationToken
+from kubemq.common.channel_stats import CQChannel
+from kubemq.common.helpers import decode_grpc_error
+from kubemq.common.requests import (
+    create_channel_request,
+    delete_channel_request,
+    list_cq_channels,
+)
+from kubemq.core import BaseClient, ClientConfig
+from kubemq.core.compat import run_in_thread
+from kubemq.core.config import KeepAliveConfig, TLSConfig
+from kubemq.core.exceptions import KubeMQValidationError
+from kubemq.cq.command_message import CommandMessage
+from kubemq.cq.command_message_received import CommandReceived
+from kubemq.cq.command_response_message import CommandResponse
+from kubemq.cq.commands_subscription import CommandsSubscription
+from kubemq.cq.queries_subscription import QueriesSubscription
+from kubemq.cq.query_message import QueryMessage
+from kubemq.cq.query_message_received import QueryReceived
+from kubemq.cq.query_response_message import QueryResponse
+from kubemq.transport.server_info import ServerInfo
+
+
+class Client(BaseClient):
+    """Commands and Queries client for KubeMQ.
+
+    Note:
+        The `*_async()` methods on this class use thread-based async wrappers.
+        For native async support with better performance, use `AsyncClient`
+        (or `AsyncCQClient`) from `kubemq.cq.async_client` instead::
+
+            from kubemq.cq import AsyncClient
+
+            async with AsyncClient(address="localhost:50000") as client:
+                response = await client.send_command(CommandMessage(
+                    channel="my-commands",
+                    body=b"do something",
+                    timeout_in_seconds=30,
+                ))
+
+    Example:
+        # Using context manager (recommended)
+        with Client(address="localhost:50000") as client:
+            response = client.send_command_request(CommandMessage(
+                channel="my-commands",
+                body=b"do something"
+            ))
+
+        # Using configuration object
+        config = ClientConfig(address="localhost:50000", client_id="my-app")
+        client = Client(config=config)
+        try:
+            response = client.send_command_request(...)
+        finally:
+            client.close()
+
+    Thread Safety:
+        This class is thread-safe. Share across threads. One instance
+        per application recommended.
+    """
+
+    def __init__(
+        self,
+        address: str = "",
+        client_id: str | None = None,
+        auth_token: str | None = None,
+        config: ClientConfig | None = None,
+        # Legacy parameters for backward compatibility
+        tls: bool = False,
+        tls_cert_file: str = "",
+        tls_key_file: str = "",
+        tls_ca_file: str = "",
+        max_send_size: int = 0,
+        max_receive_size: int = 0,
+        disable_auto_reconnect: bool = False,
+        reconnect_interval_seconds: int = 0,
+        keep_alive: bool = False,
+        ping_interval_in_seconds: int = 0,
+        ping_timeout_in_seconds: int = 0,
+        log_level: int | None = None,
+    ) -> None:
+        """Initialize the Commands and Queries client.
+
+        Args:
+            address: KubeMQ server address (host:port)
+            client_id: Client identifier (defaults to hostname)
+            auth_token: Authentication token
+            config: Pre-built ClientConfig object (overrides other params)
+            tls: Whether to use TLS (legacy)
+            tls_cert_file: Path to TLS certificate (legacy)
+            tls_key_file: Path to TLS key (legacy)
+            tls_ca_file: Path to TLS CA certificate (legacy)
+            max_send_size: Maximum send message size (legacy)
+            max_receive_size: Maximum receive message size (legacy)
+            disable_auto_reconnect: Disable auto-reconnect (legacy)
+            reconnect_interval_seconds: Reconnect interval (legacy)
+            keep_alive: Enable keep-alive (legacy)
+            ping_interval_in_seconds: Keep-alive ping interval (legacy)
+            ping_timeout_in_seconds: Keep-alive ping timeout (legacy)
+            log_level: Logging level (legacy)
+        """
+        # Build config from legacy parameters if not provided
+        if config is None:
+            tls_config = (
+                TLSConfig(
+                    enabled=tls,
+                    cert_file=Path(tls_cert_file) if tls_cert_file else None,
+                    key_file=Path(tls_key_file) if tls_key_file else None,
+                    ca_file=Path(tls_ca_file) if tls_ca_file else None,
+                )
+                if tls
+                else TLSConfig()
+            )
+
+            keep_alive_config = (
+                KeepAliveConfig(
+                    enabled=keep_alive,
+                    ping_interval_in_seconds=ping_interval_in_seconds or 30,
+                    ping_timeout_in_seconds=ping_timeout_in_seconds or 10,
+                )
+                if keep_alive
+                else KeepAliveConfig()
+            )
+
+            config = ClientConfig(
+                address=address,
+                client_id=client_id,
+                auth_token=auth_token,
+                tls=tls_config,
+                keep_alive=keep_alive_config,
+                max_send_size=max_send_size or ClientConfig.DEFAULT_MAX_MESSAGE_SIZE,
+                max_receive_size=max_receive_size or ClientConfig.DEFAULT_MAX_MESSAGE_SIZE,
+                auto_reconnect=not disable_auto_reconnect,
+                reconnect_interval_seconds=reconnect_interval_seconds or 1,
+                log_level=log_level,
+            )
+
+        super().__init__(config=config)
+
+
+    async def __aenter__(self) -> Client:
+        """Async context manager entry."""
+        return self
+
+    async def __aexit__(
+        self, exc_type: type | None, exc_val: BaseException | None, exc_tb: object | None
+    ) -> None:
+        """Async context manager exit."""
+        await self.close_async()
+
+    async def close_async(self) -> None:
+        """Asynchronous version of close().
+
+        Closes the connection to the KubeMQ server and releases resources asynchronously.
+        """
+        self._logger.debug(f"Client disconnecting from {self._config.address}")
+        if self._transport is not None:
+            await self._transport.close_async()
+        self._logger.debug(f"Client disconnected from {self._config.address}")
+        self._shutdown_event.set()
+
+    @deprecated_async(replacement="AsyncCQClient.ping()", since="4.0.0", removal="5.0.0")
+    async def ping_async(self) -> ServerInfo:
+        """Asynchronous version of ping().
+
+        Deprecated:
+            Use `AsyncCQClient.ping()` for native async support.
+
+        Returns:
+            ServerInfo: The server information.
+
+        Raises:
+            KubeMQConnectionError: If an error occurs during the ping.
+        """
+        return await run_in_thread(self.ping)
+
+    # Command methods — GS-aligned verbs
+
+    def _send_command_impl(self, message: CommandMessage) -> CommandResponse:
+        """Internal implementation for sending a command."""
+        self._validate_message_size(message.body)
+        start = time.perf_counter()
+        error_type_val = None
+        with self._instrumentor.start_span("send", message.channel) as span:
+            try:
+                self._ensure_connected()
+                assert self._transport is not None
+                span_bytes = serialize_span_to_bytes()
+                pb_req = message.encode(self._config.client_id or "", span=span_bytes)
+                tags_dict = dict(pb_req.Tags)
+                KubeMQTagsCarrier(tags_dict).inject()
+                pb_req.Tags.update(tags_dict)
+                if span.is_recording():
+                    from kubemq._internal.semconv import (
+                        MESSAGING_MESSAGE_BODY_SIZE,
+                        MESSAGING_MESSAGE_ID,
+                    )
+
+                    span.set_attribute(MESSAGING_MESSAGE_ID, message.id)
+                    span.set_attribute(MESSAGING_MESSAGE_BODY_SIZE, len(message.body))
+                response = self._transport.kubemq_client().SendRequest(pb_req)
+                self._instrumentor._metrics.record_sent_message("send", message.channel)
+                return CommandResponse().decode(response)
+            except (ValueError, TypeError) as e:
+                error_type_val = "validation"
+                self._instrumentor.record_error(span, e, error_type_val)
+                raise KubeMQValidationError(str(e), is_retryable=False) from e
+            except Exception as e:
+                error_type_val = error_code_to_error_type(getattr(e, "code", None))
+                self._instrumentor.record_error(span, e, error_type_val)
+                raise
+            finally:
+                duration = time.perf_counter() - start
+                self._instrumentor._metrics.record_operation_duration(
+                    duration, "send", message.channel, error_type_val
+                )
+
+    def send_command(self, message: CommandMessage) -> CommandResponse:
+        """Send a command request and wait for response.
+
+        Sends a command to a subscriber and blocks until a response is
+        received or the command's ``timeout_in_seconds`` expires.
+
+        Args:
+            message: The command message to send.
+
+        Returns:
+            CommandResponse: Contains ``command_received`` (bool
+            indicating a subscriber processed the command),
+            ``is_executed`` (bool indicating execution success),
+            ``error`` (error description from the responder),
+            ``timestamp`` (when the response was generated), and
+            ``tags`` (key-value metadata from the responder).
+
+        Raises:
+            KubeMQValidationError: If the message fails validation (e.g.,
+                empty channel, body exceeds ``max_send_size``).
+            KubeMQConnectionError: If the server is unreachable or the
+                connection is lost.
+            KubeMQAuthenticationError: If the auth token is invalid or
+                expired, or the client lacks permission for the channel.
+            KubeMQTimeoutError: If no subscriber responds before the
+                command's timeout expires.
+            KubeMQClientClosedError: If the client has already been closed.
+
+        See Also:
+            :class:`~kubemq.cq.command_message.CommandMessage`:
+                Message type for commands.
+            :meth:`send_query`: Send a query expecting data in the
+                response.
+            :meth:`subscribe_to_commands`: Subscribe to receive commands.
+
+        Example:
+            >>> from kubemq.cq import Client
+            >>> from kubemq.cq.command_message import CommandMessage
+            >>> with Client(address="localhost:50000") as client:
+            ...     response = client.send_command(CommandMessage(
+            ...         channel="commands.user-service",
+            ...         body=b'{"action": "delete_user", "user_id": 42}',
+            ...         timeout_in_seconds=30,
+            ...     ))
+            ...     print(f"Executed: {response.is_executed}")
+        """
+        return self._send_command_impl(message)
+
+    @deprecated(replacement="send_command()", since="4.0.0", removal="5.0.0")
+    def send_command_request(self, message: CommandMessage) -> CommandResponse:
+        """Send a command request and wait for response.
+
+        Deprecated:
+            Use ``send_command()`` instead. Will be removed in v5.0.
+
+        Args:
+            message: The command message to send
+
+        Returns:
+            CommandResponse: Contains ``is_executed``, ``error``,
+            and ``tags`` fields.
+
+        Raises:
+            KubeMQValidationError: If the message fails validation.
+            KubeMQConnectionError: If the server is unreachable.
+            KubeMQAuthenticationError: If authentication or authorization
+                fails.
+            KubeMQTimeoutError: If no subscriber responds in time.
+            KubeMQClientClosedError: If the client has already been closed.
+        """
+        return self._send_command_impl(message)
+
+    @deprecated_async(replacement="AsyncCQClient.send_command()", since="4.0.0", removal="5.0.0")
+    async def send_command_request_async(self, message: CommandMessage) -> CommandResponse:
+        """Send a command request asynchronously.
+
+        Deprecated:
+            Use ``AsyncCQClient.send_command()`` for native async support.
+
+        Args:
+            message: The command message to send
+
+        Returns:
+            CommandResponse: Contains ``is_executed``, ``error``,
+            and ``tags`` fields.
+
+        Raises:
+            KubeMQValidationError: If the message fails validation.
+            KubeMQConnectionError: If the server is unreachable.
+            KubeMQAuthenticationError: If authentication or authorization
+                fails.
+            KubeMQTimeoutError: If no subscriber responds in time.
+            KubeMQClientClosedError: If the client has already been closed.
+        """
+        return await run_in_thread(self._send_command_impl, message)
+
+    # Query methods — GS-aligned verbs
+
+    def _send_query_impl(self, message: QueryMessage) -> QueryResponse:
+        """Internal implementation for sending a query."""
+        self._validate_message_size(message.body)
+        start = time.perf_counter()
+        error_type_val = None
+        with self._instrumentor.start_span("send", message.channel) as span:
+            try:
+                self._ensure_connected()
+                assert self._transport is not None
+                span_bytes = serialize_span_to_bytes()
+                pb_req = message.encode(self._config.client_id or "", span=span_bytes)
+                tags_dict = dict(pb_req.Tags)
+                KubeMQTagsCarrier(tags_dict).inject()
+                pb_req.Tags.update(tags_dict)
+                if span.is_recording():
+                    from kubemq._internal.semconv import (
+                        MESSAGING_MESSAGE_BODY_SIZE,
+                        MESSAGING_MESSAGE_ID,
+                    )
+
+                    span.set_attribute(MESSAGING_MESSAGE_ID, message.id)
+                    span.set_attribute(MESSAGING_MESSAGE_BODY_SIZE, len(message.body))
+                response = self._transport.kubemq_client().SendRequest(pb_req)
+                self._instrumentor._metrics.record_sent_message("send", message.channel)
+                return QueryResponse().decode(response)
+            except (ValueError, TypeError) as e:
+                error_type_val = "validation"
+                self._instrumentor.record_error(span, e, error_type_val)
+                raise KubeMQValidationError(str(e), is_retryable=False) from e
+            except Exception as e:
+                error_type_val = error_code_to_error_type(getattr(e, "code", None))
+                self._instrumentor.record_error(span, e, error_type_val)
+                raise
+            finally:
+                duration = time.perf_counter() - start
+                self._instrumentor._metrics.record_operation_duration(
+                    duration, "send", message.channel, error_type_val
+                )
+
+    def send_query(self, message: QueryMessage) -> QueryResponse:
+        """Send a query request and wait for response.
+
+        Sends a query to a subscriber and blocks until a response
+        containing data is received or the query's
+        ``timeout_in_seconds`` expires.
+
+        Args:
+            message: The query message to send.
+
+        Returns:
+            QueryResponse: Contains ``body`` (response payload as
+            bytes), ``metadata`` (response metadata string),
+            ``is_executed`` (bool indicating execution success),
+            ``error`` (error description from the responder),
+            ``timestamp``, ``cache_hit`` (bool), and ``tags``
+            (key-value metadata from the responder).
+
+        Raises:
+            KubeMQValidationError: If the message fails validation (e.g.,
+                empty channel, body exceeds ``max_send_size``).
+            KubeMQConnectionError: If the server is unreachable or the
+                connection is lost.
+            KubeMQAuthenticationError: If the auth token is invalid or
+                expired, or the client lacks permission for the channel.
+            KubeMQTimeoutError: If no subscriber responds before the
+                query's timeout expires.
+            KubeMQClientClosedError: If the client has already been closed.
+
+        See Also:
+            :class:`~kubemq.cq.query_message.QueryMessage`:
+                Message type for queries.
+            :meth:`send_command`: Send a command expecting only
+                success/failure.
+            :meth:`subscribe_to_queries`: Subscribe to receive queries.
+
+        Example:
+            >>> from kubemq.cq import Client
+            >>> from kubemq.cq.query_message import QueryMessage
+            >>> with Client(address="localhost:50000") as client:
+            ...     response = client.send_query(QueryMessage(
+            ...         channel="queries.inventory",
+            ...         body=b'{"sku": "WIDGET-100"}',
+            ...         timeout_in_seconds=10,
+            ...     ))
+            ...     print(f"Response body: {response.body}")
+        """
+        return self._send_query_impl(message)
+
+    @deprecated(replacement="send_query()", since="4.0.0", removal="5.0.0")
+    def send_query_request(self, message: QueryMessage) -> QueryResponse:
+        """Send a query request and wait for response.
+
+        Deprecated:
+            Use ``send_query()`` instead. Will be removed in v5.0.
+
+        Args:
+            message: The query message to send
+
+        Returns:
+            QueryResponse: Contains ``body``, ``metadata``,
+            ``is_executed``, ``error``, and ``tags`` fields.
+
+        Raises:
+            KubeMQValidationError: If the message fails validation.
+            KubeMQConnectionError: If the server is unreachable.
+            KubeMQAuthenticationError: If authentication or authorization
+                fails.
+            KubeMQTimeoutError: If no subscriber responds in time.
+            KubeMQClientClosedError: If the client has already been closed.
+        """
+        return self._send_query_impl(message)
+
+    @deprecated_async(replacement="AsyncCQClient.send_query()", since="4.0.0", removal="5.0.0")
+    async def send_query_request_async(self, message: QueryMessage) -> QueryResponse:
+        """Send a query request asynchronously.
+
+        Deprecated:
+            Use ``AsyncCQClient.send_query()`` for native async support.
+
+        Args:
+            message: The query message to send
+
+        Returns:
+            QueryResponse: Contains ``body``, ``metadata``,
+            ``is_executed``, ``error``, and ``tags`` fields.
+
+        Raises:
+            KubeMQValidationError: If the message fails validation.
+            KubeMQConnectionError: If the server is unreachable.
+            KubeMQAuthenticationError: If authentication or authorization
+                fails.
+            KubeMQTimeoutError: If no subscriber responds in time.
+            KubeMQClientClosedError: If the client has already been closed.
+        """
+        return await run_in_thread(self._send_query_impl, message)
+
+    # Response methods
+    def send_response_message(self, message: CommandResponse | QueryResponse) -> None:
+        """Send a response message back to the command/query sender.
+
+        Called from within a command or query subscription callback to
+        deliver the response to the original requester.
+
+        Args:
+            message: The response message to send. Use
+                :class:`CommandResponse` for commands or
+                :class:`QueryResponse` for queries.
+
+        Raises:
+            KubeMQConnectionError: If the server is unreachable or the
+                connection is lost.
+            KubeMQAuthenticationError: If the auth token is invalid or
+                expired, or the client lacks permission.
+            KubeMQTimeoutError: If the operation exceeds the server deadline.
+            KubeMQClientClosedError: If the client has already been closed.
+
+        See Also:
+            :meth:`subscribe_to_commands`: Subscribe to receive commands.
+            :meth:`subscribe_to_queries`: Subscribe to receive queries.
+        """
+        self._ensure_connected()
+        assert self._transport is not None
+        channel = getattr(message, "reply_channel", "") or ""
+        start = time.perf_counter()
+        error_type_val = None
+        with self._instrumentor.start_span("settle", channel) as span:
+            try:
+                pb_response = message.encode(self._config.client_id or "")
+                tags_dict = dict(pb_response.Tags)
+                KubeMQTagsCarrier(tags_dict).inject()
+                pb_response.Tags.update(tags_dict)
+                self._transport.kubemq_client().SendResponse(pb_response)
+                self._instrumentor._metrics.record_sent_message("settle", channel)
+            except Exception as e:
+                error_type_val = error_code_to_error_type(getattr(e, "code", None))
+                self._instrumentor.record_error(span, e, error_type_val)
+                raise
+            finally:
+                duration = time.perf_counter() - start
+                self._instrumentor._metrics.record_operation_duration(
+                    duration, "settle", channel, error_type_val
+                )
+
+    @deprecated_async(replacement="AsyncCQClient.send_response()", since="4.0.0", removal="5.0.0")
+    async def send_response_message_async(self, message: CommandResponse | QueryResponse) -> None:
+        """Send a response message asynchronously.
+
+        Deprecated:
+            Use `AsyncCQClient.send_response()` for native async support.
+
+        Args:
+            message: The response message to send.
+
+        Raises:
+            KubeMQConnectionError: If the server is unreachable.
+            KubeMQAuthenticationError: If authentication or authorization
+                fails.
+            KubeMQTimeoutError: If the operation exceeds the server deadline.
+            KubeMQClientClosedError: If the client has already been closed.
+        """
+        await run_in_thread(self.send_response_message, message)
+
+    # Channel management methods
+    def create_commands_channel(self, channel: str) -> bool | None:
+        """Create a commands channel.
+
+        Args:
+            channel: The name of the channel to create.
+
+        Returns:
+            bool: ``True`` if the channel was created successfully.
+
+        Raises:
+            KubeMQConnectionError: If the server is unreachable.
+            KubeMQAuthenticationError: If the auth token is invalid or the
+                client lacks permission to create channels.
+            KubeMQTimeoutError: If the operation exceeds the server deadline.
+            KubeMQError: If the server rejects the request (e.g., channel
+                already exists or invalid name).
+        """
+        return create_channel_request(self._transport, self._config.client_id, channel, "commands")
+
+    async def create_commands_channel_async(self, channel: str) -> bool | None:
+        """Create a commands channel asynchronously.
+
+        Args:
+            channel: The name of the channel to create.
+
+        Returns:
+            bool: ``True`` if the channel was created successfully.
+
+        Raises:
+            KubeMQConnectionError: If the server is unreachable.
+            KubeMQAuthenticationError: If the auth token is invalid or the
+                client lacks permission to create channels.
+            KubeMQTimeoutError: If the operation exceeds the server deadline.
+            KubeMQError: If the server rejects the request.
+        """
+        return await run_in_thread(self.create_commands_channel, channel)
+
+    def create_queries_channel(self, channel: str) -> bool | None:
+        """Create a queries channel.
+
+        Args:
+            channel: The name of the channel to create.
+
+        Returns:
+            bool: ``True`` if the channel was created successfully.
+
+        Raises:
+            KubeMQConnectionError: If the server is unreachable.
+            KubeMQAuthenticationError: If the auth token is invalid or the
+                client lacks permission to create channels.
+            KubeMQTimeoutError: If the operation exceeds the server deadline.
+            KubeMQError: If the server rejects the request (e.g., channel
+                already exists or invalid name).
+        """
+        return create_channel_request(self._transport, self._config.client_id, channel, "queries")
+
+    async def create_queries_channel_async(self, channel: str) -> bool | None:
+        """Create a queries channel asynchronously.
+
+        Args:
+            channel: The name of the channel to create.
+
+        Returns:
+            bool: ``True`` if the channel was created successfully.
+
+        Raises:
+            KubeMQConnectionError: If the server is unreachable.
+            KubeMQAuthenticationError: If the auth token is invalid or the
+                client lacks permission to create channels.
+            KubeMQTimeoutError: If the operation exceeds the server deadline.
+            KubeMQError: If the server rejects the request.
+        """
+        return await run_in_thread(self.create_queries_channel, channel)
+
+    def delete_commands_channel(self, channel: str) -> bool | None:
+        """Delete a commands channel.
+
+        Args:
+            channel: The name of the channel to delete.
+
+        Returns:
+            bool: ``True`` if the channel was deleted successfully.
+
+        Raises:
+            KubeMQConnectionError: If the server is unreachable.
+            KubeMQAuthenticationError: If the auth token is invalid or the
+                client lacks permission to delete channels.
+            KubeMQChannelError: If the channel does not exist.
+            KubeMQTimeoutError: If the operation exceeds the server deadline.
+        """
+        return delete_channel_request(self._transport, self._config.client_id, channel, "commands")
+
+    async def delete_commands_channel_async(self, channel: str) -> bool | None:
+        """Delete a commands channel asynchronously.
+
+        Args:
+            channel: The name of the channel to delete.
+
+        Returns:
+            bool: ``True`` if the channel was deleted successfully.
+
+        Raises:
+            KubeMQConnectionError: If the server is unreachable.
+            KubeMQAuthenticationError: If the auth token is invalid or the
+                client lacks permission to delete channels.
+            KubeMQChannelError: If the channel does not exist.
+            KubeMQTimeoutError: If the operation exceeds the server deadline.
+        """
+        return await run_in_thread(self.delete_commands_channel, channel)
+
+    def delete_queries_channel(self, channel: str) -> bool | None:
+        """Delete a queries channel.
+
+        Args:
+            channel: The name of the channel to delete.
+
+        Returns:
+            bool: ``True`` if the channel was deleted successfully.
+
+        Raises:
+            KubeMQConnectionError: If the server is unreachable.
+            KubeMQAuthenticationError: If the auth token is invalid or the
+                client lacks permission to delete channels.
+            KubeMQChannelError: If the channel does not exist.
+            KubeMQTimeoutError: If the operation exceeds the server deadline.
+        """
+        return delete_channel_request(self._transport, self._config.client_id, channel, "queries")
+
+    async def delete_queries_channel_async(self, channel: str) -> bool | None:
+        """Delete a queries channel asynchronously.
+
+        Args:
+            channel: The name of the channel to delete.
+
+        Returns:
+            bool: ``True`` if the channel was deleted successfully.
+
+        Raises:
+            KubeMQConnectionError: If the server is unreachable.
+            KubeMQAuthenticationError: If the auth token is invalid or the
+                client lacks permission to delete channels.
+            KubeMQChannelError: If the channel does not exist.
+            KubeMQTimeoutError: If the operation exceeds the server deadline.
+        """
+        return await run_in_thread(self.delete_queries_channel, channel)
+
+    def list_commands_channels(self, channel_search: str = "") -> list[CQChannel]:
+        """List commands channels.
+
+        Args:
+            channel_search: Optional wildcard filter (e.g.,
+                ``"commands.*"``). An empty string returns all channels.
+
+        Returns:
+            list[CQChannel]: Each entry contains the channel ``name``,
+            ``type``, ``is_active`` status, and subscriber statistics.
+
+        Raises:
+            KubeMQConnectionError: If the server is unreachable.
+            KubeMQAuthenticationError: If the auth token is invalid or the
+                client lacks permission.
+            KubeMQTimeoutError: If the operation exceeds the server deadline.
+        """
+        return list_cq_channels(self._transport, self._config.client_id, "commands", channel_search)
+
+    async def list_commands_channels_async(self, channel_search: str = "") -> list[CQChannel]:
+        """List commands channels asynchronously.
+
+        Args:
+            channel_search: Optional wildcard filter (e.g.,
+                ``"commands.*"``). An empty string returns all channels.
+
+        Returns:
+            list[CQChannel]: Each entry contains the channel ``name``,
+            ``type``, ``is_active`` status, and subscriber statistics.
+
+        Raises:
+            KubeMQConnectionError: If the server is unreachable.
+            KubeMQAuthenticationError: If the auth token is invalid or the
+                client lacks permission.
+            KubeMQTimeoutError: If the operation exceeds the server deadline.
+        """
+        return await run_in_thread(self.list_commands_channels, channel_search)
+
+    def list_queries_channels(self, channel_search: str = "") -> list[CQChannel]:
+        """List queries channels.
+
+        Args:
+            channel_search: Optional wildcard filter (e.g.,
+                ``"queries.*"``). An empty string returns all channels.
+
+        Returns:
+            list[CQChannel]: Each entry contains the channel ``name``,
+            ``type``, ``is_active`` status, and subscriber statistics.
+
+        Raises:
+            KubeMQConnectionError: If the server is unreachable.
+            KubeMQAuthenticationError: If the auth token is invalid or the
+                client lacks permission.
+            KubeMQTimeoutError: If the operation exceeds the server deadline.
+        """
+        return list_cq_channels(self._transport, self._config.client_id, "queries", channel_search)
+
+    async def list_queries_channels_async(self, channel_search: str = "") -> list[CQChannel]:
+        """List queries channels asynchronously.
+
+        Args:
+            channel_search: Optional wildcard filter (e.g.,
+                ``"queries.*"``). An empty string returns all channels.
+
+        Returns:
+            list[CQChannel]: Each entry contains the channel ``name``,
+            ``type``, ``is_active`` status, and subscriber statistics.
+
+        Raises:
+            KubeMQConnectionError: If the server is unreachable.
+            KubeMQAuthenticationError: If the auth token is invalid or the
+                client lacks permission.
+            KubeMQTimeoutError: If the operation exceeds the server deadline.
+        """
+        return await run_in_thread(self.list_queries_channels, channel_search)
+
+    # Subscription methods
+    def subscribe_to_commands(
+        self, subscription: CommandsSubscription, cancel: CancellationToken | None = None
+    ) -> None:
+        """Subscribe to commands.
+
+        Starts a background thread that streams command requests from the
+        server. For each received command, call
+        :meth:`send_response_message` to deliver a response back to the
+        sender.
+
+        Args:
+            subscription: The subscription configuration including channel,
+                optional group, and callback functions.
+            cancel: Optional cancellation token to stop the subscription.
+
+        Raises:
+            KubeMQValidationError: If the subscription configuration is
+                invalid (e.g., empty channel or missing callbacks).
+            KubeMQConnectionError: If the server is unreachable or the
+                initial connection fails.
+            KubeMQAuthenticationError: If the auth token is invalid or the
+                client lacks permission for the target channel.
+            KubeMQClientClosedError: If the client has already been closed.
+
+        Cancellation:
+            Pass a ``CancellationToken`` to cancel the subscription from
+            another thread. When cancelled, the subscription loop exits
+            cleanly without raising an exception.
+
+        Callback Concurrency:
+            Messages are delivered sequentially to the subscription's
+            ``on_receive_command`` callback. Only one callback executes
+            at a time per subscription.
+
+        See Also:
+            :class:`~kubemq.cq.commands_subscription.CommandsSubscription`:
+                Subscription configuration for commands.
+            :meth:`send_command`: Send a command to subscribers.
+            :meth:`send_response_message`: Send a response to a command.
+        """
+        self._subscribe(subscription, cancel)
+
+    def subscribe_to_queries(
+        self, subscription: QueriesSubscription, cancel: CancellationToken | None = None
+    ) -> None:
+        """Subscribe to queries.
+
+        Starts a background thread that streams query requests from the
+        server. For each received query, call
+        :meth:`send_response_message` to deliver a data response back
+        to the sender.
+
+        Args:
+            subscription: The subscription configuration including channel,
+                optional group, and callback functions.
+            cancel: Optional cancellation token to stop the subscription.
+
+        Raises:
+            KubeMQValidationError: If the subscription configuration is
+                invalid (e.g., empty channel or missing callbacks).
+            KubeMQConnectionError: If the server is unreachable or the
+                initial connection fails.
+            KubeMQAuthenticationError: If the auth token is invalid or the
+                client lacks permission for the target channel.
+            KubeMQClientClosedError: If the client has already been closed.
+
+        Cancellation:
+            Pass a ``CancellationToken`` to cancel the subscription from
+            another thread. When cancelled, the subscription loop exits
+            cleanly without raising an exception.
+
+        Callback Concurrency:
+            Messages are delivered sequentially to the subscription's
+            ``on_receive_query`` callback. Only one callback executes
+            at a time per subscription.
+
+        See Also:
+            :class:`~kubemq.cq.queries_subscription.QueriesSubscription`:
+                Subscription configuration for queries.
+            :meth:`send_query`: Send a query to subscribers.
+            :meth:`send_response_message`: Send a response to a query.
+        """
+        self._subscribe(subscription, cancel)
+
+    def _subscribe(
+        self,
+        subscription: CommandsSubscription | QueriesSubscription,
+        cancel: CancellationToken | None,
+    ) -> None:
+        """Internal subscription handler."""
+        self._ensure_connected()
+        assert self._transport is not None
+        if cancel is None:
+            cancel = CancellationToken()
+        cancel_token_event = cancel.event
+        transport = self._transport  # Capture for lambda
+        client_id = self._config.client_id or ""
+        channel = subscription.channel
+        args: tuple[Any, ...] = ()
+        if isinstance(subscription, CommandsSubscription):
+            args = (
+                lambda: transport.kubemq_client().SubscribeToRequests(
+                    subscription.encode(client_id)
+                ),
+                lambda message: subscription.raise_on_receive_message(
+                    CommandReceived().decode(message)
+                ),
+                lambda error: subscription.raise_on_error(error),
+                cancel_token_event,
+                channel,
+            )
+        if isinstance(subscription, QueriesSubscription):
+            args = (
+                lambda: transport.kubemq_client().SubscribeToRequests(
+                    subscription.encode(client_id)
+                ),
+                lambda message: subscription.raise_on_receive_message(
+                    QueryReceived().decode(message)
+                ),
+                lambda error: subscription.raise_on_error(error),
+                cancel_token_event,
+                channel,
+            )
+        thread = threading.Thread(target=self._subscribe_task, args=args, daemon=True)
+        self._register_subscription_thread(thread)
+        thread.start()
+
+    def _subscribe_task(
+        self,
+        stream_callable: Any,
+        decode_callable: Any,
+        error_callable: Any,
+        cancel_token: threading.Event,
+        channel: str = "",
+    ) -> None:
+        """Background subscription task."""
+        while not cancel_token.is_set() and not self._shutdown_event.is_set():
+            try:
+                response = stream_callable()
+
+                # Start a watcher thread to cancel the gRPC stream when
+                # the cancellation token or shutdown event fires.
+                def _cancel_watcher(resp=response):  # type: ignore[assignment]
+                    while not cancel_token.is_set() and not self._shutdown_event.is_set():
+                        cancel_token.wait(timeout=0.5)
+                    try:
+                        resp.cancel()
+                    except Exception:
+                        pass
+
+                watcher = threading.Thread(target=_cancel_watcher, daemon=True)
+                watcher.start()
+
+                for message in response:
+                    if cancel_token.is_set():
+                        break
+                    start = time.perf_counter()
+                    error_type_val = None
+                    tags_dict = dict(message.Tags) if hasattr(message, "Tags") else {}
+                    carrier = KubeMQTagsCarrier(tags_dict)
+                    parent_ctx = carrier.extract()
+                    links = []
+                    link = create_link_from_context(parent_ctx)
+                    if link is not None:
+                        links.append(link)
+                    with self._instrumentor.start_span(
+                        "process", channel, links=links or None
+                    ) as span:
+                        try:
+                            decode_callable(message)
+                            self._instrumentor._metrics.record_consumed_message("process", channel)
+                        except Exception as handler_err:
+                            error_type_val = error_code_to_error_type(
+                                getattr(handler_err, "code", None)
+                            )
+                            self._instrumentor.record_error(span, handler_err, error_type_val)
+                        finally:
+                            duration = time.perf_counter() - start
+                            self._instrumentor._metrics.record_operation_duration(
+                                duration, "process", channel, error_type_val
+                            )
+            except grpc.RpcError as e:
+                error_callable(decode_grpc_error(e))
+                time.sleep(self._config.reconnect_interval_seconds)
+                continue
+            except Exception as e:
+                error_callable(decode_grpc_error(e))
+                time.sleep(self._config.reconnect_interval_seconds)
+                continue
+
+    # Async subscription methods
+    def subscribe_to_commands_async(
+        self, subscription: CommandsSubscription, cancel: CancellationToken | None = None
+    ) -> asyncio.Task[None]:
+        """Asynchronous version of subscribe_to_commands().
+
+        Supports both sync and async callbacks.
+
+        Args:
+            subscription: The subscription configuration including channel,
+                optional group, and callback functions.
+            cancel: Optional cancellation token to stop the subscription.
+
+        Returns:
+            asyncio.Task[None]: A task that runs the subscription loop.
+            Cancel via the ``CancellationToken`` or by cancelling the task.
+
+        Raises:
+            KubeMQValidationError: If the subscription configuration is
+                invalid.
+            KubeMQConnectionError: If the server is unreachable.
+            KubeMQAuthenticationError: If authentication or authorization
+                fails.
+            KubeMQClientClosedError: If the client has already been closed.
+        """
+        return self._subscribe_async(subscription, cancel)
+
+    def subscribe_to_queries_async(
+        self, subscription: QueriesSubscription, cancel: CancellationToken | None = None
+    ) -> asyncio.Task[None]:
+        """Asynchronous version of subscribe_to_queries().
+
+        Supports both sync and async callbacks.
+
+        Args:
+            subscription: The subscription configuration including channel,
+                optional group, and callback functions.
+            cancel: Optional cancellation token to stop the subscription.
+
+        Returns:
+            asyncio.Task[None]: A task that runs the subscription loop.
+            Cancel via the ``CancellationToken`` or by cancelling the task.
+
+        Raises:
+            KubeMQValidationError: If the subscription configuration is
+                invalid.
+            KubeMQConnectionError: If the server is unreachable.
+            KubeMQAuthenticationError: If authentication or authorization
+                fails.
+            KubeMQClientClosedError: If the client has already been closed.
+        """
+        return self._subscribe_async(subscription, cancel)
+
+    def _subscribe_async(
+        self,
+        subscription: CommandsSubscription | QueriesSubscription,
+        cancel: CancellationToken | None,
+    ) -> asyncio.Task[None]:
+        """Internal async subscription handler."""
+        self._ensure_connected()
+        assert self._transport is not None
+        if cancel is None:
+            cancel = CancellationToken()
+        cancel_token_event = cancel.event
+        transport = self._transport  # Capture for lambda
+        client_id = self._config.client_id or ""
+        channel = subscription.channel
+        args: tuple[Any, ...] = ()
+        if isinstance(subscription, CommandsSubscription):
+            args = (
+                lambda: transport.kubemq_client().SubscribeToRequests(
+                    subscription.encode(client_id)
+                ),
+                lambda message: subscription.raise_on_receive_message_async(
+                    CommandReceived().decode(message)
+                ),
+                lambda error: subscription.raise_on_error_async(error),
+                cancel_token_event,
+                channel,
+            )
+        if isinstance(subscription, QueriesSubscription):
+            args = (
+                lambda: transport.kubemq_client().SubscribeToRequests(
+                    subscription.encode(client_id)
+                ),
+                lambda message: subscription.raise_on_receive_message_async(
+                    QueryReceived().decode(message)
+                ),
+                lambda error: subscription.raise_on_error_async(error),
+                cancel_token_event,
+                channel,
+            )
+        return asyncio.create_task(self._subscribe_task_async(*args))
+
+    async def _subscribe_task_async(
+        self,
+        stream_callable: Any,
+        decode_callable: Any,
+        error_callable: Any,
+        cancel_token: threading.Event,
+        channel: str = "",
+    ) -> None:
+        """Async version of subscription task that supports async callbacks."""
+        while not cancel_token.is_set() and not self._shutdown_event.is_set():
+            try:
+                response = await asyncio.to_thread(stream_callable)
+
+                while not cancel_token.is_set() and not self._shutdown_event.is_set():
+                    try:
+                        message = await asyncio.to_thread(next, response)
+                        start = time.perf_counter()
+                        error_type_val = None
+                        tags_dict = dict(message.Tags) if hasattr(message, "Tags") else {}
+                        carrier = KubeMQTagsCarrier(tags_dict)
+                        parent_ctx = carrier.extract()
+                        links = []
+                        link = create_link_from_context(parent_ctx)
+                        if link is not None:
+                            links.append(link)
+                        with self._instrumentor.start_span(
+                            "process", channel, links=links or None
+                        ) as span:
+                            try:
+                                await decode_callable(message)
+                                self._instrumentor._metrics.record_consumed_message(
+                                    "process", channel
+                                )
+                            except Exception as handler_err:
+                                error_type_val = error_code_to_error_type(
+                                    getattr(handler_err, "code", None)
+                                )
+                                self._instrumentor.record_error(span, handler_err, error_type_val)
+                            finally:
+                                duration = time.perf_counter() - start
+                                self._instrumentor._metrics.record_operation_duration(
+                                    duration, "process", channel, error_type_val
+                                )
+                    except StopIteration:
+                        break
+            except grpc.RpcError as e:
+                await error_callable(decode_grpc_error(e))
+                await asyncio.sleep(self._config.reconnect_interval_seconds)
+                continue
+            except Exception as e:
+                await error_callable(decode_grpc_error(e))
+                await asyncio.sleep(self._config.reconnect_interval_seconds)
+                continue
