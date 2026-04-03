@@ -8,7 +8,6 @@ from unittest.mock import MagicMock, patch
 import grpc
 import pytest
 
-from kubemq.core.exceptions import KubeMQChannelError, KubeMQError
 from kubemq.common.requests import (
     create_channel_request,
     delete_channel_request,
@@ -16,6 +15,7 @@ from kubemq.common.requests import (
     list_pubsub_channels,
     list_queues_channels,
 )
+from kubemq.core.exceptions import KubeMQChannelError, KubeMQError
 
 
 class FakeRpcError(grpc.RpcError):

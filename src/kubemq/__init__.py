@@ -60,7 +60,6 @@ from importlib.metadata import version as _metadata_version
 # Logging implementations
 from kubemq._internal.logging import NoOpLogger, StdLibLoggerAdapter
 
-
 # Async cancellation token
 from kubemq.common.async_cancellation_token import AsyncCancellationToken
 

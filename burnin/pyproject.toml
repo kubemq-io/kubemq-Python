@@ -2,7 +2,7 @@
 name = "burnin"
 version = "1.0.0"
 description = "KubeMQ Python SDK burn-in test harness"
-requires-python = ">=3.11"
+requires-python = ">=3.9"
 dependencies = [
     "kubemq",
     "pyyaml>=6.0",

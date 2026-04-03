@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
-import time
+import asyncio
 
 from kubemq import (
-    CancellationToken,
-    Client,
+    AsyncCancellationToken,
+    AsyncCQClient,
     CommandMessage,
-    CommandReceived,
     CommandResponse,
     CommandsSubscription,
     KubeMQConnectionError,
@@ -17,39 +16,32 @@ from kubemq import (
 )
 
 
-def main() -> None:
+async def main() -> None:
     try:
-        with Client(
+        async with AsyncCQClient(
             address="localhost:50000",
             client_id="python-commands-send-command-client",
         ) as client:
-            cancel = CancellationToken()
+            token = AsyncCancellationToken()
 
-            def on_receive_command(request: CommandReceived) -> None:
-                print(f"Responder received: {request.body.decode('utf-8')}")
-                client.send_response_message(
-                    CommandResponse(
-                        command_received=request,
-                        is_executed=True,
+            async def command_handler() -> None:
+                async for cmd in client.subscribe_to_commands(
+                    subscription=CommandsSubscription(
+                        channel="python-commands.send-command",
+                        on_receive_command_callback=lambda c: None,
+                        on_error_callback=lambda e: print(f"Error: {e}"),
+                    ),
+                    cancellation_token=token,
+                ):
+                    print(f"Responder received: {cmd.body.decode('utf-8')}")
+                    await client.send_response(
+                        CommandResponse(command_received=cmd, is_executed=True)
                     )
-                )
 
-            def on_error(err: str) -> None:
-                print(f"Error: {err}")
+            handler_task = asyncio.create_task(command_handler())
+            await asyncio.sleep(1)
 
-            # Set up a command responder
-            client.subscribe_to_commands(
-                subscription=CommandsSubscription(
-                    channel="python-commands.send-command",
-                    on_receive_command_callback=on_receive_command,
-                    on_error_callback=on_error,
-                ),
-                cancel=cancel,
-            )
-            time.sleep(1)
-
-            # Send a command and get the response
-            response = client.send_command(
+            response = await client.send_command(
                 CommandMessage(
                     channel="python-commands.send-command",
                     body=b"hello kubemq, please reply!",
@@ -61,7 +53,12 @@ def main() -> None:
                 f"timestamp={response.timestamp}, error={response.error}"
             )
 
-            cancel.cancel()
+            token.cancel()
+            handler_task.cancel()
+            try:
+                await handler_task
+            except asyncio.CancelledError:
+                pass
     except KubeMQConnectionError as e:
         print(f"Connection error: {e}")
     except KubeMQTimeoutError as e:
@@ -71,7 +68,7 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
 
 # Expected output:
 # Responder received: hello kubemq, please reply!

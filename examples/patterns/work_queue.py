@@ -2,40 +2,37 @@
 
 from __future__ import annotations
 
-import time
-import threading
+import asyncio
 
-from kubemq.queues import Client as QueuesClient
-from kubemq import QueueMessage
+from kubemq import AsyncQueuesClient, QueueMessage
 
 
-def worker(worker_id: int) -> None:
+async def worker(worker_id: int) -> None:
     """Worker that pulls and processes tasks from the queue."""
-    with QueuesClient(
+    async with AsyncQueuesClient(
         address="localhost:50000",
         client_id=f"python-patterns-work-queue-worker-{worker_id}",
     ) as client:
-        response = client.receive_queue_messages(
+        response = await client.receive_queue_messages(
             channel="python-patterns.work-queue",
             max_messages=5,
-            wait_timeout_in_seconds=10,
+            wait_timeout_seconds=10,
         )
         for msg in response.messages:
             body = msg.body.decode("utf-8")
             print(f"  [Worker-{worker_id}] Processing: {body}")
-            time.sleep(0.1)  # Simulate work
-            msg.ack()
+            await asyncio.sleep(0.1)
+            await msg.async_ack()
             print(f"  [Worker-{worker_id}] Done: {body}")
 
 
-def main() -> None:
-    # Producer: enqueue tasks
-    with QueuesClient(
+async def main() -> None:
+    async with AsyncQueuesClient(
         address="localhost:50000",
         client_id="python-patterns-work-queue-producer",
     ) as client:
         for i in range(10):
-            client.send_queue_message(
+            await client.send_queue_message(
                 QueueMessage(
                     channel="python-patterns.work-queue",
                     body=f"Task #{i + 1}".encode(),
@@ -43,18 +40,10 @@ def main() -> None:
             )
         print("Enqueued 10 tasks")
 
-    # Start multiple workers to process tasks concurrently
-    threads = []
-    for worker_id in range(3):
-        t = threading.Thread(target=worker, args=(worker_id,))
-        t.start()
-        threads.append(t)
-
-    for t in threads:
-        t.join()
-
+    tasks = [asyncio.create_task(worker(i)) for i in range(3)]
+    await asyncio.gather(*tasks)
     print("All workers finished")
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

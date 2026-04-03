@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import dataclasses
 import logging
 import time
 from collections.abc import AsyncIterator, Awaitable, Callable
@@ -11,8 +12,6 @@ from typing import (
     TYPE_CHECKING,
     Any,
 )
-
-import dataclasses
 
 from kubemq._internal.deprecation import deprecated_async
 from kubemq._internal.retry import BackoffCalculator

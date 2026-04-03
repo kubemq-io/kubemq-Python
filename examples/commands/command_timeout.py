@@ -2,17 +2,18 @@
 
 from __future__ import annotations
 
-from kubemq.cq import Client as CQClient, CommandMessage
+import asyncio
+
+from kubemq import AsyncCQClient, CommandMessage
 
 
-def main() -> None:
-    with CQClient(
+async def main() -> None:
+    async with AsyncCQClient(
         address="localhost:50000",
         client_id="python-commands-command-timeout-client",
     ) as client:
         try:
-            # Send a command with no responder — will time out
-            response = client.send_command(
+            response = await client.send_command(
                 CommandMessage(
                     channel="python-commands.command-timeout",
                     body=b"this will time out",
@@ -25,4 +26,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

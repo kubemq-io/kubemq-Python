@@ -2,37 +2,38 @@
 
 from __future__ import annotations
 
-from kubemq.queues import Client as QueuesClient
-from kubemq import QueueMessage
+import asyncio
+
+from kubemq import AsyncQueuesClient, QueueMessage
 
 
-def main() -> None:
-    with QueuesClient(
+async def main() -> None:
+    async with AsyncQueuesClient(
         address="localhost:50000",
         client_id="python-queues-stream-ack-range-client",
     ) as client:
         for i in range(3):
-            client.send_queue_message(
+            await client.send_queue_message(
                 QueueMessage(
                     channel="python-queues-stream.ack-range",
                     body=f"msg-{i}".encode(),
                 )
             )
 
-        response = client.receive_queue_messages(
+        response = await client.receive_queue_messages(
             channel="python-queues-stream.ack-range",
             max_messages=3,
-            wait_timeout_in_seconds=10,
+            wait_timeout_seconds=10,
         )
         print(f"Received {len(response.messages)} messages")
         for msg in response.messages:
             if msg.sequence % 2 == 0:
-                msg.ack()
+                await msg.async_ack()
                 print(f"  Acked: seq={msg.sequence}")
             else:
-                msg.nack()
+                await msg.async_nack()
                 print(f"  Rejected: seq={msg.sequence}")
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

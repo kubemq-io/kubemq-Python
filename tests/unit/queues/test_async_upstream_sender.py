@@ -613,7 +613,7 @@ class TestAsyncUpstreamSenderReceiveResponses:
 
         async def _mock_iter(self):
             raise asyncio.CancelledError()
-            yield  # noqa
+            yield
 
         mock_call = MagicMock()
         mock_call.__aiter__ = _mock_iter
@@ -636,7 +636,7 @@ class TestAsyncUpstreamSenderReceiveResponses:
 
         async def _mock_iter(self):
             raise error
-            yield  # noqa
+            yield
 
         mock_call = MagicMock()
         mock_call.__aiter__ = _mock_iter
@@ -659,7 +659,7 @@ class TestAsyncUpstreamSenderReceiveResponses:
 
         async def _mock_iter(self):
             raise error
-            yield  # noqa
+            yield
 
         mock_call = MagicMock()
         mock_call.__aiter__ = _mock_iter

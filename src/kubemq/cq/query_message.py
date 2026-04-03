@@ -2,7 +2,12 @@ from __future__ import annotations
 
 import dataclasses
 from dataclasses import dataclass, field
-from typing import Any, Self
+from typing import Any
+
+try:
+    from typing import Self
+except ImportError:
+    from typing_extensions import Self
 
 from kubemq.common.channel_validators import validate_channel_name
 from kubemq.common.helpers import fast_id

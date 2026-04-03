@@ -2,18 +2,19 @@
 
 from __future__ import annotations
 
-from kubemq import KubeMQConnectionError
-from kubemq.queues import Client as QueuesClient
+import asyncio
+
+from kubemq import AsyncQueuesClient, KubeMQConnectionError
 
 
-def main() -> None:
+async def main() -> None:
     try:
-        # Attempt to connect to a non-existent server
-        client = QueuesClient(
+        client = AsyncQueuesClient(
             address="localhost:59999",
             client_id="python-error-handling-connection-error-client",
         )
-        server_info = client.ping()
+        await client.connect()
+        server_info = await client.ping()
         print(f"Connected: {server_info}")
     except KubeMQConnectionError as e:
         print(f"Connection error (expected): {e}")
@@ -23,4 +24,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

@@ -2,25 +2,27 @@
 
 from __future__ import annotations
 
-from kubemq.queues import Client as QueuesClient, QueueMessage
+import asyncio
+
+from kubemq import AsyncQueuesClient, QueueMessage
 
 
-def main() -> None:
-    with QueuesClient(
+async def main() -> None:
+    async with AsyncQueuesClient(
         address="localhost:50000",
         client_id="python-queues-stream-auto-ack-client",
     ) as client:
-        client.send_queue_message(
+        await client.send_queue_message(
             QueueMessage(
                 channel="python-queues-stream.auto-ack",
                 body=b"auto-acked-message",
             )
         )
 
-        response = client.receive_queue_messages(
+        response = await client.receive_queue_messages(
             channel="python-queues-stream.auto-ack",
             max_messages=10,
-            wait_timeout_in_seconds=5,
+            wait_timeout_seconds=5,
             auto_ack=True,
         )
         for msg in response.messages:
@@ -32,4 +34,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

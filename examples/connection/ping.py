@@ -2,15 +2,17 @@
 
 from __future__ import annotations
 
-from kubemq.queues import Client as QueuesClient
+import asyncio
+
+from kubemq import AsyncQueuesClient
 
 
-def main() -> None:
-    with QueuesClient(
+async def main() -> None:
+    async with AsyncQueuesClient(
         address="localhost:50000",
         client_id="python-connection-ping-client",
     ) as client:
-        server_info = client.ping()
+        server_info = await client.ping()
         print(f"Server host: {server_info.host}")
         print(f"Server version: {server_info.version}")
         print(f"Server uptime: {server_info.server_up_time_seconds}s")
@@ -18,4 +20,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

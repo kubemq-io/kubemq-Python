@@ -2,16 +2,17 @@
 
 from __future__ import annotations
 
-from kubemq.queues import Client as QueuesClient
-from kubemq import QueueMessage
+import asyncio
+
+from kubemq import AsyncQueuesClient, QueueMessage
 
 
-def main() -> None:
-    with QueuesClient(
+async def main() -> None:
+    async with AsyncQueuesClient(
         address="localhost:50000",
         client_id="python-queues-stream-poll-mode-client",
     ) as client:
-        client.send_queue_message(
+        await client.send_queue_message(
             QueueMessage(
                 channel="python-queues-stream.poll-mode",
                 body=b"message for polling",
@@ -19,10 +20,10 @@ def main() -> None:
         )
         print("Sent 1 message")
 
-        response = client.receive_queue_messages(
+        response = await client.receive_queue_messages(
             channel="python-queues-stream.poll-mode",
             max_messages=10,
-            wait_timeout_in_seconds=5,
+            wait_timeout_seconds=5,
             auto_ack=True,
         )
 
@@ -30,14 +31,14 @@ def main() -> None:
             print(f"Error: {response.error}")
             return
 
-        if not response.messages:
+        if response.is_empty():
             print("No messages available")
             return
 
-        print(f"Polled {len(response.messages)} messages:")
+        print(f"Polled {response.count()} messages:")
         for msg in response.messages:
             print(f"  id={msg.id}, body={msg.body.decode('utf-8')}")
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

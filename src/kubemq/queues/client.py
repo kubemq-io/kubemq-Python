@@ -7,7 +7,6 @@ import time
 import uuid
 from pathlib import Path
 
-
 from kubemq._internal.deprecation import deprecated, deprecated_async
 from kubemq._internal.telemetry import (
     KubeMQTagsCarrier,

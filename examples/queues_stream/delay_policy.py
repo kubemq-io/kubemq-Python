@@ -2,19 +2,17 @@
 
 from __future__ import annotations
 
-import time
+import asyncio
 
-from kubemq.queues import Client as QueuesClient
-from kubemq import QueueMessage
+from kubemq import AsyncQueuesClient, QueueMessage
 
 
-def main() -> None:
-    with QueuesClient(
+async def main() -> None:
+    async with AsyncQueuesClient(
         address="localhost:50000",
         client_id="python-queues-stream-delay-policy-client",
     ) as client:
-        # Send a message with a 5-second delay
-        result = client.send_queue_message(
+        result = await client.send_queue_message(
             QueueMessage(
                 channel="python-queues-stream.delay-policy",
                 body=b"delayed message",
@@ -23,24 +21,21 @@ def main() -> None:
         )
         print(f"Sent message with 5s delay: {result}")
 
-        # Try to receive immediately — should get nothing
-        response = client.receive_queue_messages(
+        response = await client.receive_queue_messages(
             channel="python-queues-stream.delay-policy",
             max_messages=1,
-            wait_timeout_in_seconds=1,
+            wait_timeout_seconds=1,
             auto_ack=True,
         )
         print(f"Immediate: {len(response.messages)} messages (expected 0)")
 
-        # Wait for the delay to expire
         print("Waiting 6 seconds for delay...")
-        time.sleep(6)
+        await asyncio.sleep(6)
 
-        # Now the message should be available
-        response = client.receive_queue_messages(
+        response = await client.receive_queue_messages(
             channel="python-queues-stream.delay-policy",
             max_messages=1,
-            wait_timeout_in_seconds=5,
+            wait_timeout_seconds=5,
             auto_ack=True,
         )
         print(f"After delay: {len(response.messages)} messages (expected 1)")
@@ -49,4 +44,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

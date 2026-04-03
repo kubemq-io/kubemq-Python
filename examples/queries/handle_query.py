@@ -2,63 +2,50 @@
 
 from __future__ import annotations
 
-import time
+import asyncio
 
 from kubemq import (
-    CancellationToken,
-    Client,
+    AsyncCancellationToken,
+    AsyncCQClient,
     QueriesSubscription,
     QueryMessage,
-    QueryReceived,
     QueryResponse,
 )
 
 
-def main() -> None:
-    with Client(
+async def main() -> None:
+    async with AsyncCQClient(
         address="localhost:50000",
         client_id="python-queries-handle-query-client",
     ) as client:
-        cancel = CancellationToken()
+        token = AsyncCancellationToken()
 
-        def on_receive_query(request: QueryReceived) -> None:
-            """Handle incoming query and send response with data."""
-            try:
-                body = request.body.decode("utf-8")
-                print(f"Handling query: Id={request.id}, Body={body}")
-
-                # Process the query (simulate data lookup)
+        async def query_handler() -> None:
+            async for query in client.subscribe_to_queries(
+                subscription=QueriesSubscription(
+                    channel="python-queries.handle-query",
+                    on_receive_query_callback=lambda q: None,
+                    on_error_callback=lambda e: print(f"Subscription error: {e}"),
+                ),
+                cancellation_token=token,
+            ):
+                body = query.body.decode("utf-8")
+                print(f"Handling query: Id={query.id}, Body={body}")
                 result_data = f"Result for: {body}"
-
-                # Send response back with data
-                client.send_response_message(
+                await client.send_response(
                     QueryResponse(
-                        query_received=request,
+                        query_received=query,
                         is_executed=True,
                         body=result_data.encode(),
                     )
                 )
                 print(f"  Response sent with data: {result_data}")
-            except Exception as e:
-                print(f"  Error handling query: {e}")
 
-        def on_error(err: str) -> None:
-            print(f"Subscription error: {err}")
-
-        # Subscribe to queries
-        client.subscribe_to_queries(
-            subscription=QueriesSubscription(
-                channel="python-queries.handle-query",
-                on_receive_query_callback=on_receive_query,
-                on_error_callback=on_error,
-            ),
-            cancel=cancel,
-        )
+        handler_task = asyncio.create_task(query_handler())
         print("Listening for queries on 'python-queries.handle-query'...")
-        time.sleep(1)
+        await asyncio.sleep(1)
 
-        # Send a test query
-        response = client.send_query(
+        response = await client.send_query(
             QueryMessage(
                 channel="python-queries.handle-query",
                 body=b"fetch user profile",
@@ -67,9 +54,14 @@ def main() -> None:
         )
         print(f"Query result: executed={response.is_executed}, body={response.body}")
 
-        time.sleep(1)
-        cancel.cancel()
+        await asyncio.sleep(1)
+        token.cancel()
+        handler_task.cancel()
+        try:
+            await handler_task
+        except asyncio.CancelledError:
+            pass
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
