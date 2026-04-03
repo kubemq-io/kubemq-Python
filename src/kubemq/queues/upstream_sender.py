@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import logging
 import queue
 import threading
@@ -8,6 +10,7 @@ from collections.abc import Generator, Iterator
 import grpc
 
 from kubemq.common.helpers import decode_grpc_error, is_channel_error
+from kubemq.core.config import ClientConfig
 from kubemq.grpc import (
     QueueMessage as pbQueueMessage,
     QueuesUpstreamRequest,
@@ -15,7 +18,6 @@ from kubemq.grpc import (
     SendQueueMessageResult,
 )
 from kubemq.queues.queues_send_result import QueueSendResult
-from kubemq.core.config import ClientConfig
 from kubemq.transport import SyncTransport
 
 DEFAULT_SEND_QUEUE_SIZE = 10_000

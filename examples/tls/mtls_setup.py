@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from kubemq import TLSConfig
-from kubemq.pubsub import Client as PubSubClient, EventMessage
+import asyncio
+
+from kubemq import AsyncPubSubClient, EventMessage, TLSConfig
 
 
-def main() -> None:
-    # Mutual TLS: both client cert+key and CA cert are provided
+async def main() -> None:
     tls_config = TLSConfig(
         enabled=True,
         cert_file="/path/to/client-cert.pem",
@@ -15,15 +15,15 @@ def main() -> None:
         ca_file="/path/to/ca.pem",
     )
 
-    with PubSubClient(
+    async with AsyncPubSubClient(
         address="kubemq-server:50000",
         client_id="python-tls-mtls-setup-client",
         tls=tls_config,
     ) as client:
-        info = client.ping()
+        info = await client.ping()
         print(f"Connected via mTLS to {info.host}")
 
-        client.send_event(
+        await client.publish_event(
             EventMessage(
                 channel="python-tls.mtls-setup",
                 body=b"mTLS secured message",
@@ -33,4 +33,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

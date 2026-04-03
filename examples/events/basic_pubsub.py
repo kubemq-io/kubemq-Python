@@ -2,47 +2,44 @@
 
 from __future__ import annotations
 
-import time
+import asyncio
 
 from kubemq import (
-    CancellationToken,
-    Client,
+    AsyncCancellationToken,
+    AsyncPubSubClient,
     EventMessage,
-    EventReceived,
     EventsSubscription,
     KubeMQConnectionError,
     KubeMQError,
 )
 
 
-def main() -> None:
+async def main() -> None:
     try:
-        with Client(
-            address="localhost:50000",  # TODO: Replace with your KubeMQ server address
+        async with AsyncPubSubClient(
+            address="localhost:50000",
             client_id="python-events-basic-pubsub-client",
         ) as client:
+            token = AsyncCancellationToken()
 
-            def on_receive_event(event: EventReceived) -> None:
-                print(
-                    f"Received — Id:{event.id}, Channel:{event.channel}, "
-                    f"Body:{event.body.decode('utf-8')}"
-                )
+            async def subscriber() -> None:
+                async for event in client.subscribe_to_events(
+                    subscription=EventsSubscription(
+                        channel="python-events.basic-pubsub",
+                        on_receive_event_callback=lambda e: None,
+                        on_error_callback=lambda e: print(f"Error: {e}"),
+                    ),
+                    cancellation_token=token,
+                ):
+                    print(
+                        f"Received — Id:{event.id}, Channel:{event.channel}, "
+                        f"Body:{event.body.decode('utf-8')}"
+                    )
 
-            def on_error(err: str) -> None:
-                print(f"Error: {err}")
+            task = asyncio.create_task(subscriber())
+            await asyncio.sleep(1)
 
-            cancel = CancellationToken()
-            client.subscribe_to_events(
-                subscription=EventsSubscription(
-                    channel="python-events.basic-pubsub",
-                    on_receive_event_callback=on_receive_event,
-                    on_error_callback=on_error,
-                ),
-                cancel=cancel,
-            )
-            time.sleep(1)
-
-            client.send_event(
+            await client.publish_event(
                 EventMessage(
                     channel="python-events.basic-pubsub",
                     body=b"hello kubemq",
@@ -50,8 +47,13 @@ def main() -> None:
             )
             print("Event sent")
 
-            time.sleep(2)
-            cancel.cancel()
+            await asyncio.sleep(2)
+            token.cancel()
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
     except KubeMQConnectionError as e:
         print(f"Connection error: {e}")
     except KubeMQError as e:
@@ -59,7 +61,7 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
 
 # Expected output:
 # Received — Id:<message-id>, Channel:python-events.basic-pubsub, Body:hello kubemq

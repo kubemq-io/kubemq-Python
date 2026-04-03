@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import json
 from dataclasses import dataclass
 
@@ -13,7 +15,7 @@ class EventStoreResult:
     error: str | None = None
 
     @classmethod
-    def decode(cls, result: Result) -> "EventStoreResult":
+    def decode(cls, result: Result) -> EventStoreResult:
         """Decode a protobuf Result into an EventStoreResult."""
         return cls(id=result.EventID, sent=result.Sent, error=result.Error)
 

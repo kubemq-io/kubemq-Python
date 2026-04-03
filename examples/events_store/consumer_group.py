@@ -2,69 +2,53 @@
 
 from __future__ import annotations
 
-import time
+import asyncio
 
-from kubemq import (
-    CancellationToken,
-    Client,
-    EventStoreMessage,
-    EventStoreReceived,
-    EventsStoreSubscription,
-)
-from kubemq.pubsub.events_store_subscription import EventStoreStartPosition
+from kubemq import AsyncCancellationToken, AsyncPubSubClient, EventStoreMessage, EventsStoreSubscription
+from kubemq.pubsub import EventStoreStartPosition
 
 
-def make_handler(name: str):  # type: ignore[no-untyped-def]
-    def handler(event: EventStoreReceived) -> None:
-        print(f"[{name}] Seq:{event.sequence}, Body:{event.body.decode('utf-8')}")
-
-    return handler
-
-
-def on_error(err: str) -> None:
-    print(f"Error: {err}")
-
-
-def main() -> None:
-    with Client(
+async def main() -> None:
+    async with AsyncPubSubClient(
         address="localhost:50000",
         client_id="python-events-store-consumer-group-client",
     ) as client:
-        cancel = CancellationToken()
+        token = AsyncCancellationToken()
 
-        client.subscribe_to_events_store(
-            subscription=EventsStoreSubscription(
-                channel="python-events-store.consumer-group",
-                group="processors",
-                on_receive_event_callback=make_handler("Processor-1"),
-                on_error_callback=on_error,
-                events_store_type=EventStoreStartPosition.StartFromFirst,
-            ),
-            cancel=cancel,
-        )
-        client.subscribe_to_events_store(
-            subscription=EventsStoreSubscription(
-                channel="python-events-store.consumer-group",
-                group="processors",
-                on_receive_event_callback=make_handler("Processor-2"),
-                on_error_callback=on_error,
-                events_store_type=EventStoreStartPosition.StartFromFirst,
-            ),
-            cancel=cancel,
-        )
+        async def make_processor(name: str) -> None:
+            async for event in client.subscribe_to_events_store(
+                subscription=EventsStoreSubscription(
+                    channel="python-events-store.consumer-group",
+                    group="processors",
+                    on_receive_event_callback=lambda e: None,
+                    on_error_callback=lambda e: print(f"Error: {e}"),
+                    events_store_type=EventStoreStartPosition.StartFromFirst,
+                ),
+                cancellation_token=token,
+            ):
+                print(f"[{name}] Seq:{event.sequence}, Body:{event.body.decode('utf-8')}")
 
-        time.sleep(1)
+        task1 = asyncio.create_task(make_processor("Processor-1"))
+        task2 = asyncio.create_task(make_processor("Processor-2"))
+        await asyncio.sleep(1)
+
         for i in range(6):
-            client.send_event_store(
+            await client.send_event_store(
                 EventStoreMessage(
                     channel="python-events-store.consumer-group",
                     body=f"Event-{i + 1}".encode(),
                 )
             )
 
-        time.sleep(3)
-        cancel.cancel()
+        await asyncio.sleep(3)
+        token.cancel()
+        for t in [task1, task2]:
+            t.cancel()
+            try:
+                await t
+            except asyncio.CancelledError:
+                pass
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

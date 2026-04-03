@@ -10,6 +10,7 @@ from typing import (
     Any,
     Protocol,
     TypeVar,
+    Union,
     runtime_checkable,
 )
 
@@ -20,7 +21,7 @@ MessageT = TypeVar("MessageT", bound="BaseMessage")
 # Callback type aliases
 SyncCallback = Callable[[T], None]
 AsyncCallback = Callable[[T], Awaitable[None]]
-Callback = SyncCallback[T] | AsyncCallback[T]
+Callback = Union[SyncCallback[T], AsyncCallback[T]]
 
 # Error callback types
 ErrorCallback = Callable[[Exception], None]
@@ -28,7 +29,7 @@ SyncErrorCallback = ErrorCallback  # Alias for consistency
 AsyncErrorCallback = Callable[[Exception], Awaitable[None]]
 
 # Combined error callback type (accepts both sync and async)
-AnyErrorCallback = ErrorCallback | AsyncErrorCallback
+AnyErrorCallback = Union[ErrorCallback, AsyncErrorCallback]
 
 
 class ConnectionState(Enum):

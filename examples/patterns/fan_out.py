@@ -2,73 +2,59 @@
 
 from __future__ import annotations
 
-import time
+import asyncio
 
-from kubemq import (
-    CancellationToken,
-    Client,
-    EventMessage,
-    EventReceived,
-    EventsSubscription,
-)
+from kubemq import AsyncCancellationToken, AsyncPubSubClient, EventMessage, EventsSubscription
 
 
-def make_subscriber(name: str):  # type: ignore[no-untyped-def]
-    """Create a named subscriber handler."""
-    received: list[str] = []
-
-    def handler(event: EventReceived) -> None:
-        body = event.body.decode("utf-8")
-        received.append(body)
-        print(f"  [{name}] Received: {body}")
-
-    return handler, received
-
-
-def on_error(err: str) -> None:
-    print(f"Error: {err}")
-
-
-def main() -> None:
-    with Client(
+async def main() -> None:
+    async with AsyncPubSubClient(
         address="localhost:50000",
         client_id="python-patterns-fan-out-client",
     ) as client:
-        cancel = CancellationToken()
+        token = AsyncCancellationToken()
+        received_counts: dict[str, int] = {"Service-A": 0, "Service-B": 0, "Service-C": 0}
 
-        # Create 3 independent subscribers (no group — each gets every message)
-        handler_a, received_a = make_subscriber("Service-A")
-        handler_b, received_b = make_subscriber("Service-B")
-        handler_c, received_c = make_subscriber("Service-C")
-
-        for handler in [handler_a, handler_b, handler_c]:
-            client.subscribe_to_events(
+        async def make_subscriber(name: str) -> None:
+            async for event in client.subscribe_to_events(
                 subscription=EventsSubscription(
                     channel="python-patterns.fan-out",
-                    on_receive_event_callback=handler,
-                    on_error_callback=on_error,
+                    on_receive_event_callback=lambda e: None,
+                    on_error_callback=lambda e: print(f"Error: {e}"),
                 ),
-                cancel=cancel,
-            )
+                cancellation_token=token,
+            ):
+                received_counts[name] += 1
+                print(f"  [{name}] Received: {event.body.decode('utf-8')}")
 
-        time.sleep(1)
+        tasks = [
+            asyncio.create_task(make_subscriber("Service-A")),
+            asyncio.create_task(make_subscriber("Service-B")),
+            asyncio.create_task(make_subscriber("Service-C")),
+        ]
+        await asyncio.sleep(1)
 
-        # Publish a single message — all 3 subscribers should receive it
         print("Publishing message to fan-out channel...")
-        client.send_event(
+        await client.publish_event(
             EventMessage(
                 channel="python-patterns.fan-out",
                 body=b"Order #1001 placed",
             )
         )
 
-        time.sleep(3)
+        await asyncio.sleep(3)
         print(
-            f"\nEach subscriber received: A={len(received_a)}, "
-            f"B={len(received_b)}, C={len(received_c)}"
+            f"\nEach subscriber received: A={received_counts['Service-A']}, "
+            f"B={received_counts['Service-B']}, C={received_counts['Service-C']}"
         )
-        cancel.cancel()
+        token.cancel()
+        for t in tasks:
+            t.cancel()
+            try:
+                await t
+            except asyncio.CancelledError:
+                pass
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

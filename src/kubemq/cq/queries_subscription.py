@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import asyncio
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -76,7 +78,7 @@ class QueriesSubscription:
         group: str | None = None,
         on_receive_query_callback: Callable[[QueryReceived], None] | None = None,
         on_error_callback: Callable[[str], None] | None = None,
-    ) -> "QueriesSubscription":
+    ) -> QueriesSubscription:
         """Creates a new QueriesSubscription instance."""
         if on_receive_query_callback is None:
             raise ValueError("on_receive_query_callback is required")

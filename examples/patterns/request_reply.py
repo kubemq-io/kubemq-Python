@@ -2,58 +2,49 @@
 
 from __future__ import annotations
 
-import time
+import asyncio
 
 from kubemq import (
-    CancellationToken,
-    Client,
+    AsyncCancellationToken,
+    AsyncCQClient,
     QueriesSubscription,
     QueryMessage,
-    QueryReceived,
     QueryResponse,
 )
 
 
-def main() -> None:
-    with Client(
+async def main() -> None:
+    async with AsyncCQClient(
         address="localhost:50000",
         client_id="python-patterns-request-reply-client",
     ) as client:
-        cancel = CancellationToken()
+        token = AsyncCancellationToken()
 
-        def on_query(request: QueryReceived) -> None:
-            """Process the request and return a reply."""
-            query_body = request.body.decode("utf-8")
-            print(f"[Server] Received request: {query_body}")
-
-            # Simulate processing
-            reply_data = f"Processed: {query_body}"
-
-            client.send_response_message(
-                QueryResponse(
-                    query_received=request,
-                    is_executed=True,
-                    body=reply_data.encode(),
+        async def server() -> None:
+            async for query in client.subscribe_to_queries(
+                subscription=QueriesSubscription(
+                    channel="python-patterns.request-reply",
+                    on_receive_query_callback=lambda q: None,
+                    on_error_callback=lambda e: print(f"Error: {e}"),
+                ),
+                cancellation_token=token,
+            ):
+                query_body = query.body.decode("utf-8")
+                print(f"[Server] Received request: {query_body}")
+                reply_data = f"Processed: {query_body}"
+                await client.send_response(
+                    QueryResponse(
+                        query_received=query,
+                        is_executed=True,
+                        body=reply_data.encode(),
+                    )
                 )
-            )
 
-        def on_error(err: str) -> None:
-            print(f"Error: {err}")
+        server_task = asyncio.create_task(server())
+        await asyncio.sleep(1)
 
-        # Set up the "server" side (responder)
-        client.subscribe_to_queries(
-            subscription=QueriesSubscription(
-                channel="python-patterns.request-reply",
-                on_receive_query_callback=on_query,
-                on_error_callback=on_error,
-            ),
-            cancel=cancel,
-        )
-        time.sleep(1)
-
-        # "Client" side — send requests and get replies
         for i in range(3):
-            response = client.send_query(
+            response = await client.send_query(
                 QueryMessage(
                     channel="python-patterns.request-reply",
                     body=f"Request #{i + 1}".encode(),
@@ -62,8 +53,13 @@ def main() -> None:
             )
             print(f"[Client] Reply: {response.body}")
 
-        cancel.cancel()
+        token.cancel()
+        server_task.cancel()
+        try:
+            await server_task
+        except asyncio.CancelledError:
+            pass
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

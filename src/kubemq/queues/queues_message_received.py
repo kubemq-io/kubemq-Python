@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import threading
 import uuid
 from collections.abc import Callable

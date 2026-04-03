@@ -2,19 +2,21 @@
 
 from __future__ import annotations
 
-from kubemq.pubsub import Client as PubSubClient, EventMessage
+import asyncio
+
+from kubemq import AsyncPubSubClient, EventMessage
 
 
-def main() -> None:
-    with PubSubClient(
+async def main() -> None:
+    async with AsyncPubSubClient(
         address="localhost:50000",
         auth_token="your-authentication-token",
         client_id="python-connection-token-auth-client",
     ) as client:
-        info = client.ping()
+        info = await client.ping()
         print(f"Authenticated and connected to {info.host}")
 
-        client.send_event(
+        await client.publish_event(
             EventMessage(
                 channel="python-connection.token-auth",
                 body=b"Authenticated message",
@@ -24,4 +26,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

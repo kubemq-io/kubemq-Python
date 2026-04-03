@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import asyncio
 import logging
 import threading
@@ -21,7 +23,7 @@ if TYPE_CHECKING:
     from kubemq.core.config import ClientConfig
 
 
-def _get_ssl_credentials(config: "ClientConfig") -> ChannelCredentials:
+def _get_ssl_credentials(config: ClientConfig) -> ChannelCredentials:
     """Build SSL credentials from ClientConfig.tls, supporting PEM bytes and file paths."""
     tls = config.tls
 
@@ -49,7 +51,7 @@ def _read_file(file_path: str) -> bytes:
         return f.read()
 
 
-def _get_call_options(config: "ClientConfig") -> Sequence[tuple[str, Any]]:
+def _get_call_options(config: ClientConfig) -> Sequence[tuple[str, Any]]:
     """Build gRPC channel options from ClientConfig."""
     options: list[tuple[str, Any]] = [
         ("grpc.max_send_message_length", config.max_send_size),
@@ -101,8 +103,7 @@ class SyncTransport:
     the two transport paths.
     """
 
-    def __init__(self, config: "ClientConfig") -> None:
-        from kubemq.core.config import ClientConfig
+    def __init__(self, config: ClientConfig) -> None:
 
         self._config: ClientConfig = config
         self._channel: Channel | None = None
@@ -115,7 +116,7 @@ class SyncTransport:
         self._channel_manager: ChannelManager | None = None
         self._token_holder = TokenHolder(self._config.auth_token or None)
 
-    def initialize(self) -> "SyncTransport":
+    def initialize(self) -> SyncTransport:
         """Initialize the transport by creating the gRPC channel and verifying connectivity."""
         try:
             if not self._config._resolve_tls_enabled():

@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from kubemq import ClientConfig, KeepAliveConfig
-from kubemq.pubsub import Client as PubSubClient, EventMessage
+import asyncio
+
+from kubemq import AsyncPubSubClient, ClientConfig, EventMessage, KeepAliveConfig
 
 
-def main() -> None:
-    # Configure client with aggressive reconnection settings
+async def main() -> None:
     config = ClientConfig(
         address="localhost:50000",
         client_id="python-error-handling-reconnection-client",
@@ -25,28 +25,24 @@ def main() -> None:
     )
 
     try:
-        with PubSubClient(config=config) as client:
-            info = client.ping()
+        async with AsyncPubSubClient(config=config) as client:
+            info = await client.ping()
             print(f"Connected to {info.host}")
             print(f"Auto-reconnect: {config.auto_reconnect}")
             print(f"Max reconnect attempts: {config.max_reconnect_attempts}")
             print(f"Reconnect interval: {config.reconnect_interval_seconds}s")
 
-            # Normal operation
-            client.send_event(
+            await client.publish_event(
                 EventMessage(
                     channel="python-error-handling.reconnection",
                     body=b"message with reconnection configured",
                 )
             )
             print("Message sent successfully")
-
-            # If the server goes down and comes back, the client will
-            # automatically reconnect up to max_reconnect_attempts times
             print("Client configured for automatic reconnection on failure")
     except Exception as e:
         print(f"Error: {e}")
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

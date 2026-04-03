@@ -2,62 +2,45 @@
 
 from __future__ import annotations
 
-import time
+import asyncio
 
 from kubemq import (
-    CancellationToken,
-    Client,
+    AsyncCancellationToken,
+    AsyncCQClient,
     CommandMessage,
-    CommandReceived,
     CommandResponse,
     CommandsSubscription,
 )
 
 
-def main() -> None:
-    with Client(
+async def main() -> None:
+    async with AsyncCQClient(
         address="localhost:50000",
         client_id="python-commands-handle-command-client",
     ) as client:
-        cancel = CancellationToken()
+        token = AsyncCancellationToken()
 
-        def on_receive_command(request: CommandReceived) -> None:
-            """Handle incoming command and send response."""
-            try:
-                body = request.body.decode("utf-8")
-                print(f"Handling command: Id={request.id}, Body={body}")
-
-                # Process the command (simulate work)
-                success = True
-
-                # Send response back
-                client.send_response_message(
-                    CommandResponse(
-                        command_received=request,
-                        is_executed=success,
-                    )
+        async def command_handler() -> None:
+            async for cmd in client.subscribe_to_commands(
+                subscription=CommandsSubscription(
+                    channel="python-commands.handle-command",
+                    on_receive_command_callback=lambda c: None,
+                    on_error_callback=lambda e: print(f"Subscription error: {e}"),
+                ),
+                cancellation_token=token,
+            ):
+                body = cmd.body.decode("utf-8")
+                print(f"Handling command: Id={cmd.id}, Body={body}")
+                await client.send_response(
+                    CommandResponse(command_received=cmd, is_executed=True)
                 )
-                print(f"  Response sent: executed={success}")
-            except Exception as e:
-                print(f"  Error handling command: {e}")
+                print(f"  Response sent: executed=True")
 
-        def on_error(err: str) -> None:
-            print(f"Subscription error: {err}")
-
-        # Subscribe to commands
-        client.subscribe_to_commands(
-            subscription=CommandsSubscription(
-                channel="python-commands.handle-command",
-                on_receive_command_callback=on_receive_command,
-                on_error_callback=on_error,
-            ),
-            cancel=cancel,
-        )
+        handler_task = asyncio.create_task(command_handler())
         print("Listening for commands on 'python-commands.handle-command'...")
-        time.sleep(1)
+        await asyncio.sleep(1)
 
-        # Send a test command
-        response = client.send_command(
+        response = await client.send_command(
             CommandMessage(
                 channel="python-commands.handle-command",
                 body=b"process this task",
@@ -66,9 +49,14 @@ def main() -> None:
         )
         print(f"Command result: executed={response.is_executed}")
 
-        time.sleep(1)
-        cancel.cancel()
+        await asyncio.sleep(1)
+        token.cancel()
+        handler_task.cancel()
+        try:
+            await handler_task
+        except asyncio.CancelledError:
+            pass
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

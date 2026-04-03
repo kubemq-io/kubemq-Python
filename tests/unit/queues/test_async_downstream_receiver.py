@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import grpc
 import grpc.aio
@@ -15,7 +15,7 @@ from kubemq.grpc import (
     QueuesDownstreamRequestType,
     QueuesDownstreamResponse,
 )
-from kubemq.queues.async_downstream_receiver import AsyncDownstreamReceiver, _SENTINEL
+from kubemq.queues.async_downstream_receiver import _SENTINEL, AsyncDownstreamReceiver
 
 
 def _make_receiver(

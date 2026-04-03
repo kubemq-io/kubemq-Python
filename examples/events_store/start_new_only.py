@@ -2,26 +2,19 @@
 
 from __future__ import annotations
 
-import time
+import asyncio
 
-from kubemq import (
-    CancellationToken,
-    Client,
-    EventStoreMessage,
-    EventStoreReceived,
-    EventsStoreSubscription,
-)
-from kubemq.pubsub.events_store_subscription import EventStoreStartPosition
+from kubemq import AsyncCancellationToken, AsyncPubSubClient, EventStoreMessage, EventsStoreSubscription
+from kubemq.pubsub import EventStoreStartPosition
 
 
-def main() -> None:
-    with Client(
+async def main() -> None:
+    async with AsyncPubSubClient(
         address="localhost:50000",
         client_id="python-events-store-start-new-only-client",
     ) as client:
-        # Send messages BEFORE subscribing — these will NOT be received
         for i in range(3):
-            client.send_event_store(
+            await client.send_event_store(
                 EventStoreMessage(
                     channel="python-events-store.start-new-only",
                     body=f"Old-Message-{i + 1}".encode(),
@@ -29,27 +22,24 @@ def main() -> None:
             )
         print("Sent 3 old messages before subscribing")
 
-        cancel = CancellationToken()
+        token = AsyncCancellationToken()
 
-        def on_receive(event: EventStoreReceived) -> None:
-            print(f"Received — Seq:{event.sequence}, Body:{event.body.decode('utf-8')}")
+        async def subscriber() -> None:
+            async for event in client.subscribe_to_events_store(
+                subscription=EventsStoreSubscription(
+                    channel="python-events-store.start-new-only",
+                    on_receive_event_callback=lambda e: None,
+                    on_error_callback=lambda e: print(f"Error: {e}"),
+                    events_store_type=EventStoreStartPosition.StartFromNew,
+                ),
+                cancellation_token=token,
+            ):
+                print(f"Received — Seq:{event.sequence}, Body:{event.body.decode('utf-8')}")
 
-        def on_error(err: str) -> None:
-            print(f"Error: {err}")
+        task = asyncio.create_task(subscriber())
+        await asyncio.sleep(1)
 
-        client.subscribe_to_events_store(
-            subscription=EventsStoreSubscription(
-                channel="python-events-store.start-new-only",
-                on_receive_event_callback=on_receive,
-                on_error_callback=on_error,
-                events_store_type=EventStoreStartPosition.StartFromNew,
-            ),
-            cancel=cancel,
-        )
-        time.sleep(1)
-
-        # Send messages AFTER subscribing — only these will be received
-        client.send_event_store(
+        await client.send_event_store(
             EventStoreMessage(
                 channel="python-events-store.start-new-only",
                 body=b"New message after subscription",
@@ -57,9 +47,14 @@ def main() -> None:
         )
         print("Sent 1 new message after subscribing")
 
-        time.sleep(2)
-        cancel.cancel()
+        await asyncio.sleep(2)
+        token.cancel()
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

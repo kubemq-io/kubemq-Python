@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from dataclasses import dataclass, field
 from datetime import datetime
 
@@ -38,7 +40,7 @@ class QueryResponse:
             raise ValueError("Query response must have a reply channel.")
 
     @classmethod
-    def decode(cls, pb_response: pbResponse) -> "QueryResponse":
+    def decode(cls, pb_response: pbResponse) -> QueryResponse:
         """Decodes the protocol buffer response and creates a new QueryResponse instance."""
         return cls(
             client_id=pb_response.ClientID,
@@ -92,7 +94,7 @@ class QueryResponse:
         is_executed: bool = False,
         error: str = "",
         timestamp: datetime | None = None,
-    ) -> "QueryResponse":
+    ) -> QueryResponse:
         """Creates a new QueryResponse instance."""
         return cls(
             query_received=query_received,

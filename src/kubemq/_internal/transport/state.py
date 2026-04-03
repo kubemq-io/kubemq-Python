@@ -11,13 +11,13 @@ import logging
 import threading
 from collections.abc import Awaitable, Callable
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any
+from typing import Any, Union
 
 from kubemq.core.types import ConnectionState
 
 StateCallback = Callable[[], None]
 AsyncStateCallback = Callable[[], Awaitable[None]]
-AnyStateCallback = StateCallback | AsyncStateCallback
+AnyStateCallback = Union[StateCallback, AsyncStateCallback]
 
 
 class ConnectionStateManager:

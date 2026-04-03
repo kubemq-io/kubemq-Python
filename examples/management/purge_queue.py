@@ -2,18 +2,18 @@
 
 from __future__ import annotations
 
-from kubemq.queues import Client as QueuesClient
-from kubemq import QueueMessage
+import asyncio
+
+from kubemq import AsyncQueuesClient, QueueMessage
 
 
-def main() -> None:
-    with QueuesClient(
+async def main() -> None:
+    async with AsyncQueuesClient(
         address="localhost:50000",
         client_id="python-management-purge-queue-client",
     ) as client:
-        # Send some messages to purge
         for i in range(5):
-            client.send_queue_message(
+            await client.send_queue_message(
                 QueueMessage(
                     channel="python-management.purge-queue",
                     body=f"Msg-{i + 1}".encode(),
@@ -21,12 +21,11 @@ def main() -> None:
             )
         print("Sent 5 messages")
 
-        # Purge all messages from the queue
-        acked = client.ack_all_queue_messages(
+        acked = await client.ack_all_queue_messages(
             "python-management.purge-queue", wait_time_seconds=5
         )
         print(f"Purged {acked} messages from 'python-management.purge-queue'")
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

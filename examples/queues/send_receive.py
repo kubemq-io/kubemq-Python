@@ -2,18 +2,18 @@
 
 from __future__ import annotations
 
-from kubemq.queues import Client as QueuesClient
-from kubemq import KubeMQConnectionError, KubeMQError, QueueMessage
+import asyncio
+
+from kubemq import AsyncQueuesClient, KubeMQConnectionError, KubeMQError, QueueMessage
 
 
-def main() -> None:
+async def main() -> None:
     try:
-        with QueuesClient(
-            address="localhost:50000",  # TODO: Replace with your KubeMQ server address
+        async with AsyncQueuesClient(
+            address="localhost:50000",
             client_id="python-queues-send-receive-client",
         ) as client:
-            # Send a message
-            result = client.send_queue_message(
+            result = await client.send_queue_message(
                 QueueMessage(
                     channel="python-queues.send-receive",
                     body=b"Hello from queue!",
@@ -23,15 +23,14 @@ def main() -> None:
             )
             print(f"Sent: id={result.id}, sent_at={result.sent_at}, error={result.error}")
 
-            # Receive and acknowledge the message
-            response = client.receive_queue_messages(
+            response = await client.receive_queue_messages(
                 channel="python-queues.send-receive",
                 max_messages=1,
-                wait_timeout_in_seconds=10,
+                wait_timeout_seconds=10,
             )
             for msg in response.messages:
                 print(f"Received: id={msg.id}, body={msg.body.decode('utf-8')}")
-                msg.ack()
+                await msg.async_ack()
                 print("  Message acknowledged")
     except KubeMQConnectionError as e:
         print(f"Connection error: {e}")
@@ -40,7 +39,7 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
 
 # Expected output:
 # Sent: id=<message-id>, sent_at=<timestamp>, error=

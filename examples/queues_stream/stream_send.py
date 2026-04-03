@@ -2,17 +2,18 @@
 
 from __future__ import annotations
 
-from kubemq.queues import Client as QueuesClient
-from kubemq import QueueMessage
+import asyncio
+
+from kubemq import AsyncQueuesClient, QueueMessage
 
 
-def main() -> None:
-    with QueuesClient(
+async def main() -> None:
+    async with AsyncQueuesClient(
         address="localhost:50000",
         client_id="python-queues-stream-stream-send-client",
     ) as client:
         for i in range(5):
-            result = client.send_queue_message(
+            result = await client.send_queue_message(
                 QueueMessage(
                     channel="python-queues-stream.stream-send",
                     body=f"Stream message #{i + 1}".encode(),
@@ -25,4 +26,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

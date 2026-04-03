@@ -689,8 +689,8 @@ class TestAsyncEventSenderRunBidiStreamOuterGrpcError:
     @pytest.mark.asyncio
     async def test_outer_grpc_error_not_cancelled_raises(self):
         """AioRpcError with non-CANCELLED code from receiver task -> from_grpc_error."""
+
         import grpc
-        from unittest.mock import patch
 
         sender, transport = _make_sender()
 

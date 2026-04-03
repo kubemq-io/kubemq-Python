@@ -2,61 +2,45 @@
 
 from __future__ import annotations
 
-import time
+import asyncio
 
 from kubemq import (
-    CancellationToken,
-    Client,
+    AsyncCancellationToken,
+    AsyncCQClient,
     CommandMessage,
-    CommandReceived,
     CommandResponse,
     CommandsSubscription,
 )
 
 
-def make_handler(name: str, client: Client):  # type: ignore[no-untyped-def]
-    def handler(request: CommandReceived) -> None:
-        print(f"[{name}] Received command: {request.body.decode('utf-8')}")
-        client.send_response_message(
-            CommandResponse(command_received=request, is_executed=True)
-        )
-
-    return handler
-
-
-def on_error(err: str) -> None:
-    print(f"Error: {err}")
-
-
-def main() -> None:
-    with Client(
+async def main() -> None:
+    async with AsyncCQClient(
         address="localhost:50000",
         client_id="python-commands-consumer-group-client",
     ) as client:
-        cancel = CancellationToken()
+        token = AsyncCancellationToken()
 
-        client.subscribe_to_commands(
-            subscription=CommandsSubscription(
-                channel="python-commands.consumer-group",
-                group="handlers",
-                on_receive_command_callback=make_handler("Handler-1", client),
-                on_error_callback=on_error,
-            ),
-            cancel=cancel,
-        )
-        client.subscribe_to_commands(
-            subscription=CommandsSubscription(
-                channel="python-commands.consumer-group",
-                group="handlers",
-                on_receive_command_callback=make_handler("Handler-2", client),
-                on_error_callback=on_error,
-            ),
-            cancel=cancel,
-        )
+        async def make_handler(name: str) -> None:
+            async for cmd in client.subscribe_to_commands(
+                subscription=CommandsSubscription(
+                    channel="python-commands.consumer-group",
+                    group="handlers",
+                    on_receive_command_callback=lambda c: None,
+                    on_error_callback=lambda e: print(f"Error: {e}"),
+                ),
+                cancellation_token=token,
+            ):
+                print(f"[{name}] Received command: {cmd.body.decode('utf-8')}")
+                await client.send_response(
+                    CommandResponse(command_received=cmd, is_executed=True)
+                )
 
-        time.sleep(1)
+        task1 = asyncio.create_task(make_handler("Handler-1"))
+        task2 = asyncio.create_task(make_handler("Handler-2"))
+        await asyncio.sleep(1)
+
         for i in range(4):
-            response = client.send_command(
+            response = await client.send_command(
                 CommandMessage(
                     channel="python-commands.consumer-group",
                     body=f"Command #{i + 1}".encode(),
@@ -65,8 +49,14 @@ def main() -> None:
             )
             print(f"Command #{i + 1} executed: {response.is_executed}")
 
-        cancel.cancel()
+        token.cancel()
+        for t in [task1, task2]:
+            t.cancel()
+            try:
+                await t
+            except asyncio.CancelledError:
+                pass
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

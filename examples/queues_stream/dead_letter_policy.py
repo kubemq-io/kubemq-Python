@@ -2,17 +2,17 @@
 
 from __future__ import annotations
 
-from kubemq.queues import Client as QueuesClient
-from kubemq import QueueMessage
+import asyncio
+
+from kubemq import AsyncQueuesClient, QueueMessage
 
 
-def main() -> None:
-    with QueuesClient(
+async def main() -> None:
+    async with AsyncQueuesClient(
         address="localhost:50000",
         client_id="python-queues-stream-dead-letter-policy-client",
     ) as client:
-        # Send a message with combined policies: expiration + DLQ
-        result = client.send_queue_message(
+        result = await client.send_queue_message(
             QueueMessage(
                 channel="python-queues-stream.dead-letter-policy",
                 body=b"message with policies",
@@ -26,12 +26,11 @@ def main() -> None:
         print(f"Sent with policies: {result}")
         print("  Expiration: 60s, Max attempts: 3, DLQ: dead-letter-policy-dlq")
 
-        # Reject the message repeatedly to trigger DLQ
         for attempt in range(3):
-            response = client.receive_queue_messages(
+            response = await client.receive_queue_messages(
                 channel="python-queues-stream.dead-letter-policy",
                 max_messages=1,
-                wait_timeout_in_seconds=5,
+                wait_timeout_seconds=5,
             )
             if not response.messages:
                 print(f"  Attempt {attempt + 1}: No message available")
@@ -40,13 +39,12 @@ def main() -> None:
                 print(
                     f"  Attempt {attempt + 1}: receive_count={msg.receive_count}, rejecting..."
                 )
-                msg.nack()
+                await msg.async_nack()
 
-        # Check the DLQ
-        dlq = client.receive_queue_messages(
+        dlq = await client.receive_queue_messages(
             channel="python-queues-stream.dead-letter-policy-dlq",
             max_messages=1,
-            wait_timeout_in_seconds=5,
+            wait_timeout_seconds=5,
             auto_ack=True,
         )
         if dlq.messages:
@@ -56,4 +54,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

@@ -370,7 +370,10 @@ class TestAsyncClientSubscribeToEventsStore:
     @pytest.mark.asyncio
     async def test_subscribe_to_events_store_when_not_connected(self):
         """Test subscribe_to_events_store raises when not connected."""
-        from kubemq.pubsub.events_store_subscription import EventsStoreSubscription, EventStoreStartPosition
+        from kubemq.pubsub.events_store_subscription import (
+            EventsStoreSubscription,
+            EventStoreStartPosition,
+        )
 
         client = AsyncClient(address="localhost:50000")
         subscription = EventsStoreSubscription(
@@ -386,7 +389,10 @@ class TestAsyncClientSubscribeToEventsStore:
     @pytest.mark.asyncio
     async def test_subscribe_to_events_store_yields_messages(self, mock_transport):
         """Test subscribe_to_events_store yields event store messages."""
-        from kubemq.pubsub.events_store_subscription import EventsStoreSubscription, EventStoreStartPosition
+        from kubemq.pubsub.events_store_subscription import (
+            EventsStoreSubscription,
+            EventStoreStartPosition,
+        )
 
         client = AsyncClient(address="localhost:50000")
         client._transport = mock_transport
@@ -518,7 +524,10 @@ class TestAsyncClientSubscribeStoreWithCallback:
     @pytest.mark.asyncio
     async def test_subscribe_store_with_callback_when_not_connected(self):
         """Test subscribe_store_with_callback raises when not connected."""
-        from kubemq.pubsub.events_store_subscription import EventsStoreSubscription, EventStoreStartPosition
+        from kubemq.pubsub.events_store_subscription import (
+            EventsStoreSubscription,
+            EventStoreStartPosition,
+        )
 
         client = AsyncClient(address="localhost:50000")
         subscription = EventsStoreSubscription(
@@ -536,7 +545,10 @@ class TestAsyncClientSubscribeStoreWithCallback:
     @pytest.mark.asyncio
     async def test_subscribe_store_with_callback_calls_callback(self, mock_transport):
         """Test subscribe_store_with_callback calls callback for each event."""
-        from kubemq.pubsub.events_store_subscription import EventsStoreSubscription, EventStoreStartPosition
+        from kubemq.pubsub.events_store_subscription import (
+            EventsStoreSubscription,
+            EventStoreStartPosition,
+        )
 
         client = AsyncClient(address="localhost:50000")
         client._transport = mock_transport
@@ -788,7 +800,10 @@ class TestAsyncClientSubscribeToEventsYield:
     @pytest.mark.asyncio
     async def test_subscribe_to_events_store_calls_async_callback(self, mock_transport):
         """Verify subscribe_to_events_store invokes async callback with decoded event."""
-        from kubemq.pubsub.events_store_subscription import EventsStoreSubscription, EventStoreStartPosition
+        from kubemq.pubsub.events_store_subscription import (
+            EventsStoreSubscription,
+            EventStoreStartPosition,
+        )
 
         client = AsyncClient(address="localhost:50000")
         client._transport = mock_transport
@@ -875,7 +890,10 @@ class TestAsyncClientSubscribeWithCallbackConcurrent:
     @pytest.mark.asyncio
     async def test_subscribe_store_with_callback_concurrent(self, mock_transport):
         """Concurrent path for event store: max_concurrent_callbacks=3, deliver 5 events."""
-        from kubemq.pubsub.events_store_subscription import EventsStoreSubscription, EventStoreStartPosition
+        from kubemq.pubsub.events_store_subscription import (
+            EventsStoreSubscription,
+            EventStoreStartPosition,
+        )
 
         client = AsyncClient(address="localhost:50000")
         client._transport = mock_transport
@@ -948,7 +966,10 @@ class TestAsyncClientSubscriptionValidation:
     @pytest.mark.asyncio
     async def test_subscribe_store_with_callback_rejects_zero(self, mock_transport):
         """ValueError when max_concurrent_callbacks=0 for store subscription."""
-        from kubemq.pubsub.events_store_subscription import EventsStoreSubscription, EventStoreStartPosition
+        from kubemq.pubsub.events_store_subscription import (
+            EventsStoreSubscription,
+            EventStoreStartPosition,
+        )
 
         client = AsyncClient(address="localhost:50000")
         client._transport = mock_transport
@@ -964,7 +985,10 @@ class TestAsyncClientSubscriptionValidation:
     @pytest.mark.asyncio
     async def test_subscribe_store_with_callback_rejects_over_1000(self, mock_transport):
         """ValueError when max_concurrent_callbacks=1001 for store subscription."""
-        from kubemq.pubsub.events_store_subscription import EventsStoreSubscription, EventStoreStartPosition
+        from kubemq.pubsub.events_store_subscription import (
+            EventsStoreSubscription,
+            EventStoreStartPosition,
+        )
 
         client = AsyncClient(address="localhost:50000")
         client._transport = mock_transport
@@ -1042,7 +1066,10 @@ class TestAsyncClientSubscribeHandlerErrorIsolation:
     ):
         """Store callback raises -> error_callback receives KubeMQHandlerError."""
         from kubemq.core.exceptions import KubeMQHandlerError
-        from kubemq.pubsub.events_store_subscription import EventsStoreSubscription, EventStoreStartPosition
+        from kubemq.pubsub.events_store_subscription import (
+            EventsStoreSubscription,
+            EventStoreStartPosition,
+        )
 
         client = AsyncClient(address="localhost:50000")
         client._transport = mock_transport
@@ -1613,7 +1640,10 @@ class TestSubscribeToEventsStoreErrors:
     @pytest.mark.asyncio
     async def test_handler_error_with_callback(self, mock_transport):
         """Handler raises -> on_error_callback called (lines 534-550)."""
-        from kubemq.pubsub.events_store_subscription import EventsStoreSubscription, EventStoreStartPosition
+        from kubemq.pubsub.events_store_subscription import (
+            EventsStoreSubscription,
+            EventStoreStartPosition,
+        )
 
         client = _make_connected_client(mock_transport)
         token = AsyncCancellationToken()
@@ -1648,7 +1678,10 @@ class TestSubscribeToEventsStoreErrors:
     @pytest.mark.asyncio
     async def test_handler_error_without_callback(self, mock_transport):
         """Handler raises, no error_callback -> logged (line 550)."""
-        from kubemq.pubsub.events_store_subscription import EventsStoreSubscription, EventStoreStartPosition
+        from kubemq.pubsub.events_store_subscription import (
+            EventsStoreSubscription,
+            EventStoreStartPosition,
+        )
 
         client = _make_connected_client(mock_transport)
         token = AsyncCancellationToken()
@@ -1675,7 +1708,10 @@ class TestSubscribeToEventsStoreErrors:
     @pytest.mark.asyncio
     async def test_retryable_error_backoff(self, mock_transport):
         """Retryable error -> backoff and retry (lines 571-601)."""
-        from kubemq.pubsub.events_store_subscription import EventsStoreSubscription, EventStoreStartPosition
+        from kubemq.pubsub.events_store_subscription import (
+            EventsStoreSubscription,
+            EventStoreStartPosition,
+        )
 
         client = _make_connected_client(mock_transport)
         token = AsyncCancellationToken()
@@ -1708,7 +1744,10 @@ class TestSubscribeToEventsStoreErrors:
     @pytest.mark.asyncio
     async def test_non_retryable_error_with_callback(self, mock_transport):
         """Non-retryable with callback (lines 571-579)."""
-        from kubemq.pubsub.events_store_subscription import EventsStoreSubscription, EventStoreStartPosition
+        from kubemq.pubsub.events_store_subscription import (
+            EventsStoreSubscription,
+            EventStoreStartPosition,
+        )
 
         client = _make_connected_client(mock_transport)
 
@@ -1738,7 +1777,10 @@ class TestSubscribeToEventsStoreErrors:
     @pytest.mark.asyncio
     async def test_generic_exception_with_callback(self, mock_transport):
         """Generic Exception with callback (lines 603-610)."""
-        from kubemq.pubsub.events_store_subscription import EventsStoreSubscription, EventStoreStartPosition
+        from kubemq.pubsub.events_store_subscription import (
+            EventsStoreSubscription,
+            EventStoreStartPosition,
+        )
 
         client = _make_connected_client(mock_transport)
 
@@ -1767,7 +1809,10 @@ class TestSubscribeToEventsStoreErrors:
     @pytest.mark.asyncio
     async def test_generic_exception_without_callback(self, mock_transport):
         """Generic Exception, no callback -> re-raises."""
-        from kubemq.pubsub.events_store_subscription import EventsStoreSubscription, EventStoreStartPosition
+        from kubemq.pubsub.events_store_subscription import (
+            EventsStoreSubscription,
+            EventStoreStartPosition,
+        )
 
         client = _make_connected_client(mock_transport)
 
@@ -1788,7 +1833,10 @@ class TestSubscribeToEventsStoreErrors:
     @pytest.mark.asyncio
     async def test_handler_error_with_async_error_callback(self, mock_transport):
         """Async handler raises with async error callback."""
-        from kubemq.pubsub.events_store_subscription import EventsStoreSubscription, EventStoreStartPosition
+        from kubemq.pubsub.events_store_subscription import (
+            EventsStoreSubscription,
+            EventStoreStartPosition,
+        )
 
         client = _make_connected_client(mock_transport)
         token = AsyncCancellationToken()
@@ -2087,7 +2135,10 @@ class TestSubscribeStoreWithCallbackSequential:
     async def test_sequential_handler_error_with_callback(self, mock_transport):
         """Sequential: handler raises -> error_callback (lines 884-893)."""
         from kubemq.core.exceptions import KubeMQHandlerError
-        from kubemq.pubsub.events_store_subscription import EventsStoreSubscription, EventStoreStartPosition
+        from kubemq.pubsub.events_store_subscription import (
+            EventsStoreSubscription,
+            EventStoreStartPosition,
+        )
 
         client = _make_connected_client(mock_transport)
         token = AsyncCancellationToken()
@@ -2118,7 +2169,10 @@ class TestSubscribeStoreWithCallbackSequential:
     @pytest.mark.asyncio
     async def test_sequential_handler_error_no_callback(self, mock_transport):
         """Sequential: handler raises, no error_callback -> logged (lines 894-895)."""
-        from kubemq.pubsub.events_store_subscription import EventsStoreSubscription, EventStoreStartPosition
+        from kubemq.pubsub.events_store_subscription import (
+            EventsStoreSubscription,
+            EventStoreStartPosition,
+        )
 
         client = _make_connected_client(mock_transport)
         token = AsyncCancellationToken()
@@ -2146,7 +2200,10 @@ class TestSubscribeStoreWithCallbackConcurrentErrors:
     @pytest.mark.asyncio
     async def test_concurrent_handler_error_with_callback(self, mock_transport):
         """Concurrent: handler error -> error_callback (lines 916-921)."""
-        from kubemq.pubsub.events_store_subscription import EventsStoreSubscription, EventStoreStartPosition
+        from kubemq.pubsub.events_store_subscription import (
+            EventsStoreSubscription,
+            EventStoreStartPosition,
+        )
 
         client = _make_connected_client(mock_transport)
         token = AsyncCancellationToken()
@@ -2177,7 +2234,10 @@ class TestSubscribeStoreWithCallbackConcurrentErrors:
     @pytest.mark.asyncio
     async def test_concurrent_handler_error_no_callback(self, mock_transport):
         """Concurrent: handler error, no error_callback -> logger.error (lines 922-927)."""
-        from kubemq.pubsub.events_store_subscription import EventsStoreSubscription, EventStoreStartPosition
+        from kubemq.pubsub.events_store_subscription import (
+            EventsStoreSubscription,
+            EventStoreStartPosition,
+        )
 
         client = _make_connected_client(mock_transport)
         token = AsyncCancellationToken()
@@ -2208,7 +2268,10 @@ class TestSubscribeStoreWithCallbackStreamErrors:
     @pytest.mark.asyncio
     async def test_retryable_error_backoff(self, mock_transport):
         """Retryable KubeMQError -> backoff, retry (lines 944-968)."""
-        from kubemq.pubsub.events_store_subscription import EventsStoreSubscription, EventStoreStartPosition
+        from kubemq.pubsub.events_store_subscription import (
+            EventsStoreSubscription,
+            EventStoreStartPosition,
+        )
 
         client = _make_connected_client(mock_transport)
         token = AsyncCancellationToken()
@@ -2241,7 +2304,10 @@ class TestSubscribeStoreWithCallbackStreamErrors:
     @pytest.mark.asyncio
     async def test_non_retryable_with_error_callback(self, mock_transport):
         """Non-retryable with error_callback -> called, returns (lines 944-950)."""
-        from kubemq.pubsub.events_store_subscription import EventsStoreSubscription, EventStoreStartPosition
+        from kubemq.pubsub.events_store_subscription import (
+            EventsStoreSubscription,
+            EventStoreStartPosition,
+        )
 
         client = _make_connected_client(mock_transport)
 
@@ -2266,7 +2332,10 @@ class TestSubscribeStoreWithCallbackStreamErrors:
     @pytest.mark.asyncio
     async def test_non_retryable_without_callback(self, mock_transport):
         """Non-retryable, no error_callback -> re-raises."""
-        from kubemq.pubsub.events_store_subscription import EventsStoreSubscription, EventStoreStartPosition
+        from kubemq.pubsub.events_store_subscription import (
+            EventsStoreSubscription,
+            EventStoreStartPosition,
+        )
 
         client = _make_connected_client(mock_transport)
 
@@ -2284,7 +2353,10 @@ class TestSubscribeStoreWithCallbackStreamErrors:
     @pytest.mark.asyncio
     async def test_generic_exception_with_callback(self, mock_transport):
         """Generic Exception with error_callback -> called, returns (lines 970-975)."""
-        from kubemq.pubsub.events_store_subscription import EventsStoreSubscription, EventStoreStartPosition
+        from kubemq.pubsub.events_store_subscription import (
+            EventsStoreSubscription,
+            EventStoreStartPosition,
+        )
 
         client = _make_connected_client(mock_transport)
 
@@ -2308,7 +2380,10 @@ class TestSubscribeStoreWithCallbackStreamErrors:
     @pytest.mark.asyncio
     async def test_generic_exception_without_callback(self, mock_transport):
         """Generic Exception, no error_callback -> re-raises."""
-        from kubemq.pubsub.events_store_subscription import EventsStoreSubscription, EventStoreStartPosition
+        from kubemq.pubsub.events_store_subscription import (
+            EventsStoreSubscription,
+            EventStoreStartPosition,
+        )
 
         client = _make_connected_client(mock_transport)
 
@@ -2511,7 +2586,10 @@ class TestAsyncClientSubscribeToEventsStoreResumeSequence:
 
     @pytest.mark.asyncio
     async def test_store_subscription_resumes_from_sequence(self, mock_transport):
-        from kubemq.pubsub.events_store_subscription import EventsStoreSubscription, EventStoreStartPosition
+        from kubemq.pubsub.events_store_subscription import (
+            EventsStoreSubscription,
+            EventStoreStartPosition,
+        )
 
         client = _make_connected_client(mock_transport)
         cancel_token = AsyncCancellationToken()
@@ -2576,7 +2654,10 @@ class TestAsyncClientSubscribeStoreWithCallbackResumeSequence:
 
     @pytest.mark.asyncio
     async def test_store_callback_resumes_from_sequence(self, mock_transport):
-        from kubemq.pubsub.events_store_subscription import EventsStoreSubscription, EventStoreStartPosition
+        from kubemq.pubsub.events_store_subscription import (
+            EventsStoreSubscription,
+            EventStoreStartPosition,
+        )
 
         client = _make_connected_client(mock_transport)
         cancel_token = AsyncCancellationToken()
@@ -2661,7 +2742,10 @@ class TestAsyncClientSubscribeWithCallbackErrorCallbackRaisesStore:
 
     @pytest.mark.asyncio
     async def test_store_callback_error_callback_raises_is_logged(self, mock_transport):
-        from kubemq.pubsub.events_store_subscription import EventsStoreSubscription, EventStoreStartPosition
+        from kubemq.pubsub.events_store_subscription import (
+            EventsStoreSubscription,
+            EventStoreStartPosition,
+        )
 
         client = _make_connected_client(mock_transport)
         token = AsyncCancellationToken()
@@ -2707,7 +2791,10 @@ class TestAsyncClientPublishEventStoreNoneResult:
 
 from kubemq.pubsub.event_message_received import EventReceived  # noqa: E402
 from kubemq.pubsub.event_store_message_received import EventStoreReceived  # noqa: E402
-from kubemq.pubsub.events_store_subscription import EventsStoreSubscription, EventStoreStartPosition  # noqa: E402
+from kubemq.pubsub.events_store_subscription import (  # noqa: E402
+    EventsStoreSubscription,
+    EventStoreStartPosition,
+)
 
 
 class TestSubscribeToEventsProcessingError:

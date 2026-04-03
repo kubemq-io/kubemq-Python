@@ -2,60 +2,54 @@
 
 from __future__ import annotations
 
-import time
+import asyncio
 
-from kubemq import (
-    CancellationToken,
-    Client,
-    EventStoreMessage,
-    EventStoreReceived,
-    EventsStoreSubscription,
-)
-from kubemq.pubsub.events_store_subscription import EventStoreStartPosition
+from kubemq import AsyncCancellationToken, AsyncPubSubClient, EventStoreMessage, EventsStoreSubscription
+from kubemq.pubsub import EventStoreStartPosition
 
 
-def main() -> None:
-    with Client(
+async def main() -> None:
+    async with AsyncPubSubClient(
         address="localhost:50000",
         client_id="python-events-store-replay-from-sequence-client",
     ) as client:
-        # Pre-populate with some messages
         for i in range(5):
-            result = client.send_event_store(
+            result = await client.send_event_store(
                 EventStoreMessage(
                     channel="python-events-store.replay-from-sequence",
                     body=f"Message-{i + 1}".encode(),
                 )
             )
             print(f"Sent message {i + 1}, result: {result}")
-        time.sleep(1)
+        await asyncio.sleep(1)
 
-        cancel = CancellationToken()
+        token = AsyncCancellationToken()
 
-        def on_receive(event: EventStoreReceived) -> None:
-            print(
-                f"[StartAtSequence(3)] Seq:{event.sequence}, "
-                f"Body:{event.body.decode('utf-8')}"
-            )
+        async def subscriber() -> None:
+            async for event in client.subscribe_to_events_store(
+                subscription=EventsStoreSubscription(
+                    channel="python-events-store.replay-from-sequence",
+                    on_receive_event_callback=lambda e: None,
+                    on_error_callback=lambda e: print(f"Error: {e}"),
+                    events_store_type=EventStoreStartPosition.StartAtSequence,
+                    events_store_sequence_value=3,
+                ),
+                cancellation_token=token,
+            ):
+                print(
+                    f"[StartAtSequence(3)] Seq:{event.sequence}, "
+                    f"Body:{event.body.decode('utf-8')}"
+                )
 
-        def on_error(err: str) -> None:
-            print(f"Error: {err}")
-
-        # Subscribe starting from sequence 3 — will replay messages 3, 4, 5
-        client.subscribe_to_events_store(
-            subscription=EventsStoreSubscription(
-                channel="python-events-store.replay-from-sequence",
-                on_receive_event_callback=on_receive,
-                on_error_callback=on_error,
-                events_store_type=EventStoreStartPosition.StartAtSequence,
-                events_store_sequence_value=3,
-            ),
-            cancel=cancel,
-        )
-
-        time.sleep(3)
-        cancel.cancel()
+        task = asyncio.create_task(subscriber())
+        await asyncio.sleep(3)
+        token.cancel()
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
