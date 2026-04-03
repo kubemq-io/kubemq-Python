@@ -14,11 +14,11 @@
 | SDK Version | Python 3.9 | Python 3.10 | Python 3.11 | Python 3.12 | Python 3.13 |
 |-------------|-----------|------------|------------|------------|------------|
 | v3.x        | ✅        | ✅         | ✅         | ✅         | ⚠️          |
-| v4.0.x      | ❌         | ❌          | ✅         | ✅         | ✅         |
+| v4.0.x      | ✅         | ✅          | ✅         | ✅         | ✅         |
 
 ## How We Test
 
-- CI runs the full test suite against Python 3.11, 3.12, and 3.13.
+- CI runs the full test suite against Python 3.9, 3.10, 3.11, 3.12, and 3.13.
 - Server compatibility is tested against the latest patch of each minor version in the range.
 - The SDK logs a WARNING if the server version is outside the tested range but does NOT refuse the connection.
 

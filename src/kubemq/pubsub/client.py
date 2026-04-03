@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 import threading
 import time
 from pathlib import Path
 from typing import Any
 
 import grpc
-import dataclasses
 
 from kubemq._internal.deprecation import deprecated, deprecated_async
 from kubemq._internal.retry import BackoffCalculator

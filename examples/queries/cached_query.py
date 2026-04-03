@@ -2,50 +2,46 @@
 
 from __future__ import annotations
 
-import time
+import asyncio
 
 from kubemq import (
-    CancellationToken,
-    Client,
+    AsyncCancellationToken,
+    AsyncCQClient,
     QueriesSubscription,
     QueryMessage,
-    QueryReceived,
     QueryResponse,
 )
 
 
-def main() -> None:
-    with Client(
+async def main() -> None:
+    async with AsyncCQClient(
         address="localhost:50000",
         client_id="python-queries-cached-query-client",
     ) as client:
-        cancel = CancellationToken()
+        token = AsyncCancellationToken()
 
-        def on_receive_query(request: QueryReceived) -> None:
-            print(f"Responder received query: {request.body.decode('utf-8')}")
-            client.send_response_message(
-                QueryResponse(
-                    query_received=request,
-                    is_executed=True,
-                    body=b"cached response data",
+        async def query_handler() -> None:
+            async for query in client.subscribe_to_queries(
+                subscription=QueriesSubscription(
+                    channel="python-queries.cached-query",
+                    on_receive_query_callback=lambda q: None,
+                    on_error_callback=lambda e: print(f"Error: {e}"),
+                ),
+                cancellation_token=token,
+            ):
+                print(f"Responder received query: {query.body.decode('utf-8')}")
+                await client.send_response(
+                    QueryResponse(
+                        query_received=query,
+                        is_executed=True,
+                        body=b"cached response data",
+                    )
                 )
-            )
 
-        def on_error(err: str) -> None:
-            print(f"Error: {err}")
+        handler_task = asyncio.create_task(query_handler())
+        await asyncio.sleep(1)
 
-        client.subscribe_to_queries(
-            subscription=QueriesSubscription(
-                channel="python-queries.cached-query",
-                on_receive_query_callback=on_receive_query,
-                on_error_callback=on_error,
-            ),
-            cancel=cancel,
-        )
-        time.sleep(1)
-
-        # First query — responder processes and response is cached
-        response1 = client.send_query(
+        response1 = await client.send_query(
             QueryMessage(
                 channel="python-queries.cached-query",
                 body=b"fetch data",
@@ -56,8 +52,7 @@ def main() -> None:
         )
         print(f"First query  — cache_hit: {response1.cache_hit}, body: {response1.body}")
 
-        # Second query — served from cache, responder NOT called
-        response2 = client.send_query(
+        response2 = await client.send_query(
             QueryMessage(
                 channel="python-queries.cached-query",
                 body=b"fetch data",
@@ -68,8 +63,13 @@ def main() -> None:
         )
         print(f"Second query — cache_hit: {response2.cache_hit}, body: {response2.body}")
 
-        cancel.cancel()
+        token.cancel()
+        handler_task.cancel()
+        try:
+            await handler_task
+        except asyncio.CancelledError:
+            pass
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

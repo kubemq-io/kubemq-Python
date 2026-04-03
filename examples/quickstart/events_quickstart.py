@@ -2,42 +2,40 @@
 
 from __future__ import annotations
 
-import time
+import asyncio
 
-from kubemq import CancellationToken, EventMessage, EventsSubscription
-from kubemq.pubsub import Client as PubSubClient
-
-
-def on_event(event) -> None:  # type: ignore[no-untyped-def]
-    """Handle received event."""
-    print(f"Received: {event.body.decode('utf-8')}")
+from kubemq import AsyncCancellationToken, AsyncPubSubClient, EventMessage, EventsSubscription
 
 
-def main() -> None:
-    cancel = CancellationToken()
+async def main() -> None:
+    async with AsyncPubSubClient(address="localhost:50000", client_id="python-events-quickstart-client") as client:
+        token = AsyncCancellationToken()
 
-    with PubSubClient(address="localhost:50000", client_id="python-events-quickstart-client") as client:
-        # Subscribe first so the subscriber is ready
-        client.subscribe_to_events(
-            subscription=EventsSubscription(
-                channel="python-quickstart",
-                on_receive_event_callback=on_event,
-                on_error_callback=lambda e: print(f"Error: {e}"),
-            ),
-            cancel=cancel,
-        )
+        async def subscriber() -> None:
+            async for event in client.subscribe_to_events(
+                subscription=EventsSubscription(
+                    channel="python-quickstart",
+                    on_receive_event_callback=lambda e: None,
+                    on_error_callback=lambda e: print(f"Error: {e}"),
+                ),
+                cancellation_token=token,
+            ):
+                print(f"Received: {event.body.decode('utf-8')}")
 
-        # Give the subscription a moment to connect
-        time.sleep(1)
+        task = asyncio.create_task(subscriber())
+        await asyncio.sleep(1)
 
-        # Publish an event
-        client.send_event(EventMessage(channel="python-quickstart", body=b"Hello KubeMQ!"))
+        await client.publish_event(EventMessage(channel="python-quickstart", body=b"Hello KubeMQ!"))
         print("Event sent!")
 
-        # Wait for the event to arrive
-        time.sleep(2)
-        cancel.cancel()
+        await asyncio.sleep(2)
+        token.cancel()
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

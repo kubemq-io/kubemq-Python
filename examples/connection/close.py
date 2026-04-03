@@ -2,23 +2,26 @@
 
 from __future__ import annotations
 
-from kubemq.pubsub import Client as PubSubClient, EventMessage
+import asyncio
+
+from kubemq import AsyncPubSubClient, EventMessage
 
 
-def main() -> None:
-    client = PubSubClient(
+async def main() -> None:
+    client = AsyncPubSubClient(
         address="localhost:50000",
         client_id="python-connection-close-client",
     )
     try:
-        client.send_event(
+        await client.connect()
+        await client.publish_event(
             EventMessage(channel="python-connection.close", body=b"Hello before close")
         )
         print("Event sent successfully")
     finally:
-        client.close()
+        await client.close()
         print("Client closed gracefully")
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

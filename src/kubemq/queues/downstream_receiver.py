@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import logging
 import queue
 import threading
@@ -7,12 +9,12 @@ from collections.abc import Generator, Iterator
 import grpc
 
 from kubemq.common.helpers import decode_grpc_error, is_channel_error
+from kubemq.core.config import ClientConfig
 from kubemq.grpc import (
     QueuesDownstreamRequest,
     QueuesDownstreamRequestType,
     QueuesDownstreamResponse,
 )
-from kubemq.core.config import ClientConfig
 from kubemq.transport import SyncTransport
 
 DEFAULT_RECEIVE_QUEUE_SIZE = 10_000

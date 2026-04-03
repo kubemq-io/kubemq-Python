@@ -4,15 +4,13 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import logging
 import time
 from collections.abc import AsyncIterator, Awaitable, Callable
 from typing import (
     TYPE_CHECKING,
     Any,
 )
-
-
-import logging
 
 from kubemq._internal.retry import BackoffCalculator
 from kubemq._internal.telemetry import (
@@ -24,7 +22,12 @@ from kubemq._internal.telemetry import (
 from kubemq.common.async_cancellation_token import AsyncCancellationToken
 from kubemq.core.client import NativeAsyncBaseClient
 from kubemq.core.config import ClientConfig
-from kubemq.core.exceptions import KubeMQClientClosedError, KubeMQConnectionError, KubeMQError, KubeMQValidationError
+from kubemq.core.exceptions import (
+    KubeMQClientClosedError,
+    KubeMQConnectionError,
+    KubeMQError,
+    KubeMQValidationError,
+)
 from kubemq.cq.command_message import CommandMessage
 from kubemq.cq.command_message_received import CommandReceived
 from kubemq.cq.command_response_message import CommandResponse

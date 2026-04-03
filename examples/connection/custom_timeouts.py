@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from kubemq import ClientConfig, KeepAliveConfig
-from kubemq.cq import Client as CQClient, CommandMessage
+import asyncio
+
+from kubemq import AsyncCQClient, ClientConfig, CommandMessage, KeepAliveConfig
 
 
-def main() -> None:
+async def main() -> None:
     config = ClientConfig(
         address="localhost:50000",
         client_id="python-connection-custom-timeouts-client",
@@ -19,13 +20,12 @@ def main() -> None:
         ),
     )
 
-    with CQClient(config=config) as client:
-        info = client.ping()
+    async with AsyncCQClient(config=config) as client:
+        info = await client.ping()
         print(f"Connected to {info.host} with custom timeouts")
 
-        # Commands have per-message timeout via timeout_in_seconds
         try:
-            response = client.send_command(
+            response = await client.send_command(
                 CommandMessage(
                     channel="python-connection.custom-timeouts",
                     body=b"test operation",
@@ -38,4 +38,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

@@ -2,55 +2,52 @@
 
 from __future__ import annotations
 
-import time
+import asyncio
 
-from kubemq import (
-    CancellationToken,
-    Client,
-    EventMessage,
-    EventReceived,
-    EventsSubscription,
-)
+from kubemq import AsyncCancellationToken, AsyncPubSubClient, EventMessage, EventsSubscription
 
 
-def main() -> None:
-    with Client(
+async def main() -> None:
+    async with AsyncPubSubClient(
         address="localhost:50000",
         client_id="python-events-cancel-subscription-client",
     ) as client:
-        cancel = CancellationToken()
+        token = AsyncCancellationToken()
 
-        def on_receive(event: EventReceived) -> None:
-            print(f"Received: {event.body.decode('utf-8')}")
+        async def subscriber() -> None:
+            async for event in client.subscribe_to_events(
+                subscription=EventsSubscription(
+                    channel="python-events.cancel-subscription",
+                    on_receive_event_callback=lambda e: None,
+                    on_error_callback=lambda e: print(f"Error: {e}"),
+                ),
+                cancellation_token=token,
+            ):
+                print(f"Received: {event.body.decode('utf-8')}")
 
-        def on_error(err: str) -> None:
-            print(f"Error: {err}")
+        task = asyncio.create_task(subscriber())
+        await asyncio.sleep(1)
 
-        client.subscribe_to_events(
-            subscription=EventsSubscription(
-                channel="python-events.cancel-subscription",
-                on_receive_event_callback=on_receive,
-                on_error_callback=on_error,
-            ),
-            cancel=cancel,
-        )
-        time.sleep(1)
-
-        client.send_event(
+        await client.publish_event(
             EventMessage(channel="python-events.cancel-subscription", body=b"before cancel")
         )
-        time.sleep(1)
+        await asyncio.sleep(1)
 
-        cancel.cancel()
+        token.cancel()
         print("Subscription cancelled")
 
-        time.sleep(1)
-        client.send_event(
+        await asyncio.sleep(1)
+        await client.publish_event(
             EventMessage(channel="python-events.cancel-subscription", body=b"after cancel")
         )
         print("Message sent after cancel — subscriber will NOT receive it")
-        time.sleep(1)
+
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

@@ -2,65 +2,49 @@
 
 from __future__ import annotations
 
-import time
+import asyncio
 
 from kubemq import (
-    CancellationToken,
-    Client,
+    AsyncCancellationToken,
+    AsyncCQClient,
     QueriesSubscription,
     QueryMessage,
-    QueryReceived,
     QueryResponse,
 )
 
 
-def make_handler(name: str, client: Client):  # type: ignore[no-untyped-def]
-    def handler(request: QueryReceived) -> None:
-        print(f"[{name}] Received query: {request.body.decode('utf-8')}")
-        client.send_response_message(
-            QueryResponse(
-                query_received=request,
-                is_executed=True,
-                body=f"Response from {name}".encode(),
-            )
-        )
-
-    return handler
-
-
-def on_error(err: str) -> None:
-    print(f"Error: {err}")
-
-
-def main() -> None:
-    with Client(
+async def main() -> None:
+    async with AsyncCQClient(
         address="localhost:50000",
         client_id="python-queries-consumer-group-client",
     ) as client:
-        cancel = CancellationToken()
+        token = AsyncCancellationToken()
 
-        client.subscribe_to_queries(
-            subscription=QueriesSubscription(
-                channel="python-queries.consumer-group",
-                group="responders",
-                on_receive_query_callback=make_handler("Responder-1", client),
-                on_error_callback=on_error,
-            ),
-            cancel=cancel,
-        )
-        client.subscribe_to_queries(
-            subscription=QueriesSubscription(
-                channel="python-queries.consumer-group",
-                group="responders",
-                on_receive_query_callback=make_handler("Responder-2", client),
-                on_error_callback=on_error,
-            ),
-            cancel=cancel,
-        )
+        async def make_responder(name: str) -> None:
+            async for query in client.subscribe_to_queries(
+                subscription=QueriesSubscription(
+                    channel="python-queries.consumer-group",
+                    group="responders",
+                    on_receive_query_callback=lambda q: None,
+                    on_error_callback=lambda e: print(f"Error: {e}"),
+                ),
+                cancellation_token=token,
+            ):
+                print(f"[{name}] Received query: {query.body.decode('utf-8')}")
+                await client.send_response(
+                    QueryResponse(
+                        query_received=query,
+                        is_executed=True,
+                        body=f"Response from {name}".encode(),
+                    )
+                )
 
-        time.sleep(1)
+        task1 = asyncio.create_task(make_responder("Responder-1"))
+        task2 = asyncio.create_task(make_responder("Responder-2"))
+        await asyncio.sleep(1)
+
         for i in range(4):
-            response = client.send_query(
+            response = await client.send_query(
                 QueryMessage(
                     channel="python-queries.consumer-group",
                     body=f"Query #{i + 1}".encode(),
@@ -69,8 +53,14 @@ def main() -> None:
             )
             print(f"Query #{i + 1} response: {response.body}")
 
-        cancel.cancel()
+        token.cancel()
+        for t in [task1, task2]:
+            t.cancel()
+            try:
+                await t
+            except asyncio.CancelledError:
+                pass
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

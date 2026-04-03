@@ -2,18 +2,18 @@
 
 from __future__ import annotations
 
-from kubemq.queues import Client as QueuesClient
-from kubemq import QueueMessage
+import asyncio
+
+from kubemq import AsyncQueuesClient, QueueMessage
 
 
-def main() -> None:
-    with QueuesClient(
+async def main() -> None:
+    async with AsyncQueuesClient(
         address="localhost:50000",
         client_id="python-queues-stream-stream-receive-client",
     ) as client:
-        # Send some test messages
         for i in range(3):
-            client.send_queue_message(
+            await client.send_queue_message(
                 QueueMessage(
                     channel="python-queues-stream.stream-receive",
                     body=f"Message #{i + 1}".encode(),
@@ -21,28 +21,26 @@ def main() -> None:
             )
         print("Sent 3 test messages")
 
-        # Receive messages via streaming
-        response = client.receive_queue_messages(
+        response = await client.receive_queue_messages(
             channel="python-queues-stream.stream-receive",
             max_messages=10,
-            wait_timeout_in_seconds=5,
+            wait_timeout_seconds=5,
         )
 
         for msg in response.messages:
             body = msg.body.decode("utf-8")
             print(f"Received: {body}")
 
-            # Demonstrate different acknowledgment strategies
             if "1" in body:
-                msg.ack()
+                await msg.async_ack()
                 print(f"  -> Acknowledged: {body}")
             elif "2" in body:
-                msg.nack()
+                await msg.async_nack()
                 print(f"  -> Rejected: {body}")
             else:
-                msg.ack()
+                await msg.async_ack()
                 print(f"  -> Acknowledged: {body}")
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

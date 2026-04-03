@@ -2,44 +2,36 @@
 
 from __future__ import annotations
 
-import time
+import asyncio
 
-from kubemq import (
-    CancellationToken,
-    Client,
-    EventMessage,
-    EventReceived,
-    EventsSubscription,
-)
+from kubemq import AsyncCancellationToken, AsyncPubSubClient, EventMessage, EventsSubscription
 
 
-def main() -> None:
-    with Client(
+async def main() -> None:
+    async with AsyncPubSubClient(
         address="localhost:50000",
         client_id="python-events-stream-send-client",
     ) as client:
-        cancel = CancellationToken()
-        received: list[EventReceived] = []
+        token = AsyncCancellationToken()
+        received: list[str] = []
 
-        def on_receive(event: EventReceived) -> None:
-            received.append(event)
-            print(f"Received: {event.body.decode('utf-8')}")
+        async def subscriber() -> None:
+            async for event in client.subscribe_to_events(
+                subscription=EventsSubscription(
+                    channel="python-events.stream-send",
+                    on_receive_event_callback=lambda e: None,
+                    on_error_callback=lambda e: print(f"Error: {e}"),
+                ),
+                cancellation_token=token,
+            ):
+                received.append(event.body.decode("utf-8"))
+                print(f"Received: {event.body.decode('utf-8')}")
 
-        def on_error(err: str) -> None:
-            print(f"Error: {err}")
-
-        client.subscribe_to_events(
-            subscription=EventsSubscription(
-                channel="python-events.stream-send",
-                on_receive_event_callback=on_receive,
-                on_error_callback=on_error,
-            ),
-            cancel=cancel,
-        )
-        time.sleep(1)
+        task = asyncio.create_task(subscriber())
+        await asyncio.sleep(1)
 
         for i in range(100):
-            client.send_event(
+            await client.publish_event(
                 EventMessage(
                     channel="python-events.stream-send",
                     body=f"Event-{i + 1}".encode(),
@@ -47,10 +39,15 @@ def main() -> None:
             )
 
         print("Sent 100 events via stream")
-        time.sleep(3)
+        await asyncio.sleep(3)
         print(f"Received {len(received)} events")
-        cancel.cancel()
+        token.cancel()
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

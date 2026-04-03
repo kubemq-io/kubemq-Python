@@ -12,7 +12,6 @@ from typing import (
     Any,
 )
 
-
 from kubemq._internal.retry import BackoffCalculator
 from kubemq._internal.telemetry import KubeMQTagsCarrier, error_code_to_error_type
 from kubemq.common.async_cancellation_token import AsyncCancellationToken

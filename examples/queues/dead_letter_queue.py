@@ -2,17 +2,17 @@
 
 from __future__ import annotations
 
-from kubemq.queues import Client as QueuesClient
-from kubemq import QueueMessage
+import asyncio
+
+from kubemq import AsyncQueuesClient, QueueMessage
 
 
-def main() -> None:
-    with QueuesClient(
+async def main() -> None:
+    async with AsyncQueuesClient(
         address="localhost:50000",
         client_id="python-queues-dead-letter-queue-client",
     ) as client:
-        # Send a message with DLQ configuration
-        client.send_queue_message(
+        await client.send_queue_message(
             QueueMessage(
                 channel="python-queues.dead-letter-queue",
                 body=b"message with DLQ policy",
@@ -23,12 +23,11 @@ def main() -> None:
         )
         print("Sent message with max 3 attempts before DLQ")
 
-        # Simulate failed processing by rejecting the message multiple times
         for attempt in range(3):
-            response = client.receive_queue_messages(
+            response = await client.receive_queue_messages(
                 channel="python-queues.dead-letter-queue",
                 max_messages=1,
-                wait_timeout_in_seconds=5,
+                wait_timeout_seconds=5,
             )
             if not response.messages:
                 print(f"  Attempt {attempt + 1}: No message (already moved to DLQ)")
@@ -38,13 +37,12 @@ def main() -> None:
                     f"  Attempt {attempt + 1}: Received (receive_count={msg.receive_count}), "
                     f"rejecting..."
                 )
-                msg.nack()
+                await msg.async_nack()
 
-        # Check the DLQ for the message
-        dlq_response = client.receive_queue_messages(
+        dlq_response = await client.receive_queue_messages(
             channel="python-queues.dead-letter-queue-dlq",
             max_messages=1,
-            wait_timeout_in_seconds=5,
+            wait_timeout_seconds=5,
             auto_ack=True,
         )
         print(f"DLQ messages: {len(dlq_response.messages)}")
@@ -53,4 +51,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

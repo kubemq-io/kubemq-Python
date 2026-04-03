@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from dataclasses import dataclass, field
 from datetime import datetime
 
@@ -25,7 +27,7 @@ class CommandResponse:
             raise ValueError("Command response must have a reply channel.")
 
     @classmethod
-    def decode(cls, pb_response: pbResponse) -> "CommandResponse":
+    def decode(cls, pb_response: pbResponse) -> CommandResponse:
         """Decode a protobuf Response into a CommandResponse."""
         return cls(
             client_id=pb_response.ClientID,

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import asyncio
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -79,7 +81,7 @@ class CommandsSubscription:
         group: str | None = None,
         on_receive_command_callback: Callable[[CommandReceived], None] | None = None,
         on_error_callback: Callable[[str], None] | None = None,
-    ) -> "CommandsSubscription":
+    ) -> CommandsSubscription:
         """Create a CommandsSubscription with validation."""
         if on_receive_command_callback is None:
             raise ValueError("on_receive_command_callback is required")

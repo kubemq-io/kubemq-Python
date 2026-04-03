@@ -15,13 +15,13 @@ import contextlib
 import logging
 import threading
 from collections.abc import Awaitable, Callable
-from typing import Any
+from typing import Any, Union
 
 from kubemq.core.exceptions import KubeMQBufferFullError
 
 BufferDrainCallback = Callable[[int], None]
 AsyncBufferDrainCallback = Callable[[int], Awaitable[None]]
-AnyBufferDrainCallback = BufferDrainCallback | AsyncBufferDrainCallback
+AnyBufferDrainCallback = Union[BufferDrainCallback, AsyncBufferDrainCallback]
 
 
 class ReconnectConfig:

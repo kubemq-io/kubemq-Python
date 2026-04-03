@@ -4,8 +4,7 @@ from __future__ import annotations
 
 import asyncio
 
-from kubemq.queues import AsyncClient as AsyncQueuesClient
-from kubemq import QueueMessage
+from kubemq import AsyncQueuesClient, QueueMessage
 
 
 async def main() -> None:
