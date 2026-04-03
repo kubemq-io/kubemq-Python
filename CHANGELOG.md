@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [4.1.0] - 2026-04-03
+
+### Improvements
+- Migrate all quickstart and management examples to use asynchronous client implementations (010861f)
+
 ## [4.0.0] - 2026-03-16
 
 ### Added
@@ -93,7 +98,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Events store subscription with replay options
 - Start position configuration for events store
 
-[Unreleased]: https://github.com/kubemq-io/kubemq-Python/compare/v4.0.0...HEAD
+[Unreleased]: https://github.com/kubemq-io/kubemq-Python/compare/4.1.0...HEAD
+[4.1.0]: https://github.com/kubemq-io/kubemq-Python/compare/4.0.0...4.1.0
 [4.0.0]: https://github.com/kubemq-io/kubemq-Python/compare/v3.6.0...v4.0.0
 [3.6.0]: https://github.com/kubemq-io/kubemq-Python/compare/v3.5.0...v3.6.0
 [3.5.0]: https://github.com/kubemq-io/kubemq-Python/releases/tag/v3.5.0
