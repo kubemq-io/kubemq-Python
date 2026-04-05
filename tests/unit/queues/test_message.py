@@ -246,12 +246,12 @@ class TestQueueMessageConstants:
     """Tests for QueueMessage class constants."""
 
     def test_max_delay_seconds_constant(self):
-        """Test MAX_DELAY_SECONDS is 12 hours."""
-        assert QueueMessage.MAX_DELAY_SECONDS == 43200
+        """Test MAX_DELAY_SECONDS is 24 hours."""
+        assert QueueMessage.MAX_DELAY_SECONDS == 86400
 
     def test_max_expiration_seconds_constant(self):
-        """Test MAX_EXPIRATION_SECONDS is 12 hours."""
-        assert QueueMessage.MAX_EXPIRATION_SECONDS == 43200
+        """Test MAX_EXPIRATION_SECONDS is 24 hours."""
+        assert QueueMessage.MAX_EXPIRATION_SECONDS == 86400
 
 
 class TestQueueMessageChannelValidation:

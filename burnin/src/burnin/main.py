@@ -97,7 +97,7 @@ async def async_main(cfg, logger) -> int:
     engine._loop = loop
 
     # Start HTTP server in daemon thread
-    api_port = cfg.api.port
+    api_port = cfg.metrics.port
     srv = BurninHTTPServer(port=api_port, engine_api=engine)
     srv.start()
     logger.info("HTTP server started on port %d — app is idle, waiting for API commands", api_port)
