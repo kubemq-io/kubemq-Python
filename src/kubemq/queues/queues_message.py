@@ -47,8 +47,8 @@ class QueueMessage:
     """
 
     # Class attributes
-    MAX_DELAY_SECONDS: ClassVar[int] = 43200  # 12 hours
-    MAX_EXPIRATION_SECONDS: ClassVar[int] = 43200  # 12 hours
+    MAX_DELAY_SECONDS: ClassVar[int] = 86400  # 24 hours
+    MAX_EXPIRATION_SECONDS: ClassVar[int] = 86400  # 24 hours
 
     # Required field first
     channel: str
@@ -71,12 +71,12 @@ class QueueMessage:
         if self.delay_in_seconds < 0:
             raise ValueError("delay_in_seconds must be >= 0")
         if self.delay_in_seconds > self.MAX_DELAY_SECONDS:
-            raise ValueError(f"Delay cannot exceed {self.MAX_DELAY_SECONDS} seconds (12 hours)")
+            raise ValueError(f"Delay cannot exceed {self.MAX_DELAY_SECONDS} seconds (24 hours)")
         if self.expiration_in_seconds < 0:
             raise ValueError("expiration_in_seconds must be >= 0")
         if self.expiration_in_seconds > self.MAX_EXPIRATION_SECONDS:
             raise ValueError(
-                f"Expiration cannot exceed {self.MAX_EXPIRATION_SECONDS} seconds (12 hours)"
+                f"Expiration cannot exceed {self.MAX_EXPIRATION_SECONDS} seconds (24 hours)"
             )
         if self.max_receive_count < 0:
             raise ValueError("max_receive_count must be >= 0")
