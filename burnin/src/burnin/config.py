@@ -92,7 +92,6 @@ class MessageConfig:
 
 @dataclass
 class ApiConfig:
-    port: int = 8080
     enabled: bool = True
 
 
@@ -256,8 +255,8 @@ class Config:
             errors.append(f"message.size_mode must be 'fixed' or 'distribution', got '{self.message.size_mode}'")
         if self.message.size_bytes < 64:
             errors.append(f"message.size_bytes: must be >= 64, got {self.message.size_bytes}")
-        if self.api.port <= 0 or self.api.port > 65535:
-            errors.append(f"api.port: must be 1-65535, got {self.api.port}")
+        if self.metrics.port <= 0 or self.metrics.port > 65535:
+            errors.append(f"metrics.port: must be 1-65535, got {self.metrics.port}")
         if self.shutdown.drain_timeout_seconds <= 0:
             errors.append(f"shutdown.drain_timeout_seconds: must be > 0, got {self.shutdown.drain_timeout_seconds}")
 
@@ -501,15 +500,6 @@ def load_config(cli_path: str = "") -> Config:
     env_addr = os.environ.get("KUBEMQ_BROKER_ADDRESS", "")
     if env_addr:
         cfg.broker.address = env_addr
-
-    # Fallback: if api.port is still the default (8080) and metrics.port differs,
-    # use metrics.port as the authoritative HTTP server port.
-    if cfg.api.port == 8080 and cfg.metrics.port != 8080:
-        _config_logger.info(
-            "api.port not set explicitly; falling back to metrics.port=%d",
-            cfg.metrics.port,
-        )
-        cfg.api.port = cfg.metrics.port
 
     # Auto-generate run_id if empty
     if not cfg.run_id:

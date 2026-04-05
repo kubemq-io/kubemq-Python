@@ -49,7 +49,6 @@ patterns:
     rate: 100
 
 api:
-  port: 8889
   enabled: true
 
 queue:
@@ -111,7 +110,3 @@ warmup:
 
 cors:
   origins: "*"
-
-api:
-  port: 8889
-  enabled: true
