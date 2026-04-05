@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [4.1.1] - 2026-04-05
+
+### Improvements
+- Increase MAX_DELAY_SECONDS and MAX_EXPIRATION_SECONDS from 12h to 24h (861460c)
+
 ## [4.1.0] - 2026-04-03
 
 ### Improvements
