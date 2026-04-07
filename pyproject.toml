@@ -1,6 +1,6 @@
 [project]
 name = "kubemq"
-version = "4.1.1"
+version = "4.1.2"
 description = "KubeMQ Python SDK - Production-grade messaging with async support, pub/sub, queues, and commands/queries"
 readme = "README.md"
 license = { text = "MIT" }
