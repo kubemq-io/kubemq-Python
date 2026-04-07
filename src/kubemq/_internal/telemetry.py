@@ -460,9 +460,10 @@ class KubeMQTagsCarrier:
         """The underlying tags dict (may be mutated by inject)."""
         return self._tags
 
-    def get(self, key: str) -> str | None:
+    def get(self, key: str, default: str | None = None) -> str | None:
         """Get a tag value by key. Used by OTel Getter protocol."""
-        return self._tags.get(key)
+        val = self._tags.get(key)
+        return val if val is not None else default
 
     def set(self, key: str, value: str) -> None:
         """Set a tag value. Used by OTel Setter protocol."""
