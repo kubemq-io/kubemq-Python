@@ -410,6 +410,18 @@ class TestKubeMQTagsCarrier:
         carrier = KubeMQTagsCarrier({})
         assert carrier.get("traceparent") is None
 
+    def test_get_accepts_default_parameter(self):
+        """Regression: OTel TextMapGetter calls carrier.get(key, default)."""
+        carrier = KubeMQTagsCarrier({"traceparent": "00-abc-def-01"})
+        # Must accept 3 positional args without TypeError
+        assert carrier.get("traceparent", None) == "00-abc-def-01"
+        assert carrier.get("missing", "fallback") == "fallback"
+        assert carrier.get("missing", None) is None
+
+    def test_get_default_not_used_when_key_exists(self):
+        carrier = KubeMQTagsCarrier({"key": "value"})
+        assert carrier.get("key", "default") == "value"
+
     def test_set_writes_value(self):
         carrier = KubeMQTagsCarrier({})
         carrier.set("traceparent", "00-abc-def-01")
