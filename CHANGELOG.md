@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [4.1.3] - 2026-05-31
+
+### Improvements
+- Update grpcio 1.78.0 → 1.80.0, PyJWT 2.12.1 → 2.13.0, pytest 9.0.2 → 9.0.3, and OpenTelemetry API → 1.42 for security and currency
+
 ## [4.1.2] - 2026-04-07
 
 ### Fixes
