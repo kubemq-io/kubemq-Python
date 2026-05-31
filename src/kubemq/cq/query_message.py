@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import dataclasses
+import sys
 from dataclasses import dataclass, field
 from typing import Any
 
-try:
+if sys.version_info >= (3, 11):
     from typing import Self
-except ImportError:
+else:
     from typing_extensions import Self
 
 from kubemq.common.channel_validators import validate_channel_name

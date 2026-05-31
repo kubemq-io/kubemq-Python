@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import threading
 import time
 from abc import ABC
@@ -567,10 +568,8 @@ class NativeAsyncBaseClient(ABC):  # noqa: B024
             except Exception as e:
                 # Clean up any partially created pool
                 for t in self._pool:
-                    try:
+                    with contextlib.suppress(Exception):
                         await t.close()
-                    except Exception:
-                        pass
                 self._pool.clear()
                 self._transport = None
                 self._logger.error(f"Failed to connect: {e}")
@@ -714,10 +713,8 @@ class NativeAsyncBaseClient(ABC):  # noqa: B024
 
             # 4. Close connection pool transports
             for t in self._pool:
-                try:
+                with contextlib.suppress(Exception):
                     await t.close()
-                except Exception:
-                    pass
             self._pool.clear()
 
             # 5. Close primary transport (handles its own stream drain per SPEC-CONN-4)

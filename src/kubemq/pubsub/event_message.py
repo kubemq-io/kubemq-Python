@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import dataclasses
+import sys
 from dataclasses import dataclass, field
+from typing import Any
 
-try:
+if sys.version_info >= (3, 11):
     from typing import Self
-except ImportError:
+else:
     from typing_extensions import Self
 
 from kubemq.common.channel_validators import validate_channel_name
@@ -67,7 +69,7 @@ class EventMessage:
         pb_event.Tags.update(self.tags)
         return pb_event
 
-    def with_updates(self, **kwargs: object) -> Self:
+    def with_updates(self, **kwargs: Any) -> Self:
         """Create a new message with updated values.
 
         Returns:

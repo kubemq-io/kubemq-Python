@@ -39,7 +39,7 @@ class QueryReceived:
     tags: dict[str, str] = field(default_factory=dict)
 
     @classmethod
-    def decode(cls, query_receive: pbRequest) -> "QueryReceived":
+    def decode(cls, query_receive: pbRequest) -> QueryReceived:
         """Decodes a protobuf request object and returns a QueryReceived instance.
 
         Returns:

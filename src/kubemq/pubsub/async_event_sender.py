@@ -82,6 +82,7 @@ class AsyncEventSender:
                     self._send_queue.put_nowait(event)
                 except asyncio.QueueFull:
                     from kubemq.core.exceptions import KubeMQBufferFullError
+
                     raise KubeMQBufferFullError(
                         "Event send queue is full.",
                         buffer_size=self._send_queue.maxsize,
@@ -125,14 +126,13 @@ class AsyncEventSender:
             # while the generator feeds requests on the send side
             receiver_task = asyncio.create_task(self._receive_responses(call))
 
-            try:
-                # Wait for receiver to finish (stream closed or error)
+            # Wait for receiver to finish (stream closed or error)
+            with contextlib.suppress(asyncio.CancelledError):
                 await receiver_task
-            except asyncio.CancelledError:
-                pass
         except grpc.aio.AioRpcError as e:
             if e.code() != grpc.StatusCode.CANCELLED:
                 from kubemq.core.exceptions import from_grpc_error
+
                 raise from_grpc_error(e) from e
         finally:
             await self._transport._unregister_stream(call)
@@ -165,6 +165,7 @@ class AsyncEventSender:
         except grpc.aio.AioRpcError as e:
             if e.code() != grpc.StatusCode.CANCELLED:
                 from kubemq.core.exceptions import from_grpc_error
+
                 raise from_grpc_error(e) from e
 
     def _handle_disconnection(self) -> None:

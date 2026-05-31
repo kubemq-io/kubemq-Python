@@ -1623,7 +1623,7 @@ class TestProcessQueueMessagesCallbacks:
 # ==============================================================================
 
 
-class TestDoOperationWithMetadata:
+class TestDoOperationPassesMetadata:
     """Covers _do_operation() with metadata dict — lines 111-113."""
 
     @pytest.mark.asyncio
@@ -1931,9 +1931,7 @@ class TestAsyncClientGetDownstreamReceiver:
         client._connected = True
 
         with (
-            patch(
-                "kubemq.queues.async_client.AsyncDownstreamReceiver"
-            ) as MockReceiverCls,
+            patch("kubemq.queues.async_client.AsyncDownstreamReceiver") as MockReceiverCls,
         ):
             mock_instance = AsyncMock()
             MockReceiverCls.return_value = mock_instance

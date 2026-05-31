@@ -36,7 +36,7 @@ class TestQueueMessageValidation:
             QueueMessage(
                 channel="test-queue",
                 body=b"test",
-                delay_in_seconds=50000,  # More than 12 hours
+                delay_in_seconds=90000,  # More than the 24-hour (86400s) max
             )
 
     def test_validates_expiration_max(self):
@@ -45,7 +45,7 @@ class TestQueueMessageValidation:
             QueueMessage(
                 channel="test-queue",
                 body=b"test",
-                expiration_in_seconds=50000,  # More than 12 hours
+                expiration_in_seconds=90000,  # More than the 24-hour (86400s) max
             )
 
     def test_validates_max_receive_queue_configuration(self):

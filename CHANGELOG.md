@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [4.1.4] - 2026-05-31
+
+### Fixes
+- **Restore Python 3.9 / 3.10 support.** The SDK imported `datetime.UTC` (added in Python 3.11), which raised `ImportError` during client creation on Python 3.9 and 3.10 — even though both are advertised as supported. Switched to `datetime.timezone.utc`. Import is now verified on 3.9 and 3.10.
+- **Fix batch command/query error responses.** When an individual message in `send_commands_batch` / `send_queries_batch` failed, building its per-item error response raised `ValueError("Command response must have a reply channel.")`, breaking the batch error path. Error responses now set `request_id` and leave `command_received` / `query_received` as `None`, surfacing the per-item failure as intended. **Consumer note:** read `request_id` and `error` on a failed batch item; `command_received` / `query_received` is `None` on errors.
+
+### Improvements
+- Clear all ruff lint and mypy (strict) findings in `src/` with no runtime behavior change: `try/except: pass` → `contextlib.suppress`, version-guarded `typing.Self` import, precise type annotations, and `__all__` on the `transport` package.
+
+### Tests
+- Update queue message tests to the current 24-hour delay/expiration cap (they still asserted the old 12-hour limit removed in 4.1.1).
+- Un-hide a `do_operation` metadata test that a duplicate test-class name was silently shadowing.
+- Add coverage for the batch command/query error-response path.
+
 ## [4.1.3] - 2026-05-31
 
 ### Improvements

@@ -704,8 +704,9 @@ class AsyncTransport:
         # Background watchdog: when the cancellation token fires, cancel the
         # gRPC call directly. This interrupts the `async for` immediately
         # without per-message polling overhead.
-        cancel_watchdog: asyncio.Task | None = None
+        cancel_watchdog: asyncio.Task[None] | None = None
         if cancellation_token:
+
             async def _watch_cancel() -> None:
                 await cancellation_token.wait()
                 self._logger.debug("Subscription cancelled by token")
@@ -733,10 +734,8 @@ class AsyncTransport:
         finally:
             if cancel_watchdog and not cancel_watchdog.done():
                 cancel_watchdog.cancel()
-                try:
+                with contextlib.suppress(asyncio.CancelledError):
                     await cancel_watchdog
-                except asyncio.CancelledError:
-                    pass
             await self._unregister_stream(call)
 
     async def subscribe_to_requests(
@@ -762,8 +761,9 @@ class AsyncTransport:
         await self._register_stream(call)
 
         # Background watchdog for cancellation (same pattern as subscribe_to_events)
-        cancel_watchdog: asyncio.Task | None = None
+        cancel_watchdog: asyncio.Task[None] | None = None
         if cancellation_token:
+
             async def _watch_cancel() -> None:
                 await cancellation_token.wait()
                 call.cancel()
@@ -786,10 +786,8 @@ class AsyncTransport:
         finally:
             if cancel_watchdog and not cancel_watchdog.done():
                 cancel_watchdog.cancel()
-                try:
+                with contextlib.suppress(asyncio.CancelledError):
                     await cancel_watchdog
-                except asyncio.CancelledError:
-                    pass
             await self._unregister_stream(call)
 
     # =========================================================================

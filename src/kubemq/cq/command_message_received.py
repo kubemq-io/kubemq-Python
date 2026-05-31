@@ -39,7 +39,7 @@ class CommandReceived:
     tags: dict[str, str] = field(default_factory=dict)
 
     @classmethod
-    def decode(cls, command_receive: pbRequest) -> "CommandReceived":
+    def decode(cls, command_receive: pbRequest) -> CommandReceived:
         """Decode a protobuf Request into a CommandReceived.
 
         Returns:

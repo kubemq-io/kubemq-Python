@@ -40,7 +40,7 @@ class EventStoreReceived:
     tags: dict[str, str] = field(default_factory=dict)
 
     @classmethod
-    def decode(cls, event_receive: pbEventReceive) -> "EventStoreReceived":
+    def decode(cls, event_receive: pbEventReceive) -> EventStoreReceived:
         """Decode a protobuf EventReceive into an EventStoreReceived.
 
         Returns:

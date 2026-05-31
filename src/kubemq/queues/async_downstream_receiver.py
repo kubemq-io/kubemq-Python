@@ -165,15 +165,14 @@ class AsyncDownstreamReceiver:
             receiver_task = asyncio.create_task(self._receive_responses(call))
             # Signal that the stream is ready for requests.
             self._stream_ready.set()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await receiver_task
-            except asyncio.CancelledError:
-                pass
         except grpc.aio.AioRpcError as e:
             if e.code() != grpc.StatusCode.CANCELLED:
                 if self._transport._is_connection_error(e):
                     await self._transport._on_connection_lost()
                 from kubemq.core.exceptions import from_grpc_error
+
                 raise from_grpc_error(e) from e
         finally:
             # Signal the generator bound to this call to stop before
@@ -183,7 +182,8 @@ class AsyncDownstreamReceiver:
             await self._transport._unregister_stream(call)
 
     async def _request_generator(
-        self, stop_event: asyncio.Event,
+        self,
+        stop_event: asyncio.Event,
     ) -> AsyncIterator[QueuesDownstreamRequest]:
         """Drain the send queue and yield requests to the bidi stream.
 
@@ -242,6 +242,7 @@ class AsyncDownstreamReceiver:
                 if self._transport._is_connection_error(e):
                     await self._transport._on_connection_lost()
                 from kubemq.core.exceptions import from_grpc_error
+
                 raise from_grpc_error(e) from e
 
     def _handle_disconnection(self) -> None:

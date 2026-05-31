@@ -3,6 +3,7 @@ from __future__ import annotations
 import dataclasses
 import uuid
 from dataclasses import dataclass, field
+from typing import Any
 
 from kubemq.common.channel_validators import validate_channel_name
 from kubemq.grpc import QueuesDownstreamRequest, QueuesDownstreamRequestType
@@ -38,7 +39,7 @@ class QueuesPollRequest:
             raise ValueError("poll_wait_timeout_in_seconds must be between 1 and 3600")
 
     # Utility methods
-    def with_updates(self, **kwargs: object) -> QueuesPollRequest:
+    def with_updates(self, **kwargs: Any) -> QueuesPollRequest:
         """Create a new poll request with updated values."""
         return dataclasses.replace(self, **kwargs)
 

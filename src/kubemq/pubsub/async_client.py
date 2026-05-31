@@ -509,7 +509,7 @@ class AsyncClient(NativeAsyncBaseClient):
     # Subscription Operations
     # =========================================================================
 
-    async def subscribe_to_events(
+    async def subscribe_to_events(  # noqa: C901
         self,
         subscription: EventsSubscription,
         cancellation_token: AsyncCancellationToken | None = None,
@@ -849,7 +849,7 @@ class AsyncClient(NativeAsyncBaseClient):
                 attempt += 1
                 await asyncio.sleep(delay)
 
-    async def subscribe_to_events_store(
+    async def subscribe_to_events_store(  # noqa: C901
         self,
         subscription: EventsStoreSubscription,
         cancellation_token: AsyncCancellationToken | None = None,
@@ -1051,7 +1051,7 @@ class AsyncClient(NativeAsyncBaseClient):
         finally:
             await self._unregister_subscription(token)
 
-    async def subscribe_with_callback(
+    async def subscribe_with_callback(  # noqa: C901
         self,
         subscription: EventsSubscription,
         callback: AsyncEventCallback,
@@ -1270,7 +1270,7 @@ class AsyncClient(NativeAsyncBaseClient):
                 await asyncio.gather(*pending_tasks, return_exceptions=True)
             await self._unregister_subscription(token)
 
-    async def subscribe_store_with_callback(
+    async def subscribe_store_with_callback(  # noqa: C901
         self,
         subscription: EventsStoreSubscription,
         callback: AsyncEventStoreCallback,
