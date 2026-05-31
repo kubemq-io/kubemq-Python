@@ -399,7 +399,7 @@ class ClientConfig:
     # Callbacks (not serializable — set programmatically only)
     on_buffer_drain: Callable[[int], None] | None = field(default=None, repr=False)
 
-    def __post_init__(self) -> None:
+    def __post_init__(self) -> None:  # noqa: C901
         """Validate and complete configuration."""
         if not self.address:
             self.address = "localhost:50000"
@@ -616,7 +616,7 @@ class ClientConfig:
         try:
             import tomllib
         except ImportError:
-            import tomli as tomllib  # type: ignore[no-redef]
+            import tomli as tomllib
 
         with open(path, "rb") as f:
             data = tomllib.load(f)
@@ -689,4 +689,3 @@ class ClientConfig:
 
         load_dotenv(path)
         return cls.from_env(prefix)
-

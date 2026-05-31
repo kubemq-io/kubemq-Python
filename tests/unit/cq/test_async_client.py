@@ -901,7 +901,7 @@ class TestAsyncCQClientBatchErrorHandling:
 
     @pytest.mark.asyncio
     async def test_send_commands_batch_handles_error(self, mock_transport):
-        """Test send_commands_batch enters error path when send_request fails."""
+        """Test send_commands_batch returns error responses when send_command fails."""
         client = AsyncClient(address="localhost:50000")
         client._transport = mock_transport
         client._connected = True  # type: ignore[attr-defined]
@@ -917,12 +917,18 @@ class TestAsyncCQClientBatchErrorHandling:
             for i in range(4)
         ]
 
-        with pytest.raises(Exception):
-            await client.send_commands_batch(messages)
+        results = await client.send_commands_batch(messages)
+
+        assert len(results) == 4
+        for r in results:
+            assert isinstance(r, CommandResponse)
+            assert r.is_executed is False
+            assert "Send failed" in r.error
+            assert r.command_received is None
 
     @pytest.mark.asyncio
     async def test_send_queries_batch_handles_error(self, mock_transport):
-        """Test send_queries_batch enters error path when send_request fails."""
+        """Test send_queries_batch returns error responses when send_query fails."""
         client = AsyncClient(address="localhost:50000")
         client._transport = mock_transport
         client._connected = True  # type: ignore[attr-defined]
@@ -938,8 +944,121 @@ class TestAsyncCQClientBatchErrorHandling:
             for i in range(4)
         ]
 
-        with pytest.raises(Exception):
-            await client.send_queries_batch(messages)
+        results = await client.send_queries_batch(messages)
+
+        assert len(results) == 4
+        for r in results:
+            assert isinstance(r, QueryResponse)
+            assert r.is_executed is False
+            assert "Query failed" in r.error
+            assert r.query_received is None
+
+    @pytest.mark.asyncio
+    async def test_send_commands_batch_mixed_success_and_error(self, mock_transport):
+        """Test batch with some commands succeeding and some failing."""
+        client = AsyncClient(address="localhost:50000")
+        client._transport = mock_transport
+        client._connected = True  # type: ignore[attr-defined]
+
+        async def mock_send_request(request, timeout_seconds=10):
+            if b"fail" in request.Body:
+                raise Exception("selective-fail")
+            response = pb.Response()
+            response.Executed = True
+            return response
+
+        mock_transport.send_request.side_effect = mock_send_request
+
+        messages = [
+            CommandMessage(channel="test", body=b"ok-0", timeout_in_seconds=10),
+            CommandMessage(channel="test", body=b"fail-1", timeout_in_seconds=10),
+            CommandMessage(channel="test", body=b"ok-2", timeout_in_seconds=10),
+            CommandMessage(channel="test", body=b"fail-3", timeout_in_seconds=10),
+        ]
+
+        results = await client.send_commands_batch(messages)
+
+        assert len(results) == 4
+        assert results[0].is_executed is True
+        assert results[1].is_executed is False
+        assert "selective-fail" in results[1].error
+        assert results[1].command_received is None
+        assert results[2].is_executed is True
+        assert results[3].is_executed is False
+
+    @pytest.mark.asyncio
+    async def test_send_queries_batch_mixed_success_and_error(self, mock_transport):
+        """Test batch with some queries succeeding and some failing."""
+        client = AsyncClient(address="localhost:50000")
+        client._transport = mock_transport
+        client._connected = True  # type: ignore[attr-defined]
+
+        async def mock_send_request(request, timeout_seconds=10):
+            if b"fail" in request.Body:
+                raise Exception("selective-fail")
+            response = pb.Response()
+            response.Executed = True
+            response.Body = b"result"
+            return response
+
+        mock_transport.send_request.side_effect = mock_send_request
+
+        messages = [
+            QueryMessage(channel="test", body=b"ok-0", timeout_in_seconds=10),
+            QueryMessage(channel="test", body=b"fail-1", timeout_in_seconds=10),
+            QueryMessage(channel="test", body=b"ok-2", timeout_in_seconds=10),
+            QueryMessage(channel="test", body=b"fail-3", timeout_in_seconds=10),
+        ]
+
+        results = await client.send_queries_batch(messages)
+
+        assert len(results) == 4
+        assert results[0].is_executed is True
+        assert results[1].is_executed is False
+        assert "selective-fail" in results[1].error
+        assert results[1].query_received is None
+        assert results[2].is_executed is True
+        assert results[3].is_executed is False
+
+    @pytest.mark.asyncio
+    async def test_send_commands_batch_error_has_correct_request_id(self, mock_transport):
+        """Test error responses carry the original message id as request_id."""
+        client = AsyncClient(address="localhost:50000")
+        client._transport = mock_transport
+        client._connected = True  # type: ignore[attr-defined]
+
+        mock_transport.send_request.side_effect = Exception("fail")
+
+        messages = [
+            CommandMessage(channel="test", body=b"data", timeout_in_seconds=10, id=f"cmd-{i}")
+            for i in range(3)
+        ]
+
+        results = await client.send_commands_batch(messages)
+
+        assert len(results) == 3
+        for i, r in enumerate(results):
+            assert r.request_id == f"cmd-{i}"
+
+    @pytest.mark.asyncio
+    async def test_send_queries_batch_error_has_correct_request_id(self, mock_transport):
+        """Test error responses carry the original message id as request_id."""
+        client = AsyncClient(address="localhost:50000")
+        client._transport = mock_transport
+        client._connected = True  # type: ignore[attr-defined]
+
+        mock_transport.send_request.side_effect = Exception("fail")
+
+        messages = [
+            QueryMessage(channel="test", body=b"data", timeout_in_seconds=10, id=f"qry-{i}")
+            for i in range(3)
+        ]
+
+        results = await client.send_queries_batch(messages)
+
+        assert len(results) == 3
+        for i, r in enumerate(results):
+            assert r.request_id == f"qry-{i}"
 
 
 # ==============================================================================
@@ -1836,12 +1955,8 @@ class TestAsyncCQClientSendResponseFast:
         client._transport = mock_transport
         client._connected = True
 
-        command_received = CommandReceived(
-            id="cmd-123", channel="test", reply_channel="reply"
-        )
-        response = CommandResponse(
-            command_received=command_received, is_executed=True, error=""
-        )
+        command_received = CommandReceived(id="cmd-123", channel="test", reply_channel="reply")
+        response = CommandResponse(command_received=command_received, is_executed=True, error="")
 
         await client.send_response_fast(response)
 
@@ -1853,12 +1968,8 @@ class TestAsyncCQClientSendResponseFast:
         from kubemq.cq.command_message_received import CommandReceived
 
         client = AsyncClient(address="localhost:50000")
-        command_received = CommandReceived(
-            id="cmd-123", channel="test", reply_channel="reply"
-        )
-        response = CommandResponse(
-            command_received=command_received, is_executed=True, error=""
-        )
+        command_received = CommandReceived(id="cmd-123", channel="test", reply_channel="reply")
+        response = CommandResponse(command_received=command_received, is_executed=True, error="")
 
         with pytest.raises(KubeMQConnectionError):
             await client.send_response_fast(response)
@@ -2070,12 +2181,15 @@ class TestAsyncCQClientSubscribeToCommandsFast:
             if first_call[0]:
                 first_call[0] = False
                 return AsyncIteratorMock([mock_pb])
+
             # On second call, raise ClientClosed to break the loop
             class StopIter:
                 def __aiter__(self):
                     return self
+
                 async def __anext__(self):
                     raise KubeMQClientClosedError()
+
             return StopIter()
 
         mock_transport.subscribe_to_requests = MagicMock(side_effect=make_iterator)
@@ -2084,7 +2198,9 @@ class TestAsyncCQClientSubscribeToCommandsFast:
         with pytest.raises(KubeMQClientClosedError):
             with patch("kubemq.cq.async_client.asyncio.sleep", new_callable=AsyncMock):
                 async for cmd in client.subscribe_to_commands_fast(
-                    CommandsSubscription(channel="test", on_receive_command_callback=lambda c: None),
+                    CommandsSubscription(
+                        channel="test", on_receive_command_callback=lambda c: None
+                    ),
                 ):
                     received.append(cmd)
 
@@ -2290,17 +2406,17 @@ class TestAsyncCQClientSubscribeCommandsCallbackEdgePaths:
         client._connected = True
 
         mock_pb = _make_mock_pb_request()
-        mock_transport.subscribe_to_requests = MagicMock(
-            return_value=AsyncIteratorMock([mock_pb])
-        )
+        mock_transport.subscribe_to_requests = MagicMock(return_value=AsyncIteratorMock([mock_pb]))
 
         subscription = CommandsSubscription(
-            channel="test", on_receive_command_callback=lambda c: None,
+            channel="test",
+            on_receive_command_callback=lambda c: None,
         )
 
         with patch.object(client, "_register_subscription_task") as mock_reg:
             await client.subscribe_commands_with_callback(
-                subscription, AsyncMock(),
+                subscription,
+                AsyncMock(),
             )
             mock_reg.assert_called_once()
 
@@ -2314,12 +2430,11 @@ class TestAsyncCQClientSubscribeCommandsCallbackEdgePaths:
         mock_pb = _make_mock_pb_request(
             tags={"traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"}
         )
-        mock_transport.subscribe_to_requests = MagicMock(
-            return_value=AsyncIteratorMock([mock_pb])
-        )
+        mock_transport.subscribe_to_requests = MagicMock(return_value=AsyncIteratorMock([mock_pb]))
 
         subscription = CommandsSubscription(
-            channel="test", on_receive_command_callback=lambda c: None,
+            channel="test",
+            on_receive_command_callback=lambda c: None,
         )
         received = []
 
@@ -2339,12 +2454,11 @@ class TestAsyncCQClientSubscribeCommandsCallbackEdgePaths:
         client._logger = None  # No logger
 
         mock_pb = _make_mock_pb_request()
-        mock_transport.subscribe_to_requests = MagicMock(
-            return_value=AsyncIteratorMock([mock_pb])
-        )
+        mock_transport.subscribe_to_requests = MagicMock(return_value=AsyncIteratorMock([mock_pb]))
 
         subscription = CommandsSubscription(
-            channel="test", on_receive_command_callback=lambda c: None,
+            channel="test",
+            on_receive_command_callback=lambda c: None,
         )
 
         async def failing_callback(cmd):
@@ -2352,7 +2466,9 @@ class TestAsyncCQClientSubscribeCommandsCallbackEdgePaths:
 
         # Should not raise; error is silently swallowed when no error_callback and no logger
         await client.subscribe_commands_with_callback(
-            subscription, failing_callback, max_concurrent_callbacks=5,
+            subscription,
+            failing_callback,
+            max_concurrent_callbacks=5,
         )
 
 
@@ -2367,17 +2483,17 @@ class TestAsyncCQClientSubscribeQueriesCallbackEdgePaths:
         client._connected = True
 
         mock_pb = _make_mock_pb_request(request_type=2, request_id="qry-task")
-        mock_transport.subscribe_to_requests = MagicMock(
-            return_value=AsyncIteratorMock([mock_pb])
-        )
+        mock_transport.subscribe_to_requests = MagicMock(return_value=AsyncIteratorMock([mock_pb]))
 
         subscription = QueriesSubscription(
-            channel="test", on_receive_query_callback=lambda q: None,
+            channel="test",
+            on_receive_query_callback=lambda q: None,
         )
 
         with patch.object(client, "_register_subscription_task") as mock_reg:
             await client.subscribe_queries_with_callback(
-                subscription, AsyncMock(),
+                subscription,
+                AsyncMock(),
             )
             mock_reg.assert_called_once()
 
@@ -2389,15 +2505,15 @@ class TestAsyncCQClientSubscribeQueriesCallbackEdgePaths:
         client._connected = True
 
         mock_pb = _make_mock_pb_request(
-            request_type=2, request_id="qry-link",
+            request_type=2,
+            request_id="qry-link",
             tags={"traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"},
         )
-        mock_transport.subscribe_to_requests = MagicMock(
-            return_value=AsyncIteratorMock([mock_pb])
-        )
+        mock_transport.subscribe_to_requests = MagicMock(return_value=AsyncIteratorMock([mock_pb]))
 
         subscription = QueriesSubscription(
-            channel="test", on_receive_query_callback=lambda q: None,
+            channel="test",
+            on_receive_query_callback=lambda q: None,
         )
         received = []
 
@@ -2417,12 +2533,11 @@ class TestAsyncCQClientSubscribeQueriesCallbackEdgePaths:
         client._logger = None  # No logger
 
         mock_pb = _make_mock_pb_request(request_type=2, request_id="qry-nohandler")
-        mock_transport.subscribe_to_requests = MagicMock(
-            return_value=AsyncIteratorMock([mock_pb])
-        )
+        mock_transport.subscribe_to_requests = MagicMock(return_value=AsyncIteratorMock([mock_pb]))
 
         subscription = QueriesSubscription(
-            channel="test", on_receive_query_callback=lambda q: None,
+            channel="test",
+            on_receive_query_callback=lambda q: None,
         )
 
         async def failing_callback(qry):
@@ -2430,7 +2545,9 @@ class TestAsyncCQClientSubscribeQueriesCallbackEdgePaths:
 
         # Should not raise; error is silently swallowed
         await client.subscribe_queries_with_callback(
-            subscription, failing_callback, max_concurrent_callbacks=5,
+            subscription,
+            failing_callback,
+            max_concurrent_callbacks=5,
         )
 
     @pytest.mark.asyncio
@@ -2450,12 +2567,14 @@ class TestAsyncCQClientSubscribeQueriesCallbackEdgePaths:
         mock_transport.subscribe_to_requests = MagicMock(return_value=ErrorIterator())
 
         subscription = QueriesSubscription(
-            channel="test", on_receive_query_callback=lambda q: None,
+            channel="test",
+            on_receive_query_callback=lambda q: None,
         )
 
         with pytest.raises(RuntimeError, match="outer qry reraise"):
             await client.subscribe_queries_with_callback(
-                subscription, AsyncMock(),
+                subscription,
+                AsyncMock(),
             )
 
 
@@ -2481,7 +2600,8 @@ class TestAsyncCQClientSubscribeToCancelledError:
         mock_transport.subscribe_to_requests = MagicMock(return_value=CancelledIterator())
 
         subscription = CommandsSubscription(
-            channel="test", on_receive_command_callback=lambda c: None,
+            channel="test",
+            on_receive_command_callback=lambda c: None,
         )
 
         # CancelledError should be caught and not propagated
@@ -2510,7 +2630,8 @@ class TestAsyncCQClientSubscribeToCancelledError:
         mock_transport.subscribe_to_requests = MagicMock(return_value=CancelledIterator())
 
         subscription = QueriesSubscription(
-            channel="test", on_receive_query_callback=lambda q: None,
+            channel="test",
+            on_receive_query_callback=lambda q: None,
         )
 
         received = []
@@ -2531,9 +2652,7 @@ class TestAsyncCQClientSubscribeToQueriesAsyncCallback:
         client._connected = True
 
         mock_pb = _make_mock_pb_request(request_type=2, request_id="qry-async-cb")
-        mock_transport.subscribe_to_requests = MagicMock(
-            return_value=AsyncIteratorMock([mock_pb])
-        )
+        mock_transport.subscribe_to_requests = MagicMock(return_value=AsyncIteratorMock([mock_pb]))
 
         received = []
 
@@ -2541,7 +2660,8 @@ class TestAsyncCQClientSubscribeToQueriesAsyncCallback:
             received.append(q)
 
         subscription = QueriesSubscription(
-            channel="test", on_receive_query_callback=async_cb,
+            channel="test",
+            on_receive_query_callback=async_cb,
         )
 
         queries = []

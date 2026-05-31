@@ -193,7 +193,7 @@ class QueueBatchSendResult:
     def __len__(self) -> int:
         return len(self.results)
 
-    def __iter__(self) -> Iterator[QueueSendResult]:  # type: ignore[override]
+    def __iter__(self) -> Iterator[QueueSendResult]:
         return iter(self.results)
 
     def __getitem__(self, index: int) -> QueueSendResult:

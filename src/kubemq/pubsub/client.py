@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import dataclasses
 import threading
 import time
@@ -165,7 +166,6 @@ class Client(BaseClient):
         # PubSub-specific initialization
         self._event_sender: EventSender | None = None
         self._sender_lock = threading.Lock()
-
 
     async def __aenter__(self) -> Client:
         """Async context manager entry."""
@@ -955,10 +955,9 @@ class Client(BaseClient):
                 # PY-2: Force channel rebuild on retry iterations to get a
                 # fresh gRPC channel instead of relying on transparent reconnect.
                 if attempt > 0 and transport is not None:
-                    try:
+                    # stream_callable will fail and trigger backoff
+                    with contextlib.suppress(Exception):
                         transport.recreate_channel()
-                    except Exception:
-                        pass  # stream_callable will fail and trigger backoff
 
                 response = stream_callable()
 
@@ -971,17 +970,17 @@ class Client(BaseClient):
 
                 # Start a watcher thread to cancel the gRPC stream when
                 # the cancellation token or shutdown event fires.
-                def _cancel_watcher(resp=response, stop=_watcher_cancel):  # type: ignore[assignment]
+                def _cancel_watcher(
+                    resp: Any = response, stop: threading.Event = _watcher_cancel
+                ) -> None:
                     while (
                         not cancel_token.is_set()
                         and not self._shutdown_event.is_set()
                         and not stop.is_set()
                     ):
                         cancel_token.wait(timeout=0.5)
-                    try:
+                    with contextlib.suppress(Exception):
                         resp.cancel()
-                    except Exception:
-                        pass
 
                 _watcher_thread = threading.Thread(target=_cancel_watcher, daemon=True)
                 _watcher_thread.start()
@@ -992,7 +991,10 @@ class Client(BaseClient):
                     # PY-7: Only reset backoff after sustained success
                     # (cooldown period with no errors), not after a single message.
                     now = time.monotonic()
-                    if _last_error_time == 0.0 or (now - _last_error_time) >= _BACKOFF_COOLDOWN_SECONDS:
+                    if (
+                        _last_error_time == 0.0
+                        or (now - _last_error_time) >= _BACKOFF_COOLDOWN_SECONDS
+                    ):
                         attempt = 0
                     start = time.perf_counter()
                     error_type_val = None

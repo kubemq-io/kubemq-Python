@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import threading
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock
 
 import pytest
@@ -134,7 +134,7 @@ class TestTokenManager:
 
     @pytest.mark.asyncio
     async def test_expired_token_refreshed(self, holder):
-        already_expired = datetime.now(UTC) - timedelta(seconds=10)
+        already_expired = datetime.now(timezone.utc) - timedelta(seconds=10)
         provider = MagicMock()
         provider.get_token.return_value = ("fresh-token", None)
 
@@ -147,7 +147,7 @@ class TestTokenManager:
 
     @pytest.mark.asyncio
     async def test_non_expired_token_not_refreshed(self, holder):
-        future = datetime.now(UTC) + timedelta(hours=1)
+        future = datetime.now(timezone.utc) + timedelta(hours=1)
         provider = MagicMock()
         provider.get_token.return_value = ("token", future)
 
@@ -240,7 +240,7 @@ class TestTokenManagerProactiveRefresh:
 
     @pytest.mark.asyncio
     async def test_proactive_refresh_scheduled(self, holder):
-        future = datetime.now(UTC) + timedelta(minutes=5)
+        future = datetime.now(timezone.utc) + timedelta(minutes=5)
         provider = MagicMock()
         provider.get_token.return_value = ("token-1", future)
 
@@ -262,7 +262,7 @@ class TestTokenManagerProactiveRefresh:
             if call_count[0] == 1:
                 return (
                     "token-1",
-                    datetime.now(UTC) + timedelta(minutes=5),
+                    datetime.now(timezone.utc) + timedelta(minutes=5),
                 )
             return ("token-2", None)
 
@@ -291,7 +291,7 @@ class TestTokenManagerProactiveRefresh:
             if call_count[0] == 1:
                 return (
                     "token-1",
-                    datetime.now(UTC) + timedelta(minutes=5),
+                    datetime.now(timezone.utc) + timedelta(minutes=5),
                 )
             raise RuntimeError("refresh failed")
 
@@ -316,7 +316,7 @@ class TestTokenManagerCloseWithRefresh:
 
     @pytest.mark.asyncio
     async def test_close_cancels_active_refresh_task(self, holder):
-        future = datetime.now(UTC) + timedelta(minutes=5)
+        future = datetime.now(timezone.utc) + timedelta(minutes=5)
         provider = MagicMock()
         provider.get_token.return_value = ("token-1", future)
 

@@ -6,7 +6,7 @@ import asyncio
 import contextlib
 import logging
 from collections.abc import AsyncIterator
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from kubemq.common.helpers import fast_id
 from kubemq.grpc import (
@@ -162,6 +162,7 @@ class AsyncUpstreamSender:
     async def _run_bidi_stream(self) -> None:
         """Open bidi stream with concurrent send/receive."""
         import grpc
+
         stub = self._transport._get_stub()
 
         # Capture the stop event for THIS stream iteration so the generator
@@ -174,13 +175,12 @@ class AsyncUpstreamSender:
             receiver_task = asyncio.create_task(self._receive_responses(call))
             # Signal that the stream is ready for sending.
             self._stream_ready.set()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await receiver_task
-            except asyncio.CancelledError:
-                pass
         except grpc.aio.AioRpcError as e:
             if e.code() != grpc.StatusCode.CANCELLED:
                 from kubemq.core.exceptions import from_grpc_error
+
                 raise from_grpc_error(e) from e
         finally:
             # Signal the generator bound to this call to stop before
@@ -188,9 +188,10 @@ class AsyncUpstreamSender:
             stop_event.set()
             await self._transport._unregister_stream(call)
 
-    async def _receive_responses(self, call) -> None:
+    async def _receive_responses(self, call: Any) -> None:
         """Read responses from the bidi stream and resolve futures."""
         import grpc
+
         try:
             async for response in call:
                 if self._closed:
@@ -201,10 +202,12 @@ class AsyncUpstreamSender:
         except grpc.aio.AioRpcError as e:
             if e.code() != grpc.StatusCode.CANCELLED:
                 from kubemq.core.exceptions import from_grpc_error
+
                 raise from_grpc_error(e) from e
 
     async def _request_generator(
-        self, stop_event: asyncio.Event,
+        self,
+        stop_event: asyncio.Event,
     ) -> AsyncIterator[QueuesUpstreamRequest]:
         """Drain the send queue and yield requests to the bidi stream.
 

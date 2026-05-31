@@ -324,7 +324,7 @@ class TestAsyncPingableProtocolIsinstance:
 
 
 class TestTransportProtocol:
-    def test_isinstance_check(self):
+    def test_isinstance_check(self):  # noqa: C901
         from kubemq.core.types import TransportProtocol
 
         class MyTransport:

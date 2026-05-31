@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import threading
 import time
 from pathlib import Path
@@ -155,7 +156,6 @@ class Client(BaseClient):
             )
 
         super().__init__(config=config)
-
 
     async def __aenter__(self) -> Client:
         """Async context manager entry."""
@@ -900,13 +900,11 @@ class Client(BaseClient):
 
                 # Start a watcher thread to cancel the gRPC stream when
                 # the cancellation token or shutdown event fires.
-                def _cancel_watcher(resp=response):  # type: ignore[assignment]
+                def _cancel_watcher(resp: Any = response) -> None:
                     while not cancel_token.is_set() and not self._shutdown_event.is_set():
                         cancel_token.wait(timeout=0.5)
-                    try:
+                    with contextlib.suppress(Exception):
                         resp.cancel()
-                    except Exception:
-                        pass
 
                 watcher = threading.Thread(target=_cancel_watcher, daemon=True)
                 watcher.start()

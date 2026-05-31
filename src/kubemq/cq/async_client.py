@@ -247,10 +247,7 @@ class AsyncClient(NativeAsyncBaseClient):
                     return (
                         index,
                         CommandResponse(
-                            command_received=CommandReceived(
-                                id=msg.id or "",
-                                channel=msg.channel,
-                            ),
+                            request_id=msg.id or "",
                             is_executed=False,
                             error=str(e),
                         ),
@@ -391,10 +388,7 @@ class AsyncClient(NativeAsyncBaseClient):
                     return (
                         index,
                         QueryResponse(
-                            query_received=QueryReceived(
-                                id=msg.id or "",
-                                channel=msg.channel,
-                            ),
+                            request_id=msg.id or "",
                             is_executed=False,
                             error=str(e),
                         ),
@@ -479,13 +473,19 @@ class AsyncClient(NativeAsyncBaseClient):
         if self._pipeline_sem is not None:
             async with self._pipeline_sem:
                 response = await self._retry_executor.execute(
-                    "SendCommand", transport.send_request, pb_request,
-                    timeout_seconds=message.timeout_in_seconds, channel=message.channel,
+                    "SendCommand",
+                    transport.send_request,
+                    pb_request,
+                    timeout_seconds=message.timeout_in_seconds,
+                    channel=message.channel,
                 )
         else:
             response = await self._retry_executor.execute(
-                "SendCommand", transport.send_request, pb_request,
-                timeout_seconds=message.timeout_in_seconds, channel=message.channel,
+                "SendCommand",
+                transport.send_request,
+                pb_request,
+                timeout_seconds=message.timeout_in_seconds,
+                channel=message.channel,
             )
         return CommandResponse.decode(response)
 
@@ -502,13 +502,19 @@ class AsyncClient(NativeAsyncBaseClient):
         if self._pipeline_sem is not None:
             async with self._pipeline_sem:
                 response = await self._retry_executor.execute(
-                    "SendQuery", transport.send_request, pb_request,
-                    timeout_seconds=message.timeout_in_seconds, channel=message.channel,
+                    "SendQuery",
+                    transport.send_request,
+                    pb_request,
+                    timeout_seconds=message.timeout_in_seconds,
+                    channel=message.channel,
                 )
         else:
             response = await self._retry_executor.execute(
-                "SendQuery", transport.send_request, pb_request,
-                timeout_seconds=message.timeout_in_seconds, channel=message.channel,
+                "SendQuery",
+                transport.send_request,
+                pb_request,
+                timeout_seconds=message.timeout_in_seconds,
+                channel=message.channel,
             )
         return QueryResponse.decode(response)
 
@@ -857,7 +863,7 @@ class AsyncClient(NativeAsyncBaseClient):
         finally:
             await self._unregister_subscription(token)
 
-    async def subscribe_commands_with_callback(
+    async def subscribe_commands_with_callback(  # noqa: C901
         self,
         subscription: CommandsSubscription,
         callback: AsyncCommandCallback,
@@ -993,7 +999,7 @@ class AsyncClient(NativeAsyncBaseClient):
                 await asyncio.gather(*pending_tasks, return_exceptions=True)
             await self._unregister_subscription(token)
 
-    async def subscribe_queries_with_callback(
+    async def subscribe_queries_with_callback(  # noqa: C901
         self,
         subscription: QueriesSubscription,
         callback: AsyncQueryCallback,

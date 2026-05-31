@@ -431,6 +431,7 @@ class AsyncClient(NativeAsyncBaseClient):
         request.RequestTypeData = pb.QueuesDownstreamRequestType.Get
 
         kubemq_response = await receiver.send(request)
+        assert self._transport is not None  # set by _get_downstream_receiver() above
         if kubemq_response is None or kubemq_response.IsError:
             return AsyncQueuesPollResponse(
                 ref_request_id=request.RequestID,
@@ -612,6 +613,7 @@ class AsyncClient(NativeAsyncBaseClient):
                 request.RequestTypeData = pb.QueuesDownstreamRequestType.Get
 
                 kubemq_response = await receiver.send(request)
+                assert self._transport is not None  # set by _get_downstream_receiver() above
                 if kubemq_response is None:
                     return AsyncQueuesPollResponse(
                         ref_request_id=request.RequestID,

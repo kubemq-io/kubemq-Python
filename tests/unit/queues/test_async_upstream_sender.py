@@ -171,7 +171,6 @@ class TestAsyncUpstreamSenderStreamLoop:
         """Test that _stream_loop catches exceptions and retries."""
         sender, _ = _make_sender(reconnect_interval=0.01)
         call_count = 0
-        original_run = sender._run_bidi_stream
 
         async def mock_run():
             nonlocal call_count
@@ -461,7 +460,7 @@ class TestAsyncUpstreamSenderRunBidiStream:
 
         async def _mock_call_iter(self):
             raise error
-            yield  # noqa: unreachable
+            yield  # unreachable; present only to make this an async generator
 
         mock_call = MagicMock()
         mock_call.__aiter__ = _mock_call_iter

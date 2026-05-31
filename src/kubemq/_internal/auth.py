@@ -13,7 +13,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import threading
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -186,11 +186,11 @@ class TokenManager:
     def _is_expired(self) -> bool:
         if self._expires_at is None:
             return False
-        return datetime.now(UTC) >= self._expires_at
+        return datetime.now(timezone.utc) >= self._expires_at
 
     def _schedule_proactive_refresh(self, expires_at: datetime) -> None:
         self._cancel_proactive_refresh()
-        now = datetime.now(UTC)
+        now = datetime.now(timezone.utc)
         refresh_at = expires_at - self._refresh_buffer
         delay = max(
             (refresh_at - now).total_seconds(),

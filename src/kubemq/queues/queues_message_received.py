@@ -167,7 +167,7 @@ class QueueMessageReceived:
         | None = None,
         is_auto_acked: bool = False,
         async_response_handler: Callable[[QueuesDownstreamRequest], Any] | None = None,
-    ) -> "QueueMessageReceived":
+    ) -> QueueMessageReceived:
         """Decode a protobuf message into a QueueMessageReceived instance.
 
         Args:
