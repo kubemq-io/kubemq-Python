@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [4.1.5] - 2026-05-31
+
+### Fixes
+- **Raise the declared `grpcio` floor to `>=1.71.2`** to match the version baked into the bundled generated gRPC stub (`GRPC_GENERATED_VERSION = '1.71.2'`). The previous floor of `>=1.51.0` allowed environments to resolve a grpcio in the 1.51.0–1.71.1 range that installs cleanly but then raises `RuntimeError` on `import kubemq`. The constraint mismatch now surfaces at dependency-resolution time with a clear message instead of as a cryptic import-time error. A default `pip install kubemq` was unaffected (it already resolved the latest grpcio); this only impacted environments that externally pinned grpcio below 1.71.2.
+
 ## [4.1.4] - 2026-05-31
 
 ### Fixes

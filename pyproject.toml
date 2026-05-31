@@ -1,6 +1,6 @@
 [project]
 name = "kubemq"
-version = "4.1.4"
+version = "4.1.5"
 description = "KubeMQ Python SDK - Production-grade messaging with async support, pub/sub, queues, and commands/queries"
 readme = "README.md"
 license = { text = "MIT" }
@@ -26,14 +26,16 @@ classifiers = [
 keywords = ["kubemq", "messaging", "queue", "pubsub", "grpc"]
 
 # Dependency justification (per GS REQ-CQ-4):
-# - grpcio: Required — gRPC transport runtime
+# - grpcio: Required — gRPC transport runtime. Floor must be >= the
+#   GRPC_GENERATED_VERSION baked into src/kubemq/grpc/kubemq_pb2_grpc.py
+#   (currently 1.71.2); older grpcio raises RuntimeError at import.
 # - protobuf: Required — message serialization
 # - PyJWT: Justified — JWT token decoding for auth_token verification
 # Total non-excluded: 3 ≤ 5 limit
 # Note: pydantic removed — replaced with stdlib dataclasses for performance.
 # typing_extensions and tomli are conditional deps for Python <3.11 compat.
 dependencies = [
-    "grpcio>=1.51.0,<2.0.0",
+    "grpcio>=1.71.2,<2.0.0",
     "protobuf>=4.21.0,<6.0.0",
     "PyJWT>=2.6.0,<3.0.0",
     "typing_extensions>=4.0; python_version < '3.11'",
