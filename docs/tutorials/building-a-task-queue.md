@@ -15,7 +15,7 @@ A task processing pipeline where:
 - **Python 3.9 or later** ([download](https://www.python.org/downloads/))
 - **KubeMQ server** running on `localhost:50000`:
   ```bash
-  docker run -d -p 50000:50000 -p 9090:9090 kubemq/kubemq
+  docker run -d -p 50000:50000 -p 9090:9090 europe-docker.pkg.dev/kubemq/images/kubemq-next:latest
   ```
 - A virtual environment:
   ```bash
