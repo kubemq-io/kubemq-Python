@@ -11,7 +11,7 @@ A simple request-reply system where a client sends a query (e.g., "fetch user pr
 - **Python 3.9 or later** ([download](https://www.python.org/downloads/))
 - **KubeMQ server** running on `localhost:50000`. The quickest way:
   ```bash
-  docker run -d -p 50000:50000 -p 9090:9090 kubemq/kubemq
+  docker run -d -p 50000:50000 -p 9090:9090 europe-docker.pkg.dev/kubemq/images/kubemq-next:latest
   ```
 - A virtual environment for your project:
   ```bash

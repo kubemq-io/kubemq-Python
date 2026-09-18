@@ -36,7 +36,7 @@ def kubemq_container():
                 container_name,
                 "-p",
                 f"{port}:50000",
-                "kubemq/kubemq:v2.6.0",
+                "europe-docker.pkg.dev/kubemq/images/kubemq-next:latest",
             ],
             check=True,
             capture_output=True,

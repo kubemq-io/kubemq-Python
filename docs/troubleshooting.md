@@ -26,7 +26,7 @@ address, or a firewall is blocking port 50000.
    ```
 2. If not running, start it:
    ```bash
-   docker run -d -p 8080:8080 -p 50000:50000 kubemq/kubemq-community
+   docker run -d -p 8080:8080 -p 50000:50000 europe-docker.pkg.dev/kubemq/images/kubemq-next:latest
    ```
 3. If running on a different host/port, update the client address:
    ```python

@@ -23,7 +23,7 @@ pip install kubemq[otel]    # OpenTelemetry tracing integration
 The fastest way to get a KubeMQ server running locally:
 
 ```bash
-docker run -d -p 8080:8080 -p 50000:50000 kubemq/kubemq-community
+docker run -d -p 8080:8080 -p 50000:50000 europe-docker.pkg.dev/kubemq/images/kubemq-next:latest
 ```
 
 Verify it's running:

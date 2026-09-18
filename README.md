@@ -190,7 +190,7 @@ for solutions to common errors.
 
 | Problem | Solution |
 |---------|----------|
-| `Connection refused` | Ensure KubeMQ is running: `docker run -p 50000:50000 kubemq/kubemq-community` |
+| `Connection refused` | Ensure KubeMQ is running: `docker run -p 50000:50000 europe-docker.pkg.dev/kubemq/images/kubemq-next:latest` |
 | `Authentication failed` | Verify `auth_token` matches server configuration |
 | `Channel not found` | Create the channel first or enable auto-create on the server |
 | `Timeout / deadline exceeded` | Increase `timeout_in_seconds` or check network latency |
